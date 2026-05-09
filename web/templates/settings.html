@@ -57,26 +57,25 @@
             </div>
             <div class="card-body">
 
-                <div class="settings-toggle-pair-row">
-                    <div class="settings-form-group popover-anchor">
-                        <label class="settings-label">
-                            <input type="checkbox" class="toggle toggle-primary"
-                                   x-model="form.downloadSampleImages">
-                            <span class="label-text">{{ t('settings.scraper.download_sample_images_label') }}</span>
-                            <button type="button" class="help-popover-btn"
-                                    @click.prevent="showSampleImagesHelp = !showSampleImagesHelp"
-                                    :aria-expanded="showSampleImagesHelp">
-                                <i class="bi bi-question-circle"></i>
-                            </button>
-                        </label>
-                        <div x-show="showSampleImagesHelp" x-cloak x-transition
-                             @click.outside="showSampleImagesHelp = false"
-                             class="help-popover">
-                            <small class="help-popover__body">
-                                {{ t('settings.scraper.download_sample_images_hint') }}
-                            </small>
-                        </div>
+                <div class="settings-form-group popover-anchor">
+                    <label class="settings-label">
+                        <input type="checkbox" class="toggle toggle-primary"
+                               x-model="form.downloadSampleImages">
+                        <span class="label-text">{{ t('settings.scraper.download_sample_images_label') }}</span>
+                        <button type="button" class="help-popover-btn"
+                                @click.prevent="showSampleImagesHelp = !showSampleImagesHelp"
+                                :aria-expanded="showSampleImagesHelp">
+                            <i class="bi bi-question-circle"></i>
+                        </button>
+                    </label>
+                    <div x-show="showSampleImagesHelp" x-cloak x-transition
+                         @click.outside="showSampleImagesHelp = false"
+                         class="help-popover">
+                        <small class="help-popover__body">
+                            {{ t('settings.scraper.download_sample_images_hint') }}
+                        </small>
                     </div>
+                </div>
 
                 <div class="settings-form-group">
                     <label class="settings-label">

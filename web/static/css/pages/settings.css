@@ -62,27 +62,6 @@
     overflow-wrap: anywhere;
 }
 
-/* 兩 toggle 並排列（下載劇照 + 以圖搜圖 56e）*/
-#settings-components .settings-toggle-pair-row {
-    display: flex;
-    gap: 32px;          /* 兩組之間明顯分隔，讓 ? 視覺上歸屬正確的 toggle */
-    align-items: center;
-    flex-wrap: wrap;    /* 防溢出 */
-}
-
-#settings-components .settings-toggle-pair-row > .settings-form-group {
-    flex: 0 0 auto;     /* natural width：不撐滿，緊靠左側 */
-    margin-bottom: 0;   /* 由 wrapper 下方 status box 的 mt-2 負責間距 */
-}
-
-/* pair-row 內 ? 緊貼 label，不要 12px 浮在中間（settings-label gap 12px 預設覆蓋）*/
-#settings-components .settings-toggle-pair-row .settings-label {
-    gap: 4px;
-}
-/* toggle 與 label-text 之間維持原本可讀距離 */
-#settings-components .settings-toggle-pair-row .settings-label .toggle {
-    margin-right: 8px;
-}
 
 /* ========== Responsive: 行動版（窄螢幕）RWD ========== */
 
@@ -138,14 +117,6 @@
         word-break: break-all;
     }
 
-    /* 窄螢幕：兩 toggle 回到垂直堆疊 */
-    #settings-components .settings-toggle-pair-row {
-        flex-direction: column;
-        gap: 0;
-    }
-    #settings-components .settings-toggle-pair-row > .settings-form-group {
-        margin-bottom: 12px;  /* 恢復垂直模式的 settings-form-group 既有 margin */
-    }
 }
 
 /* Small Mobile: 480px 以下 */

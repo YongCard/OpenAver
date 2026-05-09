@@ -861,7 +861,6 @@
       "beta_compilation": "tag 越完整（系列 / 片商 / cast）相似度越準；tag 很少的影片建議先補完 NFO",
       "h6_manage": "使用提示",
       "manage_enable": "無需設定，開箱即用",
-      "manage_disable": "如不需要此功能，可在 Settings 中關閉魔杖按鈕顯示",
       "manage_scanner": "新增影片後 Scanner「產生網頁」時自動更新索引，無需手動操作"
     },
     "shortcuts": {
