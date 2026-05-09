@@ -429,6 +429,13 @@ class VideoRepository:
             cursor.execute(sql, list(video_dict.values()))
             conn.commit()
 
+            # invalidate ranker cache（寫成功才 invalidate；commit 失敗跳過）
+            try:
+                from core.similar.ranker_cache import SimilarRankerCache
+                SimilarRankerCache.invalidate()
+            except Exception:
+                logger.exception("SimilarRankerCache invalidate failed (non-fatal)")
+
             # 取得 id
             cursor.execute("SELECT id FROM videos WHERE path = ?", (video.path,))
             row = cursor.fetchone()
@@ -495,6 +502,14 @@ class VideoRepository:
                     inserted += 1
 
             conn.commit()
+
+            # invalidate ranker cache（寫成功才 invalidate；commit 失敗跳過）
+            try:
+                from core.similar.ranker_cache import SimilarRankerCache
+                SimilarRankerCache.invalidate()
+            except Exception:
+                logger.exception("SimilarRankerCache invalidate failed (non-fatal)")
+
             return (inserted, updated)
         finally:
             conn.close()
@@ -554,6 +569,14 @@ class VideoRepository:
             cursor.execute(f"DELETE FROM videos WHERE path IN ({placeholders})", paths)
             deleted_count = cursor.rowcount
             conn.commit()
+
+            # invalidate ranker cache（寫成功才 invalidate；commit 失敗跳過）
+            try:
+                from core.similar.ranker_cache import SimilarRankerCache
+                SimilarRankerCache.invalidate()
+            except Exception:
+                logger.exception("SimilarRankerCache invalidate failed (non-fatal)")
+
             return deleted_count
         finally:
             conn.close()
@@ -584,6 +607,14 @@ class VideoRepository:
             count = cursor.fetchone()[0]
             cursor.execute("DELETE FROM videos")
             conn.commit()
+
+            # invalidate ranker cache（寫成功才 invalidate；commit 失敗跳過）
+            try:
+                from core.similar.ranker_cache import SimilarRankerCache
+                SimilarRankerCache.invalidate()
+            except Exception:
+                logger.exception("SimilarRankerCache invalidate failed (non-fatal)")
+
             return count
         finally:
             conn.close()
