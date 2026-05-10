@@ -778,7 +778,11 @@ async def get_image(path: str = Query(..., description="圖片路徑")):
         return Response(status_code=404, content="檔案不存在")
 
     media_type = mime_types[ext]
-    return FileResponse(local_path, media_type=media_type)
+    return FileResponse(
+        local_path,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @router.get("/video")
