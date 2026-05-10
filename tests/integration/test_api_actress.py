@@ -11,6 +11,7 @@ from unittest.mock import patch, MagicMock
 
 from fastapi.testclient import TestClient
 from core.database import init_db
+from core.path_utils import to_file_uri
 
 
 # ---------------------------------------------------------------------------
@@ -374,7 +375,7 @@ class TestPhotoCandidates:
 
         with patch("web.routers.actress._fetch_single_source", return_value=None), \
              patch("web.routers.actress._get_random_videos_with_covers", return_value=[fake_video]), \
-             patch("web.routers.actress.to_file_uri", return_value="file:///fake/video.mp4"):
+             patch("web.routers.actress.to_file_uri", return_value=to_file_uri("/fake/video.mp4")):
             resp = client.get(f"/api/actresses/{ACTRESS_NAME}/photo-candidates")
 
         assert resp.status_code == 200
@@ -623,7 +624,7 @@ class TestSetActressPhoto:
         self._save_actress(client)
         resp = client.post(
             f"/api/actresses/{ACTRESS_NAME}/photo",
-            json={"source": "local_crop", "video_path": "file:///tmp/nonexistent_video.mp4"},
+            json={"source": "local_crop", "video_path": to_file_uri("/tmp/nonexistent_video.mp4")},
         )
         assert resp.status_code == 404
         assert resp.json()["error"] == "video_or_cover_not_found"

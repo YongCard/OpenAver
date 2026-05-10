@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from core.database import init_db, Video, VideoRepository
+from core.path_utils import to_file_uri
 from core.similar.ranker_cache import SimilarRankerCache
 
 
@@ -23,7 +24,7 @@ from core.similar.ranker_cache import SimilarRankerCache
 def _make_video(idx: int, number: str | None = None) -> Video:
     """Build a minimal Video for upsert; path must be unique."""
     return Video(
-        path=f"file:///fake/cache_test_{idx:04d}.mp4",
+        path=to_file_uri(f"/fake/cache_test_{idx:04d}.mp4"),
         number=number or f"CACHE-{idx:04d}",
         title=f"Cache Test Video {idx:04d}",
         maker="MakerX",
@@ -40,7 +41,7 @@ def _make_video(idx: int, number: str | None = None) -> Video:
 def _make_corrupted_video(idx: int) -> Video:
     """Build a Video with corrupted number (digit_prefix rule) for fix_numbers_apply tests."""
     return Video(
-        path=f"file:///fake/fix_num_{idx:04d}.mp4",
+        path=to_file_uri(f"/fake/fix_num_{idx:04d}.mp4"),
         number=f"7IPZ-{idx:03d}",
         title=f"Fix Num Video {idx:04d}",
         maker="MakerY",
@@ -137,7 +138,7 @@ class TestInvalidateAfterDeleteByPaths:
         repo, first, db_path = repo_and_cache
 
         # The seed video at idx=0 exists
-        seed_path = "file:///fake/cache_test_0000.mp4"
+        seed_path = to_file_uri("/fake/cache_test_0000.mp4")
         repo.delete_by_paths([seed_path])
 
         second = SimilarRankerCache.get()

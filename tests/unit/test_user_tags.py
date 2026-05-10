@@ -14,6 +14,8 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+from core.path_utils import to_file_uri
+
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -23,7 +25,9 @@ def _make_db() -> Path:
     return Path(tmp)
 
 
-def _make_video(path="file:///test/abc.mp4", number="ABC-001", user_tags=None, **kwargs):
+def _make_video(path=None, number="ABC-001", user_tags=None, **kwargs):
+    if path is None:
+        path = to_file_uri("/test/abc.mp4")
     from core.database import Video
     return Video(
         path=path,
@@ -75,7 +79,7 @@ def test_video_model_user_tags_default_empty_list():
 def test_video_to_dict_serializes_user_tags():
     """to_dict() 的 user_tags 是 JSON 字串"""
     from core.database import Video
-    v = Video(path="file:///test.mp4", user_tags=["★5", "足"])
+    v = Video(path=to_file_uri("/test.mp4"), user_tags=["★5", "足"])
     d = v.to_dict()
     assert isinstance(d["user_tags"], str)
     assert json.loads(d["user_tags"]) == ["★5", "足"]
@@ -107,14 +111,14 @@ def test_video_from_row_user_tags_json_error_fallback():
         conn = sqlite3.connect(str(db_path))
         conn.execute(
             "INSERT INTO videos (path, user_tags) VALUES (?, ?)",
-            ("file:///bad.mp4", "NOT_JSON")
+            (to_file_uri("/bad.mp4"), "NOT_JSON")
         )
         conn.commit()
         conn.close()
 
         from core.database import VideoRepository
         repo = VideoRepository(db_path)
-        v = repo.get_by_path("file:///bad.mp4")
+        v = repo.get_by_path(to_file_uri("/bad.mp4"))
         assert v is not None
         assert v.user_tags == []
     finally:
@@ -131,13 +135,13 @@ def test_video_from_row_user_tags_null_fallback():
         conn = sqlite3.connect(str(db_path))
         conn.execute(
             "INSERT INTO videos (path, user_tags) VALUES (?, NULL)",
-            ("file:///null.mp4",)
+            (to_file_uri("/null.mp4"),)
         )
         conn.commit()
         conn.close()
 
         repo = VideoRepository(db_path)
-        v = repo.get_by_path("file:///null.mp4")
+        v = repo.get_by_path(to_file_uri("/null.mp4"))
         assert v is not None
         assert v.user_tags == []
     finally:

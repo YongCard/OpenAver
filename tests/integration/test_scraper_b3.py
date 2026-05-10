@@ -8,6 +8,8 @@ from unittest.mock import patch, MagicMock
 from dataclasses import asdict
 from fastapi.testclient import TestClient
 
+from core.path_utils import to_file_uri
+
 
 @pytest.fixture(scope="module")
 def client():
@@ -51,7 +53,7 @@ class TestFetchSamplesEndpoint:
             mock_repo_cls.return_value = mock_repo
 
             resp = client.post("/api/scraper/fetch-samples", json={
-                "file_path": "file:///home/user/movies/SONE-205/SONE-205.mp4",
+                "file_path": to_file_uri("/home/user/movies/SONE-205/SONE-205.mp4"),
                 "number": "SONE-205",
             })
 
@@ -74,7 +76,7 @@ class TestFetchSamplesEndpoint:
             mock_repo_cls.return_value = mock_repo
 
             resp = client.post("/api/scraper/fetch-samples", json={
-                "file_path": "file:///home/user/movies/mixed_folder/SONE-205.mp4",
+                "file_path": to_file_uri("/home/user/movies/mixed_folder/SONE-205.mp4"),
                 "number": "SONE-205",
             })
 
@@ -112,7 +114,7 @@ class TestFetchSamplesEndpoint:
     def test_missing_number_returns_422(self, client):
         """缺少必填欄位 number → 422"""
         resp = client.post("/api/scraper/fetch-samples", json={
-            "file_path": "file:///home/user/movies/SONE-205/SONE-205.mp4",
+            "file_path": to_file_uri("/home/user/movies/SONE-205/SONE-205.mp4"),
         })
         assert resp.status_code == 422
 

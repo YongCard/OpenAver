@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from core.database import init_db, Video, VideoRepository
+from core.path_utils import to_file_uri
 from core.similar.ranker import SimilarRanker
 from core.similar.ranker_cache import SimilarRankerCache
 from web.routers.similar import router as similar_router
@@ -70,7 +71,7 @@ def _make_video(
 ) -> Video:
     """Build a Video for upsert; path must be unique."""
     return Video(
-        path=f"file:///fake/video_{idx:03d}.mp4",
+        path=to_file_uri(f"/fake/video_{idx:03d}.mp4"),
         number=number or f"ABC-{idx:03d}",
         title=f"Test Video {idx:03d}",
         maker=maker,
@@ -398,7 +399,7 @@ class TestLegacySchemaStartupPath:
         # 插入一筆帶 clip_embedding 的 legacy row
         conn.execute(
             "INSERT INTO videos (path, number, title, actresses, tags) VALUES (?,?,?,?,?)",
-            ("file:///legacy/test.mp4", "LEGACY-001", "Legacy Test", "[]", '["巨乳"]'),
+            (to_file_uri("/legacy/test.mp4"), "LEGACY-001", "Legacy Test", "[]", '["巨乳"]'),
         )
         conn.commit()
         conn.close()

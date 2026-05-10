@@ -5,6 +5,7 @@
   write_extrafanart=True, count=0 → DB 不寫入
   write_extrafanart=True, count>0 → DB 更新
 """
+from core.path_utils import to_file_uri
 
 
 class TestDbUpsertSampleImagesGate:
@@ -18,7 +19,7 @@ class TestDbUpsertSampleImagesGate:
         """
         from unittest.mock import patch, MagicMock, call
         if isinstance(download_count, int):
-            mock_written_uris = [f"file:///tmp/extrafanart/fanart{i+1}.jpg" for i in range(download_count)]
+            mock_written_uris = [to_file_uri(f"/tmp/extrafanart/fanart{i+1}.jpg") for i in range(download_count)]
         else:
             mock_written_uris = download_count
         with patch("os.path.exists", return_value=True), \
@@ -62,9 +63,9 @@ class TestDbUpsertSampleImagesGate:
 
     def test_no_extrafanart_flag_does_not_write_sample_images(self):
         """write_extrafanart=False → sample_images 欄位保留現有值"""
-        args = self._run_enrich(write_extrafanart=False, download_count=0, existing_samples=["file:///old.jpg"])
+        args = self._run_enrich(write_extrafanart=False, download_count=0, existing_samples=[to_file_uri("/old.jpg")])
         video = args[0][0]
-        assert video.sample_images == ["file:///old.jpg"], \
+        assert video.sample_images == [to_file_uri("/old.jpg")], \
             "write_extrafanart=False 時不應覆蓋 DB sample_images"
 
     def test_extrafanart_written_zero_does_not_write_sample_images(self):
@@ -115,30 +116,30 @@ class TestDatabaseHelpers:
         repo = self._make_repo(tmp_path)
         self._insert_video(
             repo,
-            path="file:///A/v1.mp4",
+            path=to_file_uri("/A/v1.mp4"),
             title="Original Title",
             user_tags=["tag1"],
             sample_images=[],
         )
 
-        new_samples = ["file:///A/extrafanart/s1.jpg"]
-        result = repo.update_sample_images("file:///A/v1.mp4", new_samples)
+        new_samples = [to_file_uri("/A/extrafanart/s1.jpg")]
+        result = repo.update_sample_images(to_file_uri("/A/v1.mp4"), new_samples)
 
         assert result is True, "update_sample_images 應回傳 True（rowcount > 0）"
 
-        video = repo.get_by_path("file:///A/v1.mp4")
+        video = repo.get_by_path(to_file_uri("/A/v1.mp4"))
         assert video.sample_images == new_samples, "sample_images 應被更新"
         assert video.title == "Original Title", "title 欄位不應被改動"
         assert video.user_tags == ["tag1"], "user_tags 欄位不應被改動"
 
     def test_count_videos_in_folder_excludes_subdirectories(self, tmp_path):
-        """/A/v1.mp4 + /A/v2.mp4 + /A/sub/v3.mp4 → count_in_folder("file:///A/") == 2"""
+        """/A/v1.mp4 + /A/v2.mp4 + /A/sub/v3.mp4 → count_in_folder(to_file_uri("/A/")) == 2"""
         repo = self._make_repo(tmp_path)
-        self._insert_video(repo, path="file:///A/v1.mp4", number="A001")
-        self._insert_video(repo, path="file:///A/v2.mp4", number="A002")
-        self._insert_video(repo, path="file:///A/sub/v3.mp4", number="A003")
+        self._insert_video(repo, path=to_file_uri("/A/v1.mp4"), number="A001")
+        self._insert_video(repo, path=to_file_uri("/A/v2.mp4"), number="A002")
+        self._insert_video(repo, path=to_file_uri("/A/sub/v3.mp4"), number="A003")
 
-        count = repo.count_videos_in_folder("file:///A/")
+        count = repo.count_videos_in_folder(to_file_uri("/A/"))
         assert count == 2, (
             f"子目錄排除失敗：期待 2，實際 {count}。"
             "/A/sub/v3.mp4 不應計入 /A/ 的計數"
@@ -147,10 +148,10 @@ class TestDatabaseHelpers:
     def test_count_videos_in_folder_escapes_underscore(self, tmp_path):
         """my_movie/ prefix 只 match my_movie/，不應 match myXmovie/"""
         repo = self._make_repo(tmp_path)
-        self._insert_video(repo, path="file:///A/my_movie/v1.mp4", number="U001")
-        self._insert_video(repo, path="file:///A/myXmovie/v2.mp4", number="U002")
+        self._insert_video(repo, path=to_file_uri("/A/my_movie/v1.mp4"), number="U001")
+        self._insert_video(repo, path=to_file_uri("/A/myXmovie/v2.mp4"), number="U002")
 
-        count = repo.count_videos_in_folder("file:///A/my_movie/")
+        count = repo.count_videos_in_folder(to_file_uri("/A/my_movie/"))
         assert count == 1, (
             f"下底線 escape 失敗：期待 1，實際 {count}。"
             "my_movie/ 中的 _ 被當成 LIKE 單字元 wildcard 誤匹配 myXmovie/"
@@ -161,16 +162,16 @@ class TestDatabaseHelpers:
         repo = self._make_repo(tmp_path)
         self._insert_video(
             repo,
-            path="file:///home/user%20name/v.mp4",
+            path=to_file_uri("/home/user%20name/v.mp4"),
             number="P001",
         )
         self._insert_video(
             repo,
-            path="file:///home/userXXname/v2.mp4",
+            path=to_file_uri("/home/userXXname/v2.mp4"),
             number="P002",
         )
 
-        count = repo.count_videos_in_folder("file:///home/user%20name/")
+        count = repo.count_videos_in_folder(to_file_uri("/home/user%20name/"))
         assert count == 1, (
             f"百分號 escape 失敗：期待 1，實際 {count}。"
             "%20 中的 % 不應被當成 LIKE wildcard"
@@ -181,11 +182,11 @@ class TestDatabaseHelpers:
         repo = self._make_repo(tmp_path)
         self._insert_video(
             repo,
-            path="file:////server/share/v.mp4",
+            path=to_file_uri("//server/share/v.mp4"),
             number="W001",
         )
 
-        count = repo.count_videos_in_folder("file:////server/share/")
+        count = repo.count_videos_in_folder(to_file_uri("//server/share/"))
         assert count == 1, (
             f"反斜線 escape 失敗：期待 1，實際 {count}。"
             "Windows UNC path 中的反斜線應被正確 escape"
@@ -235,7 +236,7 @@ class TestFetchSamplesOnly:
                 "source": "javbus",
             }
         mock_written_uris = [
-            f"file:///tmp/SONE-205/extrafanart/fanart{i+1}.jpg"
+            to_file_uri(f"/tmp/SONE-205/extrafanart/fanart{i+1}.jpg")
             for i in range(write_count)
         ]
         with patch("os.path.exists", return_value=file_exists), \

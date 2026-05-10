@@ -14,6 +14,7 @@ from core.database import (
     VideoRepository
 )
 from core.gallery_scanner import VideoInfo
+from core.path_utils import to_file_uri
 
 
 def test_get_db_path():
@@ -417,11 +418,11 @@ def test_migrate_json_to_sqlite_success(tmp_path):
     # 準備假的 json cache 資料
     fake_cache = {
         "_metadata": {"version": 1},
-        "file:///videos/test1.mp4": {
+        to_file_uri("/videos/test1.mp4"): {
             "mtime": 100.0,
             "nfo_mtime": 200.0,
             "info": {
-                "path": "file:///videos/test1.mp4",
+                "path": to_file_uri("/videos/test1.mp4"),
                 "title": "Title 1",
                 "num": "TEST-001"
             }
@@ -437,7 +438,7 @@ def test_migrate_json_to_sqlite_success(tmp_path):
 
     # 檢查 mtime/nfo_mtime 預設值
     repo = VideoRepository(db_path)
-    video = repo.get_by_path("file:///videos/test1.mp4")
+    video = repo.get_by_path(to_file_uri("/videos/test1.mp4"))
     assert video.mtime == 100.0
     assert video.nfo_mtime == 200.0
 
@@ -605,7 +606,7 @@ class TestDbMigration:
         # 插入一筆舊資料
         cursor.execute(
             "INSERT INTO videos (path, number, title) VALUES (?, ?, ?)",
-            ("file:///old.mp4", "OLD-001", "舊資料")
+            (to_file_uri("/old.mp4"), "OLD-001", "舊資料")
         )
         conn.commit()
         conn.close()
@@ -650,7 +651,7 @@ class TestDbMigration:
 
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
-        cursor.execute("SELECT number, title FROM videos WHERE path = ?", ("file:///old.mp4",))
+        cursor.execute("SELECT number, title FROM videos WHERE path = ?", (to_file_uri("/old.mp4"),))
         row = cursor.fetchone()
         conn.close()
 
@@ -685,7 +686,7 @@ class TestGetColumnsOrder:
 
         # 建立含新欄位的 Video
         video = Video(
-            path="file:///test/roundtrip.mp4",
+            path=to_file_uri("/test/roundtrip.mp4"),
             number="RT-001",
             title="Round-trip 測試",
             director="監督名",
@@ -696,7 +697,7 @@ class TestGetColumnsOrder:
         repo.upsert(video)
 
         # 讀回來
-        result = repo.get_by_path("file:///test/roundtrip.mp4")
+        result = repo.get_by_path(to_file_uri("/test/roundtrip.mp4"))
         assert result is not None
         assert result.director == "監督名"
         assert result.label == "S1"

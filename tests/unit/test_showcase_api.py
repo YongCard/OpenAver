@@ -40,7 +40,7 @@ def client(make_client, temp_db, showcase_config):
 def populated_db(make_populated_db):
     videos = [
         Video(
-            path="file:////home/user/media/SONE-205.mp4",
+            path=to_file_uri("/home/user/media/SONE-205.mp4"),
             number="SONE-205",
             title="Test Video 1",
             original_title="テストビデオ1",
@@ -49,11 +49,11 @@ def populated_db(make_populated_db):
             release_date="2024-01-15",
             tags=["単体作品", "ハイビジョン", "独占配信"],
             size_bytes=3145728000,
-            cover_path="file:////home/user/media/SONE-205/poster.jpg",
+            cover_path=to_file_uri("/home/user/media/SONE-205/poster.jpg"),
             mtime=1705276800.0
         ),
         Video(
-            path="file:///C:/Videos/ABW-001.mp4",
+            path=to_file_uri("C:/Videos/ABW-001.mp4"),
             number="ABW-001",
             title="Test Video 2",
             original_title="",
@@ -62,11 +62,11 @@ def populated_db(make_populated_db):
             release_date="2024-02-01",
             tags=["スレンダー"],
             size_bytes=2147483648,
-            cover_path="file:///C:/Videos/ABW-001/cover.jpg",
+            cover_path=to_file_uri("C:/Videos/ABW-001/cover.jpg"),
             mtime=1706745600.0
         ),
         Video(
-            path="file:///D:/AV/FC2-001.mp4",
+            path=to_file_uri("D:/AV/FC2-001.mp4"),
             number="FC2-PPV-001",
             title="Test Video 3 - No Cover",
             original_title="",
@@ -79,7 +79,7 @@ def populated_db(make_populated_db):
             mtime=0.0
         ),
         Video(
-            path="file://///NAS/share/PRED-001.mp4",
+            path=to_file_uri("//NAS/share/PRED-001.mp4"),
             number="PRED-001",
             title="Test Video 4 - UNC Path",
             original_title="",
@@ -88,7 +88,7 @@ def populated_db(make_populated_db):
             release_date="2024-03-01",
             tags=[],
             size_bytes=1073741824,
-            cover_path="file://///NAS/share/PRED-001/cover.jpg",
+            cover_path=to_file_uri("//NAS/share/PRED-001/cover.jpg"),
             mtime=1709251200.0
         ),
     ]
@@ -409,7 +409,7 @@ class TestShowcaseMetadataFields:
         """含有 director/duration/series/label 資料的 DB"""
         videos = [
             Video(
-                path="file:////home/user/media/SONE-205.mp4",
+                path=to_file_uri("/home/user/media/SONE-205.mp4"),
                 number="SONE-205",
                 title="Full Meta Video",
                 original_title="",
@@ -426,7 +426,7 @@ class TestShowcaseMetadataFields:
                 label="S1",
             ),
             Video(
-                path="file:///C:/Videos/ABW-001.mp4",
+                path=to_file_uri("C:/Videos/ABW-001.mp4"),
                 number="ABW-001",
                 title="Empty Meta Video",
                 original_title="",
@@ -569,12 +569,12 @@ class TestShowcaseDirectoryFiltering:
         repo = VideoRepository(temp_db)
         repo.upsert_batch([
             Video(
-                path="file:///C:/Videos/ABW-001.mp4",
+                path=to_file_uri("C:/Videos/ABW-001.mp4"),
                 number="ABW-001", title="WSL mount test",
                 actresses=["新ありな"], tags=[], size_bytes=0, mtime=0.0,
             ),
             Video(
-                path="file:///D:/AV/OTHER-001.mp4",
+                path=to_file_uri("D:/AV/OTHER-001.mp4"),
                 number="OTHER-001", title="Other drive",
                 actresses=[], tags=[], size_bytes=0, mtime=0.0,
             ),
@@ -608,12 +608,12 @@ class TestShowcaseDirectoryFiltering:
         repo = VideoRepository(temp_db)
         repo.upsert_batch([
             Video(
-                path="file:///E:/media/SONE-205.mp4",
+                path=to_file_uri("E:/media/SONE-205.mp4"),
                 number="SONE-205", title="Under media",
                 actresses=[], tags=[], size_bytes=0, mtime=0.0,
             ),
             Video(
-                path="file:///E:/media2/ABW-001.mp4",
+                path=to_file_uri("E:/media2/ABW-001.mp4"),
                 number="ABW-001", title="Under media2",
                 actresses=[], tags=[], size_bytes=0, mtime=0.0,
             ),
@@ -1179,7 +1179,7 @@ class TestSampleImagesAPI:
 
         videos = [
             Video(
-                path="file:////home/user/media/ABC-001.mp4",
+                path=to_file_uri("/home/user/media/ABC-001.mp4"),
                 number="ABC-001",
                 title="Video with sample images",
                 original_title="",
@@ -1196,7 +1196,7 @@ class TestSampleImagesAPI:
                 ],
             ),
             Video(
-                path="file:////home/user/media/ABC-002.mp4",
+                path=to_file_uri("/home/user/media/ABC-002.mp4"),
                 number="ABC-002",
                 title="Video without sample images",
                 original_title="",
