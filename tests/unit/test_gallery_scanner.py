@@ -3,6 +3,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch
 from core.gallery_scanner import VideoScanner
+from core.path_utils import to_file_uri
 
 
 # ============ 靜態守衛：確保 import json 存在 ============
@@ -433,11 +434,11 @@ class TestScannerSampleImagesValidationPass:
         with patch("core.gallery_scanner.uri_to_fs_path", return_value="/fake/path/s1.jpg"), \
              patch("os.path.exists", return_value=True):
             result = _validate_sample_images(
-                ["file:///fake/path/s1.jpg"],
-                video_path="file:///fake/v1.mp4",
+                [to_file_uri("/fake/path/s1.jpg")],
+                video_path=to_file_uri("/fake/v1.mp4"),
             )
 
-        assert result == ["file:///fake/path/s1.jpg"], "磁碟存在的 URI 應保留"
+        assert result == [to_file_uri("/fake/path/s1.jpg")], "磁碟存在的 URI 應保留"
 
     def test_validate_drops_missing_uri(self, tmp_path):
         """磁碟不存在的 URI → 從回傳 list 剔除"""
@@ -447,8 +448,8 @@ class TestScannerSampleImagesValidationPass:
         with patch("core.gallery_scanner.uri_to_fs_path", return_value="/fake/path/missing.jpg"), \
              patch("os.path.exists", return_value=False):
             result = _validate_sample_images(
-                ["file:///fake/path/missing.jpg"],
-                video_path="file:///fake/v1.mp4",
+                [to_file_uri("/fake/path/missing.jpg")],
+                video_path=to_file_uri("/fake/v1.mp4"),
             )
 
         assert result == [], "磁碟不存在的 URI 應剔除"
@@ -461,8 +462,8 @@ class TestScannerSampleImagesValidationPass:
         with patch("core.gallery_scanner.uri_to_fs_path", side_effect=ValueError("環境不支援")), \
              patch("core.gallery_scanner.logger") as mock_logger:
             result = _validate_sample_images(
-                ["file:///bad/path.jpg"],
-                video_path="file:///fake/v1.mp4",
+                [to_file_uri("/bad/path.jpg")],
+                video_path=to_file_uri("/fake/v1.mp4"),
             )
 
         assert result == [], "轉換失敗的 URI 應剔除"
@@ -478,16 +479,16 @@ class TestScannerSampleImagesValidationPass:
         # 建立 mock repo
         mock_repo = MagicMock()
         video_with_orphan_1 = MagicMock()
-        video_with_orphan_1.path = "file:///A/v1.mp4"
-        video_with_orphan_1.sample_images = ["file:///A/extrafanart/s1.jpg"]
+        video_with_orphan_1.path = to_file_uri("/A/v1.mp4")
+        video_with_orphan_1.sample_images = [to_file_uri("/A/extrafanart/s1.jpg")]
 
         video_with_orphan_2 = MagicMock()
-        video_with_orphan_2.path = "file:///A/v2.mp4"
-        video_with_orphan_2.sample_images = ["file:///A/extrafanart/s2.jpg"]
+        video_with_orphan_2.path = to_file_uri("/A/v2.mp4")
+        video_with_orphan_2.sample_images = [to_file_uri("/A/extrafanart/s2.jpg")]
 
         video_clean = MagicMock()
-        video_clean.path = "file:///A/v3.mp4"
-        video_clean.sample_images = ["file:///A/extrafanart/s3.jpg"]  # 這個存在
+        video_clean.path = to_file_uri("/A/v3.mp4")
+        video_clean.sample_images = [to_file_uri("/A/extrafanart/s3.jpg")]  # 這個存在
 
         mock_repo.get_all.return_value = [video_with_orphan_1, video_with_orphan_2, video_clean]
 
@@ -511,7 +512,7 @@ class TestScannerSampleImagesValidationPass:
 
         mock_repo = MagicMock()
         video_no_samples = MagicMock()
-        video_no_samples.path = "file:///A/v1.mp4"
+        video_no_samples.path = to_file_uri("/A/v1.mp4")
         video_no_samples.sample_images = []  # 空 list
 
         mock_repo.get_all.return_value = [video_no_samples]
@@ -530,9 +531,9 @@ class TestScannerSampleImagesValidationPass:
 
         mock_repo = MagicMock()
         video = MagicMock()
-        video.path = "file:///A/v1.mp4"
+        video.path = to_file_uri("/A/v1.mp4")
         # 2 個 URI，只有第一個存在
-        video.sample_images = ["file:///A/ext/exist.jpg", "file:///A/ext/missing.jpg"]
+        video.sample_images = [to_file_uri("/A/ext/exist.jpg"), to_file_uri("/A/ext/missing.jpg")]
         mock_repo.get_all.return_value = [video]
 
         def fake_uri_to_fs_path(uri):
@@ -547,8 +548,8 @@ class TestScannerSampleImagesValidationPass:
 
         # 驗證 update_sample_images 被呼叫，且只傳入存在的 URI
         mock_repo.update_sample_images.assert_called_once_with(
-            "file:///A/v1.mp4",
-            ["file:///A/ext/exist.jpg"],
+            to_file_uri("/A/v1.mp4"),
+            [to_file_uri("/A/ext/exist.jpg")],
         )
 
     def test_validate_preserves_relative_path(self, tmp_path):
@@ -564,7 +565,7 @@ class TestScannerSampleImagesValidationPass:
                 "http://example.com/remote.jpg",       # 遠端 URL（Codex P1 污染）→ 清除
                 "https://cdn.example.com/s2.jpg",      # https 遠端 URL → 清除
             ],
-            video_path="file:///fake/v.mp4",
+            video_path=to_file_uri("/fake/v.mp4"),
         )
         assert result == [
             "MOVIE-001/extrafanart/fanart1.jpg",
@@ -579,7 +580,7 @@ class TestScannerSampleImagesValidationPass:
 
         mock_repo = MagicMock()
         video = MagicMock()
-        video.path = "file:///fake/v.mp4"
+        video.path = to_file_uri("/fake/v.mp4")
         video.sample_images = ["MOVIE-001/extrafanart/fanart1.jpg"]  # Codex 重現的值
         mock_repo.get_all.return_value = [video]
 
@@ -595,8 +596,8 @@ class TestScannerSampleImagesValidationPass:
         from core.gallery_scanner import _validate_sample_images
 
         mixed_samples = [
-            "file:///valid/extrafanart/fanart1.jpg",   # 磁碟存在 → 保留
-            "file:///missing/extrafanart/fanart2.jpg", # 磁碟不存在 → 剔除
+            to_file_uri("/valid/extrafanart/fanart1.jpg"),   # 磁碟存在 → 保留
+            to_file_uri("/missing/extrafanart/fanart2.jpg"), # 磁碟不存在 → 剔除
             "http://example.com/s1.jpg",               # scraper URL 污染 → 清除
             "https://cdn.example.com/s2.jpg",          # scraper URL 污染 → 清除
         ]
@@ -609,9 +610,9 @@ class TestScannerSampleImagesValidationPass:
 
         with patch("core.gallery_scanner.uri_to_fs_path", side_effect=fake_uri_to_fs_path), \
              patch("os.path.exists", side_effect=fake_exists):
-            result = _validate_sample_images(mixed_samples, video_path="file:///v1.mp4")
+            result = _validate_sample_images(mixed_samples, video_path=to_file_uri("/v1.mp4"))
 
-        assert result == ["file:///valid/extrafanart/fanart1.jpg"], (
+        assert result == [to_file_uri("/valid/extrafanart/fanart1.jpg")], (
             f"只有磁碟存在的 file:/// URI 應保留；missing + http:// 應全部清除。got: {result}"
         )
 
@@ -623,7 +624,7 @@ class TestScannerSampleImagesValidationPass:
         with patch("core.gallery_scanner.logger") as mock_logger:
             _validate_sample_images(
                 ["http://example.com/s1.jpg", "https://cdn.example.com/s2.jpg"],
-                video_path="file:///v1.mp4",
+                video_path=to_file_uri("/v1.mp4"),
             )
 
         # logger.info 應被呼叫，且訊息包含 purged 計數
@@ -640,10 +641,10 @@ class TestScannerSampleImagesValidationPass:
 
         mock_repo = MagicMock()
         video = MagicMock()
-        video.path = "file:///A/v1.mp4"
+        video.path = to_file_uri("/A/v1.mp4")
         video.sample_images = [
-            "file:///A/extrafanart/fanart1.jpg",  # 磁碟存在 → 保留
-            "file:///A/extrafanart/fanart2.jpg",  # 磁碟不存在 → 剔除
+            to_file_uri("/A/extrafanart/fanart1.jpg"),  # 磁碟存在 → 保留
+            to_file_uri("/A/extrafanart/fanart2.jpg"),  # 磁碟不存在 → 剔除
             "http://example.com/s1.jpg",           # scraper URL 污染 → 清除
         ]
         mock_repo.get_all.return_value = [video]
@@ -660,6 +661,6 @@ class TestScannerSampleImagesValidationPass:
 
         assert count == 1, f"1 部影片的 sample_images 應被更新，got: {count}"
         mock_repo.update_sample_images.assert_called_once_with(
-            "file:///A/v1.mp4",
-            ["file:///A/extrafanart/fanart1.jpg"],
+            to_file_uri("/A/v1.mp4"),
+            [to_file_uri("/A/extrafanart/fanart1.jpg")],
         )

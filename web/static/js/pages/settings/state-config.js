@@ -186,11 +186,7 @@ export function stateConfig() {
 
         // ===== Lifecycle =====
         init() {
-            // codex P2 fix：sequence loadConfig → restore，避免兩個 async fetch
-            // race 導致 /api/clip/status 先 resolve（set clipEnabled=true）再被
-            // /api/config 後 resolve 蓋成 false，使 enable 進行中切頁回來時
-            // toggle 假翻 OFF。restore 前一定先讓 config hydrate 完成。
-            this.loadConfig().then(() => this._restoreClipStatusOnPageLoad());
+            this.loadConfig();
 
             // Watch for form changes
             this.$watch('form.translateEnabled', () => this.updateTranslateOptions());
@@ -225,8 +221,6 @@ export function stateConfig() {
                     }
                 });
             }
-            // _restoreClipStatusOnPageLoad 已上移到 init 開頭，
-            // 用 loadConfig().then(...) sequence（codex P2 fix）
         },
 
         // ===== Methods =====
@@ -346,8 +340,6 @@ export function stateConfig() {
 
                     // 建立初始快照（dirty check 基準）— 必須在解鎖前建立
                     this.savedState = JSON.parse(JSON.stringify(this.form));
-                    // Clip（獨立 state，不進 form，savedState 不含此欄位，isDirty 不受 toggle 影響）
-                    this.clipEnabled = config.clip?.enabled === true;
                     this.savedOpenaiUseCustomModel = this.openaiUseCustomModel;
                     // 解鎖表單（config hydrate 完成）
                     this._configLoading = false;

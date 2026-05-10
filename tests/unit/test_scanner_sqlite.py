@@ -6,6 +6,7 @@ from pathlib import Path
 
 from core.gallery_scanner import VideoScanner
 from core.database import VideoRepository
+from core.path_utils import to_file_uri
 
 
 @pytest.fixture
@@ -466,7 +467,7 @@ class TestSampleImagesDB:
                    "maker", "director", "series", "label", "tags", "sample_images",
                    "duration", "size_bytes", "cover_path", "release_date",
                    "mtime", "nfo_mtime", "created_at", "updated_at"]
-        row = (1, "file:///test.mp4", "ABC-001", "Title", "", "[]",
+        row = (1, to_file_uri("/test.mp4"), "ABC-001", "Title", "", "[]",
                "", "", None, "", "[]", "",
                None, 0, "", "", 0.0, 0.0, None, None)
         v = Video.from_row(row, columns)
@@ -479,7 +480,7 @@ class TestSampleImagesDB:
                    "maker", "director", "series", "label", "tags", "sample_images",
                    "duration", "size_bytes", "cover_path", "release_date",
                    "mtime", "nfo_mtime", "created_at", "updated_at"]
-        row = (1, "file:///test.mp4", "ABC-001", "Title", "", "[]",
+        row = (1, to_file_uri("/test.mp4"), "ABC-001", "Title", "", "[]",
                "", "", None, "", "[]", "not-json",
                None, 0, "", "", 0.0, 0.0, None, None)
         v = Video.from_row(row, columns)
@@ -488,7 +489,7 @@ class TestSampleImagesDB:
     def test_to_dict_empty_list_serializes_json(self):
         """to_dict 空 list → '[]'"""
         from core.database import Video
-        v = Video(path="file:///test.mp4", sample_images=[])
+        v = Video(path=to_file_uri("/test.mp4"), sample_images=[])
         d = v.to_dict()
         assert d["sample_images"] == "[]"
 
@@ -496,7 +497,7 @@ class TestSampleImagesDB:
         """VideoInfo.from_dict 舊資料無 sample_images key → 預設 []"""
         from core.gallery_scanner import VideoInfo
         d = {
-            "path": "file:///test.mp4",
+            "path": to_file_uri("/test.mp4"),
             "title": "Test",
             "num": "ABC-001",
         }

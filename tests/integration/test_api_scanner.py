@@ -82,7 +82,7 @@ class TestScannerAPI:
         
     def test_get_player_success(self, client):
         """測試 /api/gallery/player 回傳正確的 HTML"""
-        video_path = "file:///C:/videos/test.mp4"
+        video_path = to_file_uri("C:/videos/test.mp4")
         response = client.get(f"/api/gallery/player?path={quote(video_path)}")
 
         assert response.status_code == 200
@@ -150,7 +150,7 @@ class TestGenerateFromIds:
         from core.gallery_scanner import VideoInfo
 
         video = Video(
-            id=1, path='file:///video/SONE-100.mp4', title='DB Title',
+            id=1, path=to_file_uri('/video/SONE-100.mp4'), title='DB Title',
             original_title='', actresses=[], number='SONE-100',
             maker='Sony', release_date='2026-01-01', tags=[],
             size_bytes=1000, mtime=0.0, cover_path='', nfo_mtime=None,

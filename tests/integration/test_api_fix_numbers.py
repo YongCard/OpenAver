@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from core.database import init_db
+from core.path_utils import to_file_uri
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -54,12 +55,12 @@ class TestPreviewHappyPath:
     def test_preview_returns_affected_list(self, tmp_db, monkeypatch):
         rows = [
             # digit_prefix × 2
-            ("file:///test/1.mp4", "7IPZ-154",  "Title 1", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
-            ("file:///test/2.mp4", "3ABW-001",  "Title 2", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
+            (to_file_uri("/test/1.mp4"), "7IPZ-154",  "Title 1", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
+            (to_file_uri("/test/2.mp4"), "3ABW-001",  "Title 2", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
             # TK_prefix × 1
-            ("file:///test/3.mp4", "TKSONE-205","Title 3", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
+            (to_file_uri("/test/3.mp4"), "TKSONE-205","Title 3", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
             # 正常番號（不應出現）
-            ("file:///test/4.mp4", "MIDE-001",  "Title 4", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
+            (to_file_uri("/test/4.mp4"), "MIDE-001",  "Title 4", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
         ]
         _insert_videos(tmp_db, rows)
 
@@ -114,9 +115,9 @@ class TestApplySuccess:
 
     def test_apply_updates_db_numbers(self, tmp_db, monkeypatch):
         rows = [
-            ("file:///test/1.mp4", "7IPZ-154",  "Title 1", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
-            ("file:///test/2.mp4", "3ABW-001",  "Title 2", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
-            ("file:///test/3.mp4", "TKSONE-205","Title 3", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
+            (to_file_uri("/test/1.mp4"), "7IPZ-154",  "Title 1", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
+            (to_file_uri("/test/2.mp4"), "3ABW-001",  "Title 2", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
+            (to_file_uri("/test/3.mp4"), "TKSONE-205","Title 3", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
         ]
         _insert_videos(tmp_db, rows)
 
@@ -165,15 +166,16 @@ class TestApplySkipsAlreadyFixed:
 
     def test_apply_skips_already_fixed_id(self, tmp_db, monkeypatch):
         rows = [
-            ("file:///test/1.mp4", "7IPZ-154", "Title 1", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
+            (to_file_uri("/test/1.mp4"), "7IPZ-154", "Title 1", "[]", "Maker", "[]", "", "", "", None, "2024-01-01", 0.0),
         ]
         _insert_videos(tmp_db, rows)
 
         # 手動先把番號更新為正常番號（模擬 preview 到 apply 之間被修正）
         conn = sqlite3.connect(str(tmp_db))
-        conn.execute("UPDATE videos SET number = 'IPZ-154' WHERE path = 'file:///test/1.mp4'")
+        target_uri = to_file_uri("/test/1.mp4")
+        conn.execute("UPDATE videos SET number = 'IPZ-154' WHERE path = ?", (target_uri,))
         conn.commit()
-        video_id = conn.execute("SELECT id FROM videos WHERE path = 'file:///test/1.mp4'").fetchone()[0]
+        video_id = conn.execute("SELECT id FROM videos WHERE path = ?", (target_uri,)).fetchone()[0]
         conn.close()
 
         monkeypatch.setattr("web.routers.collection.get_db_path", lambda: tmp_db)

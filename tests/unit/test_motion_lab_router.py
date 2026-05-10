@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from core.database import init_db, Video, VideoRepository
+from core.path_utils import to_file_uri
 
 
 # temp_db fixture 定義於 tests/unit/conftest.py
@@ -13,7 +14,7 @@ def populated_db(make_populated_db):
     videos = []
     for i in range(35):
         videos.append(Video(
-            path=f"file:///C:/Videos/TEST-{i:03d}.mp4",
+            path=to_file_uri(f"C:/Videos/TEST-{i:03d}.mp4"),
             number=f"TEST-{i:03d}",
             title=f"Test Video {i}",
             actresses=[f"Actress {i}"],
@@ -21,7 +22,7 @@ def populated_db(make_populated_db):
             release_date="2024-01-01",
             tags=[],
             size_bytes=1024,
-            cover_path=f"file:///C:/Videos/TEST-{i:03d}/cover.jpg",
+            cover_path=to_file_uri(f"C:/Videos/TEST-{i:03d}/cover.jpg"),
             mtime=1705276800.0 + i,
         ))
     return make_populated_db(videos)

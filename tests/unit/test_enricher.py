@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import List, Optional
 from unittest.mock import patch, MagicMock, call
 
+from core.path_utils import to_file_uri
+
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -929,14 +931,14 @@ class TestDbUpsertCoverPath:
         mock_repo.upsert.side_effect = lambda v: captured.append(v)
 
         existing_video = MagicMock()
-        existing_video.cover_path = "file:///C:/lib/SONE-205/cover.jpg"
+        existing_video.cover_path = to_file_uri("C:/lib/SONE-205/cover.jpg")
         mock_repo.get_by_path.return_value = existing_video
 
         meta = {"title": "T", "actresses": [], "maker": "S", "tags": [], "release_date": ""}
         _db_upsert(mock_repo, "SONE-205", "/video/SONE-205.mp4", meta)
 
         assert len(captured) == 1
-        assert captured[0].cover_path == "file:///C:/lib/SONE-205/cover.jpg"
+        assert captured[0].cover_path == to_file_uri("C:/lib/SONE-205/cover.jpg")
         # 確認用 path URI 查詢，不是用 number
         mock_repo.get_by_path.assert_called_once()
 

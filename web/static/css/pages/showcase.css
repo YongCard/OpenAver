@@ -792,13 +792,13 @@
     }
 }
 
-/* ─── 56c-T3 / T3fix: Clip Mode 入口按鈕 + Sparkle Burst 預覽 ────────────
- * .lightbox-clip-btn — 玻璃材質圓鈕，與 .lightbox-close 鏡射對稱（左上 1rem/1rem）
+/* ─── 56c-T3 / T3fix: Similar Mode 入口按鈕 + Sparkle Burst 預覽 ────────────
+ * .lightbox-similar-btn — 玻璃材質圓鈕，與 .lightbox-close 鏡射對稱（左上 1rem/1rem）
  *   尺寸 44×44，與 .lightbox-close 鏡射對稱（同尺寸 + 同距邊 1rem）
  *   icon 用 --star-glow 香檳金，呼應 56b 星空主題（CD-56B-6）
  * .sparkle-burst — Magic 點擊預演，10 顆四角星 sparkle burst（GSAP 操作 opacity/scale/rotation）
  */
-.lightbox-clip-btn {
+.lightbox-similar-btn {
     position: absolute;
     top: 1rem;
     left: 1rem;
@@ -821,60 +821,60 @@
                 box-shadow var(--duration-fast) var(--ease-out);
 }
 
-.lightbox-clip-btn:hover {
+.lightbox-similar-btn:hover {
     background: rgba(255, 255, 255, 0.3);
     border-color: rgba(255, 255, 255, 0.6);
     transform: scale(1.08);
     box-shadow: var(--fluent-shadow-16);
 }
 
-.lightbox-clip-btn:active {
+.lightbox-similar-btn:active {
     transform: scale(0.95);
 }
 
-.lightbox-clip-btn:focus-visible {
+.lightbox-similar-btn:focus-visible {
     outline: 2px solid var(--star-glow);
     outline-offset: 2px;
 }
 
-.lightbox-clip-btn i {
+.lightbox-similar-btn i {
     color: var(--star-glow);
     font-size: 1.25rem;  /* 對齊 .lightbox-close 的 font-size */
     line-height: 1;
 }
 
-/* 56c-T7：手機降級 mobile clip grid =========================================*/
-.lightbox-clip-mobile {
+/* 56c-T7：手機降級 mobile similar grid =========================================*/
+.lightbox-similar-mobile {
     margin-top: 0.75rem;         /* --space-3 不存在，用 raw 0.75rem */
     padding: 0.75rem;
     background: rgba(255,255,255,0.06);  /* 低於 .lb-action-btn 0.15，輕量區分 */
     border-radius: var(--fluent-radius-lg);  /* 8px，對齊卡片 radius */
 }
 
-.clip-mobile-grid {
+.similar-mobile-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;                  /* --space-2 不存在，用 raw 0.5rem */
 }
 
-.clip-mobile-card {
+.similar-mobile-card {
     cursor: pointer;
     border-radius: var(--fluent-radius-md);  /* 4px */
     overflow: hidden;
     transition: transform var(--fluent-duration-fast) var(--fluent-ease-standard);
 }
 
-.clip-mobile-card:hover {
+.similar-mobile-card:hover {
     transform: scale(1.02);
 }
 
 /* 手機觸控回饋：active 態往下縮，給拇指觸感確認 */
-.clip-mobile-card:active {
+.similar-mobile-card:active {
     transform: scale(0.97);
     opacity: 0.85;
 }
 
-.clip-mobile-card img {
+.similar-mobile-card img {
     width: 100%;
     aspect-ratio: 4/5;
     object-fit: cover;
@@ -884,26 +884,26 @@
     background-size: 200% 100%;
 }
 
-.clip-mobile-meta {
+.similar-mobile-meta {
     padding: 0.5rem;
     font-size: 0.8125rem;         /* --text-sm 不存在，對齊 .lb-otitle 同值 */
 }
 
-.clip-mobile-number {
+.similar-mobile-number {
     color: var(--text-muted);
     font-size: 0.75rem;
 }
 
-.clip-mobile-title {
+.similar-mobile-title {
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-/* 確保 mobile collapse 只在小螢幕渲染（桌面應永遠 clipModeMobileOpen = false） */
+/* 確保 mobile collapse 只在小螢幕渲染（桌面應永遠 similarModeMobileOpen = false） */
 @media (min-width: 768px) {
-    .lightbox-clip-mobile {
+    .lightbox-similar-mobile {
         display: none !important;   /* 桌面安全網：即使 state 殘留也不顯示 */
     }
 }
@@ -2484,29 +2484,14 @@ body.sidebar-collapsed .showcase-footer {
         0 0 0 4px var(--glow-primary);
 }
 
-/* ─── 56c-T4: Clip Stage Sibling — fullscreen takeover (z-index:1501) ────────
- * 從 motion_lab.html inline <style> 搬遷對映，selector 改名見 plan §6 §E 表：
- *   .clip-lab-stage          → .clip-stage / .clip-stage-inner（拆分 backdrop + 960×620 inner）
- *   .clip-lab-close          → .clip-close-btn（玻璃配方沿用 .lb-action-btn）
- *   .clip-lab-dust           → .clip-stage-dust
- *   .clip-lab-rails          → .clip-stage-rails
- *   .clip-lab-rail           → .clip-rail
- *   .clip-lab-rail-sweep     → .clip-rail-sweep
- *   .clip-lab-slot           → .clip-slot
- *   .clip-lab-slot-img       → .clip-slot-img
- *   .clip-lab-main           → .clip-main-overlay（簡化：56c 主圖是 ghost-fly ghost，不再要本地 img）
- * 沿用既有 token：--overlay-modal / --fluent-blur / --fluent-duration-fast /
- *   --fluent-ease-standard / --star-line-bright / --star-line-fade / --star-glow
- *   / --fluent-radius-xl / --fluent-shadow-* / --color-base-100 / --color-base-content。
- * 不擴 token 範圍（spec §0.1 codex P2 教訓）。
- * ──────────────────────────────────────────────────────────────────────────── */
+/* ─── 57c-T4: Similar Stage — fullscreen takeover (z-index:1501) ─────────── */
 
 /* fullscreen backdrop（spec §1 CD-56C-1）*/
-.clip-stage {
+.similar-stage {
     position: fixed;
     inset: 0;
     z-index: 1501;  /* > sample-gallery 1500 > showcase-lightbox 1000 */
-    /* 56c-T4: 星空 backdrop 全屏鋪滿（從 .clip-stage-inner 搬上來，
+    /* 56c-T4: 星空 backdrop 全屏鋪滿（從 .similar-stage-inner 搬上來，
        避免 inner box 與外圍 backdrop 兩種灰色） */
     background:
         radial-gradient(ellipse at 30% 40%, color-mix(in oklch, var(--star-line-bright) 8%, transparent) 0%, transparent 55%),
@@ -2525,8 +2510,8 @@ body.sidebar-collapsed .showcase-footer {
     justify-content: center;
 }
 
-/* 56c-T4: vignette 覆蓋整個 viewport（從 .clip-stage-inner::before 搬上來） */
-.clip-stage::before {
+/* 56c-T4: vignette 覆蓋整個 viewport（從 .similar-stage-inner::before 搬上來） */
+.similar-stage::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -2537,7 +2522,7 @@ body.sidebar-collapsed .showcase-footer {
         rgba(0, 0, 0, 0.45) 100%);
 }
 
-.clip-stage.show {
+.similar-stage.show {
     opacity: 1;
     visibility: visible;
     pointer-events: all;
@@ -2546,19 +2531,19 @@ body.sidebar-collapsed .showcase-footer {
 
 /* inner stage 960×620 design-space（spec §1 CD-56C-11）
    data-theme="dim" 強制 dust dim variant（搬遷自 motion-lab .clip-lab-stage[data-theme="dim"]） */
-.clip-stage-inner {
+.similar-stage-inner {
     position: relative;
     width: 960px;
     height: 620px;
     overflow: visible;
-    /* 56c-T4: 純座標容器，背景/box-shadow/border-radius 已搬到 .clip-stage 全屏層 */
+    /* 56c-T4: 純座標容器，背景/box-shadow/border-radius 已搬到 .similar-stage 全屏層 */
     /* 56c-T4: 視窗等比放大充滿 viewport（design-space 不動，視覺層 scale） */
-    transform: scale(var(--clip-stage-scale, 1));
+    transform: scale(var(--similar-stage-scale, 1));
     transform-origin: center center;
 }
 
 /* X 關閉按鈕（backdrop scope 不在 inner 內，玻璃配方對齊 .lb-action-btn） */
-.clip-close-btn {
+.similar-close-btn {
     position: absolute;
     top: 0.75rem;
     right: 0.75rem;
@@ -2580,18 +2565,18 @@ body.sidebar-collapsed .showcase-footer {
                 color var(--fluent-duration-fast) var(--fluent-ease-standard);
 }
 
-.clip-close-btn:hover {
+.similar-close-btn:hover {
     background: rgba(255, 255, 255, 0.2);
     color: rgba(255, 255, 255, 1);
 }
 
-.clip-close-btn:focus-visible {
+.similar-close-btn:focus-visible {
     outline: 2px solid var(--star-glow);
     outline-offset: 2px;
 }
 
 /* lightbox 內容隱藏（既有 takeover pattern） */
-.showcase-lightbox.clip-mode-active .lightbox-content {
+.showcase-lightbox.similar-mode-active .lightbox-content {
     opacity: 0;
     pointer-events: none;
     transition: opacity 200ms ease;
@@ -2600,7 +2585,7 @@ body.sidebar-collapsed .showcase-footer {
 /* ── Dust particle layer（搬遷自 .clip-lab-dust）─────────────────────────────
  * indirection 模型：inline 寫 --dust-base-seed，CSS rule 用 --dust-base 計算
  * resolved value，dim selector 才能 override --dust-base 而非永遠輸給 inline */
-.clip-stage-dust {
+.similar-stage-dust {
     position: absolute;
     inset: 0;
     pointer-events: none;
@@ -2608,7 +2593,7 @@ body.sidebar-collapsed .showcase-footer {
     z-index: 0;
 }
 
-.clip-stage-dust circle {
+.similar-stage-dust circle {
     --dust-base: var(--dust-base-seed, 0.08);
     fill: var(--star-line-fade);
     opacity: var(--dust-base);
@@ -2621,15 +2606,15 @@ body.sidebar-collapsed .showcase-footer {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .clip-stage-dust circle {
+    .similar-stage-dust circle {
         animation: none;
         opacity: var(--dust-base);
     }
 }
 
-/* dim theme override（clip-stage 永遠暗底 — Constellation 是星空場景） */
-[data-theme="dim"] .clip-stage-dust circle,
-.clip-stage .clip-stage-dust circle {
+/* dim theme override（similar-stage 永遠暗底 — Constellation 是星空場景） */
+[data-theme="dim"] .similar-stage-dust circle,
+.similar-stage .similar-stage-dust circle {
     fill: var(--star-line-bright);
     --dust-base: 0.10;
 }
@@ -2637,7 +2622,7 @@ body.sidebar-collapsed .showcase-footer {
 /* T6 Hover constellation bright state — corridor dust 切到 .in-constellation
    覆寫 stylesheet 級 --dust-base（不動 inline --dust-base-seed）；
    keyframe dust-twinkle-bright 引用 var(--dust-base)，自動拉高 peak。 */
-.clip-stage-dust circle.in-constellation {
+.similar-stage-dust circle.in-constellation {
     --dust-base: 0.70;
     --dust-halo-opacity: 0.45;
     filter: drop-shadow(0 0 4px rgba(232, 201, 137, var(--dust-halo-opacity)));
@@ -2651,19 +2636,19 @@ body.sidebar-collapsed .showcase-footer {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .clip-stage-dust circle.in-constellation {
+    .similar-stage-dust circle.in-constellation {
         animation: none;
         opacity: var(--dust-base);
     }
 }
 
 /* T7 pulse 期間暫停 CSS dust-twinkle，讓 GSAP inline opacity / scale 生效 */
-.clip-stage-dust circle.dust-pulsing {
+.similar-stage-dust circle.dust-pulsing {
     animation: none;
 }
 
 /* ── Rails（搬遷自 .clip-lab-rails / .clip-lab-rail / .clip-lab-rail-sweep）── */
-.clip-stage-rails {
+.similar-stage-rails {
     position: absolute;
     inset: 0;
     pointer-events: none;
@@ -2671,7 +2656,7 @@ body.sidebar-collapsed .showcase-footer {
     z-index: 2;
 }
 
-.clip-rail {
+.similar-rail {
     stroke: var(--star-line-fade);
     stroke-width: 1.5;
     stroke-linecap: round;
@@ -2681,17 +2666,17 @@ body.sidebar-collapsed .showcase-footer {
        CSS transition 會與 GSAP tick 賽跑，抹平 ease */
 }
 
-.clip-rail.rail--bright {
+.similar-rail.rail--bright {
     stroke: var(--star-line-bright);
     stroke-opacity: 0.85;
 }
 
-.clip-rail.rail--neighbor {
+.similar-rail.rail--neighbor {
     stroke: var(--star-line-bright);
     stroke-opacity: 0.55;
 }
 
-.clip-rail-sweep {
+.similar-rail-sweep {
     stroke: var(--star-line-bright);
     stroke-width: 2;
     stroke-linecap: round;
@@ -2702,7 +2687,7 @@ body.sidebar-collapsed .showcase-footer {
 
 /* Rail 初始隱藏狀態（搬遷自 motion-lab .rail--hidden，namespaced 避免污染全域）
    SVG <line> opacity 影響顯示；pointer-events 對 SVG 預設無關但保留無害 */
-.clip-rail.rail--hidden {
+.similar-rail.rail--hidden {
     opacity: 0;
     pointer-events: none;
 }
@@ -2710,7 +2695,7 @@ body.sidebar-collapsed .showcase-footer {
 /* ── Slot cards（搬遷自 .clip-lab-slot）─────────────────────────────────
  * 注意：禁加 transition: transform（gotchas C21）— hover scale 走 GSAP，
  * CSS transition 會與 GSAP tick 賽跑。box-shadow 走 CSS transition 安全。 */
-.clip-slot {
+.similar-slot {
     position: absolute;
     width: 120px;
     height: 150px;
@@ -2729,7 +2714,7 @@ body.sidebar-collapsed .showcase-footer {
     z-index: 10;
 }
 
-.clip-slot::before {
+.similar-slot::before {
     content: '';
     position: absolute;
     inset: -8px;
@@ -2743,11 +2728,11 @@ body.sidebar-collapsed .showcase-footer {
     will-change: opacity;
 }
 
-.clip-slot:hover {
+.similar-slot:hover {
     box-shadow: var(--fluent-shadow-8);
 }
 
-.clip-slot-img {
+.similar-slot-img {
     position: relative;
     z-index: 0;
     width: 100%;
@@ -2762,8 +2747,8 @@ body.sidebar-collapsed .showcase-footer {
 /* 56c-T4fix7: dim overlay — ::after opacity tween via --slot-dim-opacity CSS var。
    取代 filter: brightness() 兩段式 race，消除 enter→enter 亮閃。
    gotchas C21：transition: none — 動畫純走 GSAP CSS var tween，禁加 CSS transition。
-   z-index 1 蓋在 .clip-slot-img (z=0) 之上；::before halo 既有 z=-1 不受影響。 */
-.clip-slot::after {
+   z-index 1 蓋在 .similar-slot-img (z=0) 之上；::before halo 既有 z=-1 不受影響。 */
+.similar-slot::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -2776,15 +2761,15 @@ body.sidebar-collapsed .showcase-footer {
 }
 
 /* Slot 初始隱藏狀態（搬遷自 motion-lab .slot--hidden，namespaced 避免污染全域） */
-.clip-slot.slot--hidden {
+.similar-slot.slot--hidden {
     opacity: 0;
     pointer-events: none;
 }
 
 /* 56c-T4: main image visual center anchor — single source of truth
    for ghost-fly enter target rect。invisible / non-interactive，
-   design-space 480/310 200×250 居中，吃 .clip-stage-inner 的 transform: scale */
-.clip-main-anchor {
+   design-space 480/310 200×250 居中，吃 .similar-stage-inner 的 transform: scale */
+.similar-main-anchor {
     position: absolute;
     left: 480px;
     top: 310px;
@@ -2797,13 +2782,13 @@ body.sidebar-collapsed .showcase-footer {
     /* z-index 不指定 — 純座標 anchor 不需參與堆疊 */
 }
 
-/* 56c-T4: clip mode 停留期間的 main image — .clip-stage-inner 子元素，
+/* 56c-T4: similar mode 停留期間的 main image — .similar-stage-inner 子元素，
    與 8 cards 走同一 design-space layout 路徑，resize 自動跟隨 inner scale。
    codex 改良：不用 transform: translate(-50%,-50%)，避免與 GSAP scale tween
    混疊；改 left:380 top:185（中心點數學等價於 design-space (480, 310)）。
-   codex P1-2：pointer-events 改 auto（從 _buildClipMainStatic 接 click → onClipMainImgClick），
+   codex P1-2：pointer-events 改 auto（從 _buildSimilarMainStatic 接 click → onSimilarMainImgClick），
    同 stacking context 內 z=11 < play button z=12，play button 仍在上層命中正確。 */
-.clip-main-static {
+.similar-main-static {
     position: absolute;
     left: 380px;
     top: 185px;
@@ -2814,26 +2799,26 @@ body.sidebar-collapsed .showcase-footer {
     transform-origin: center center;
     border-radius: var(--fluent-radius-lg);
     box-shadow: var(--fluent-shadow-16);
-    z-index: 11;  /* > .clip-slot z=10；play button z=12 > 11 → button 在上 */
+    z-index: 11;  /* > .similar-slot z=10；play button z=12 > 11 → button 在上 */
     cursor: pointer;
 }
 
-/* 56c-T4 (codex P1-2)：.clip-main-overlay 已移除。
-   原本是 .clip-stage 直屬子層 z=2001，會在 root stacking context 蓋住
-   被 .clip-stage-inner transform stacking context 囚禁的 play button (z=12)，
-   導致點擊 play button 實際打到 overlay → onClipMainImgClick → closeClipMode，
-   而非 playClipMainVideo。改用 main static 直接接 click（同 inner stacking 內，
+/* 56c-T4 (codex P1-2)：.similar-main-overlay 已移除。
+   原本是 .similar-stage 直屬子層 z=2001，會在 root stacking context 蓋住
+   被 .similar-stage-inner transform stacking context 囚禁的 play button (z=12)，
+   導致點擊 play button 實際打到 overlay → onSimilarMainImgClick → closeSimilarMode，
+   而非 playSimilarMainVideo。改用 main static 直接接 click（同 inner stacking 內，
    play button z=12 仍在 main static z=11 之上），點擊命中正確。 */
 
-/* 56c-T4: play button 在 .clip-stage-inner 內 design-space coords，
+/* 56c-T4: play button 在 .similar-stage-inner 內 design-space coords，
    位置 main image (480,310) 下方中央 (480,410)；inverse scale 抵消 inner
    transform: scale，維持 44×44 視覺尺寸；對齊 lightbox cover 內 play
    button 的視覺語意（在主圖下方而非 viewport 下方） */
-.clip-play-button {
+.similar-play-button {
     position: absolute;
     left: 480px;
     top: 410px;
-    transform: translate(-50%, -50%) scale(calc(1 / var(--clip-stage-scale, 1)));
+    transform: translate(-50%, -50%) scale(calc(1 / var(--similar-stage-scale, 1)));
     transform-origin: center center;
     width: 44px;
     height: 44px;
@@ -2849,27 +2834,27 @@ body.sidebar-collapsed .showcase-footer {
     align-items: center;
     justify-content: center;
     box-shadow: var(--fluent-shadow-8);
-    z-index: 12;  /* > .clip-main-static z=11 (inner stacking)；ghost 飛行期間蓋過 acceptable */
+    z-index: 12;  /* > .similar-main-static z=11 (inner stacking)；ghost 飛行期間蓋過 acceptable */
     transition: background var(--fluent-duration-fast) var(--fluent-ease-standard),
                 border-color var(--fluent-duration-fast) var(--fluent-ease-standard),
                 box-shadow var(--fluent-duration-fast) var(--fluent-ease-standard);
 }
 
-.clip-play-button:hover {
+.similar-play-button:hover {
     background: rgba(0, 0, 0, 0.5);
     border-color: rgba(255, 255, 255, 0.6);
     box-shadow: var(--fluent-shadow-16);
-    transform: translate(-50%, -50%) scale(calc(1.1 / var(--clip-stage-scale, 1)));
+    transform: translate(-50%, -50%) scale(calc(1.1 / var(--similar-stage-scale, 1)));
 }
 
-.clip-play-button:focus-visible {
+.similar-play-button:focus-visible {
     outline: 2px solid var(--star-glow);
     outline-offset: 2px;
 }
 
-/* < 960px：clip-stage-inner 寬 960px，視窗不足以完整顯示
+/* < 960px：similar-stage-inner 寬 960px，視窗不足以完整顯示
    56c-T7 才實作手機 < 768px 降級（x-collapse 平面化）；本 task 桌面優先，
    < 960px 暫時隱藏（沿用 motion-lab 慣例） */
 @media (max-width: 959px) {
-    .clip-stage-inner { display: none; }
+    .similar-stage-inner { display: none; }
 }

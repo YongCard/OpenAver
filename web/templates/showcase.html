@@ -528,12 +528,11 @@
                 </button>
 
                 <!-- 56c-T3fix: Magic 按鈕（與 .lightbox-close 鏡射對稱，video mode only）
-                     56c-T4: 直接呼叫 openClipMode()——sparkle burst 已搬至 state-clip openClipMode 流程內部統一管理
-                     Fix 4 (codex P2): clipEnabled gate — 未啟用時完全隱藏，避免撞 503 -->
-                <button class="lightbox-clip-btn"
-                        x-show="currentLightboxVideo && !currentLightboxActress && !showFavoriteActresses && clipEnabled"
-                        @click="openClipMode()"
-                        :aria-label="t('clip_mode.button_aria_label')">
+                     56c-T4: 直接呼叫 openSimilarMode()——sparkle burst 已搬至 state-similar openSimilarMode 流程內部統一管理 -->
+                <button class="lightbox-similar-btn"
+                        x-show="currentLightboxVideo && !currentLightboxActress && !showFavoriteActresses"
+                        @click="openSimilarMode()"
+                        :aria-label="t('similar_mode.button_aria_label')">
                     <i class="bi bi-magic" aria-hidden="true"></i>
                 </button>
 
@@ -665,7 +664,7 @@
                             </div>
                             <!-- Cover Action Buttons -->
                             <!-- 56c-fix-v2: x-show="!!currentLightboxVideo?.path" guards standalone
-                                 clip-exit mode (path undefined) — regular lightbox items always have
+                                 similar-exit mode (path undefined) — regular lightbox items always have
                                  path so existing behavior is unaffected. -->
                             <div class="cover-actions" x-show="!!currentLightboxVideo?.path">
                                 <button class="lb-action-btn" @click="playVideo(currentLightboxVideo?.path)" data-tooltip="{{ t('showcase.action.play') }}" aria-label="{{ t('showcase.action.play') }}">
@@ -805,17 +804,17 @@
                         </div>
 
                         <!-- 56c-T7：手機 < 768px cosine 前 4 張 collapse（x-collapse 需 @alpinejs/collapse plugin，已在 base.html 行 640 載入） -->
-                        <div class="lightbox-clip-mobile"
-                             x-show="clipModeMobileOpen"
+                        <div class="lightbox-similar-mobile"
+                             x-show="similarModeMobileOpen"
                              x-collapse>
-                          <div class="clip-mobile-grid">
-                            <template x-for="item in clipResults.slice(0, 4)" :key="item.video_id">
-                              <div class="clip-mobile-card"
-                                   @click="onClipMobileCardClick(item)">
+                          <div class="similar-mobile-grid">
+                            <template x-for="item in similarResults.slice(0, 4)" :key="item.video_id">
+                              <div class="similar-mobile-card"
+                                   @click="onSimilarMobileCardClick(item)">
                                 <img :src="item.cover_url" :alt="item.title" loading="lazy">
-                                <div class="clip-mobile-meta">
-                                  <div class="clip-mobile-number" x-text="item.number"></div>
-                                  <div class="clip-mobile-title" x-text="item.title"></div>
+                                <div class="similar-mobile-meta">
+                                  <div class="similar-mobile-number" x-text="item.number"></div>
+                                  <div class="similar-mobile-title" x-text="item.title"></div>
                                 </div>
                               </div>
                             </template>
@@ -940,30 +939,30 @@
 
     </div>
 
-    <!-- 56c-T4: Clip Stage Sibling（與 .showcase-lightbox / .sample-gallery 同層 fixed
+    <!-- 56c-T4: Similar Stage Sibling（與 .showcase-lightbox / .sample-gallery 同層 fixed
          z-index:1501 > sample-gallery 1500 > showcase-lightbox 1000；
          x-show 不用 x-if，DOM 永遠在（gotchas Alpine 8）。
          x-trap.inert 鎖 focus；x-effect 觸發 init/destroy lifecycle。
          ESC keydown 由 56c-T6 在 state-lightbox.js handleKeydown 統一路由（不在此綁）。 -->
-    <div class="clip-stage"
-         :class="{ 'show': clipModeOpen }"
-         x-show="clipModeOpen"
-         x-trap.inert="clipModeOpen"
-         x-effect="clipModeOpen ? initClipStage() : destroyClipStage()"
-         @click.self="closeClipMode()">
+    <div class="similar-stage"
+         :class="{ 'show': similarModeOpen }"
+         x-show="similarModeOpen"
+         x-trap.inert="similarModeOpen"
+         x-effect="similarModeOpen ? initSimilarStage() : destroySimilarStage()"
+         @click.self="closeSimilarMode()">
 
         <!-- X 關閉按鈕（backdrop scope，相對 viewport 角，不在 inner 內） -->
-        <button class="clip-close-btn"
-                @click="closeClipMode()"
-                :aria-label="t('clip_mode.close')">
+        <button class="similar-close-btn"
+                @click="closeSimilarMode()"
+                :aria-label="t('similar_mode.close')">
             <i class="bi bi-x-lg"></i>
         </button>
 
         <!-- inner stage：960×620 design-space 容器（spec §1 CD-56C-11） -->
-        <div class="clip-stage-inner">
+        <div class="similar-stage-inner">
 
             <!-- Dust particle layer — 100 static circles (60 seed=56 + 40 seed=9999)，搬遷自 motion_lab.html -->
-            <svg class="clip-stage-dust" viewBox="0 0 960 620" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <svg class="similar-stage-dust" viewBox="0 0 960 620" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <circle cx="888" cy="593" r="0.61" style="--dust-base-seed:0.086;--dust-cycle:3.14s;--dust-delay:2.39s"/>
                 <circle cx="450" cy="256" r="0.69" style="--dust-base-seed:0.085;--dust-cycle:3.21s;--dust-delay:1.12s"/>
                 <circle cx="607" cy="232" r="0.62" style="--dust-base-seed:0.083;--dust-cycle:2.7s;--dust-delay:2.56s"/>
@@ -1066,50 +1065,50 @@
                 <circle cx="598" cy="411" r="0.62" style="--dust-base-seed:0.079;--dust-cycle:2.68s;--dust-delay:2.57s"/>
             </svg>
 
-            <!-- SVG rails 12 條 + 12 sweep lines（id 對映 clip-rail-XX / clip-sweep-XX） -->
-            <svg class="clip-stage-rails" viewBox="0 0 960 620" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <template x-for="anchor in CLIP_ANCHORS" :key="anchor.id">
+            <!-- SVG rails 12 條 + 12 sweep lines（id 對映 similar-rail-XX / similar-sweep-XX） -->
+            <svg class="similar-stage-rails" viewBox="0 0 960 620" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <template x-for="anchor in SIMILAR_ANCHORS" :key="anchor.id">
                     <g>
-                        <line :id="'clip-rail-' + anchor.idShort" class="clip-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
-                        <line :id="'clip-sweep-' + anchor.idShort" class="clip-rail-sweep" x1="480" y1="310" x2="480" y2="310" />
+                        <line :id="'similar-rail-' + anchor.idShort" class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                        <line :id="'similar-sweep-' + anchor.idShort" class="similar-rail-sweep" x1="480" y1="310" x2="480" y2="310" />
                     </g>
                 </template>
             </svg>
 
             <!-- 56c-T4: main image visual center anchor — single source of truth
                  for ghost-fly enter target rect。design-space 480,310 200×250 center。 -->
-            <div class="clip-main-anchor" x-ref="clipMainAnchor" aria-hidden="true"></div>
+            <div class="similar-main-anchor" x-ref="similarMainAnchor" aria-hidden="true"></div>
 
-            <!-- 12 slot cards（id 對映 clip-card-XX；@click / @mouseenter / @mouseleave 走 onClipCardXxx） -->
-            <template x-for="anchor in CLIP_ANCHORS" :key="anchor.id">
-                <div class="clip-slot slot--hidden"
-                     :id="'clip-card-' + anchor.idShort"
-                     @click="onClipCardClick(anchor.id)"
-                     @mouseenter="onClipCardHoverEnter(anchor.id)"
-                     @mouseleave="onClipCardHoverLeave(anchor.id)">
-                    <img class="clip-slot-img"
+            <!-- 12 slot cards（id 對映 similar-card-XX；@click / @mouseenter / @mouseleave 走 onSimilarCardXxx） -->
+            <template x-for="anchor in SIMILAR_ANCHORS" :key="anchor.id">
+                <div class="similar-slot slot--hidden"
+                     :id="'similar-card-' + anchor.idShort"
+                     @click="onSimilarCardClick(anchor.id)"
+                     @mouseenter="onSimilarCardHoverEnter(anchor.id)"
+                     @mouseleave="onSimilarCardHoverLeave(anchor.id)">
+                    <img class="similar-slot-img"
                          :src="(_getSlotItem && _getSlotItem(anchor.id))?.cover_url"
                          :alt="(_getSlotItem && _getSlotItem(anchor.id))?.title"
                          loading="lazy">
                 </div>
             </template>
 
-            <!-- 56c-T4: play button 在 .clip-stage-inner 內 design-space coords，
+            <!-- 56c-T4: play button 在 .similar-stage-inner 內 design-space coords，
                  跟著 inner scale；CSS inverse scale 維持視覺 44×44；位置 main static 下方中央 -->
-            <button class="clip-play-button"
-                    x-show="clipModeOpen"
-                    @click.stop="playClipMainVideo && playClipMainVideo()"
+            <button class="similar-play-button"
+                    x-show="similarModeOpen"
+                    @click.stop="playSimilarMainVideo && playSimilarMainVideo()"
                     :aria-label="t('showcase.action.play')">
                 <i class="bi bi-play-fill" aria-hidden="true"></i>
             </button>
 
-        </div><!-- /.clip-stage-inner -->
+        </div><!-- /.similar-stage-inner -->
 
-        <!-- 56c-T4 (codex P1-2): .clip-main-overlay 已移除。
-             原 hit area 改由 _buildClipMainStatic 在 <img> 上直接掛 click listener，
+        <!-- 56c-T4 (codex P1-2): .similar-main-overlay 已移除。
+             原 hit area 改由 _buildSimilarMainStatic 在 <img> 上直接掛 click listener，
              同 stacking context 內 main static z=11 < play button z=12 → 點 button
-             命中 button、點 main static 非 button 區命中 onClipMainImgClick → closeClipMode。 -->
-    </div><!-- /.clip-stage -->
+             命中 button、點 main static 非 button 區命中 onSimilarMainImgClick → closeSimilarMode。 -->
+    </div><!-- /.similar-stage -->
 
     <!-- TASK-52.3.3: Remove Actress Confirm Modal（取代原 window.confirm）
          Esc 雙重防線：handleKeydown 入口攔截 + dialog 自身 @keydown.escape.window 冗餘
@@ -1239,8 +1238,7 @@
 <!-- M2c: 傳遞 config 給 JS -->
 <script>
 window.__SHOWCASE_CONFIG__ = {{ (config.gallery or {}) | tojson | safe }};
-// Fix 4 (codex P2): server-side render clip.enabled → Alpine clipEnabled gate
-window.__CLIP_ENABLED__ = {{ clip_enabled | tojson | safe }};
+
 </script>
 <!-- B5: animations.js 在 ESM main.js 之前載入（透過 extra_js defer） -->
 <script src="/static/js/pages/showcase/animations.js"></script>

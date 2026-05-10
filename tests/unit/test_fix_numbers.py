@@ -10,6 +10,8 @@ All tests are pure Python — no FS, no DB, no network.
 
 import pytest
 
+from core.path_utils import to_file_uri
+
 
 # ── U1: preview 規則過濾 — 空 rules 套用全部 ─────────────────────────────────
 
@@ -22,11 +24,11 @@ class TestPreviewRulesEmpty:
 
         # 各 corruption 類型一筆
         rows = [
-            {"id": 1, "number": "7IPZ-154",   "path": "file:///a/1.mp4"},
-            {"id": 2, "number": "TKIPZ-154",  "path": "file:///a/2.mp4"},
-            {"id": 3, "number": "K9IPZ-154",  "path": "file:///a/3.mp4"},
-            {"id": 4, "number": "R-IPZ-154",  "path": "file:///a/4.mp4"},
-            {"id": 5, "number": "IPZ-154",    "path": "file:///a/5.mp4"},  # 正常，不應出現
+            {"id": 1, "number": "7IPZ-154",   "path": to_file_uri("/a/1.mp4")},
+            {"id": 2, "number": "TKIPZ-154",  "path": to_file_uri("/a/2.mp4")},
+            {"id": 3, "number": "K9IPZ-154",  "path": to_file_uri("/a/3.mp4")},
+            {"id": 4, "number": "R-IPZ-154",  "path": to_file_uri("/a/4.mp4")},
+            {"id": 5, "number": "IPZ-154",    "path": to_file_uri("/a/5.mp4")},  # 正常，不應出現
         ]
 
         rules_to_apply = CORRUPTION_RULES  # empty rules → all rules
@@ -66,10 +68,10 @@ class TestPreviewRulesSubset:
         import re
 
         rows = [
-            {"id": 1, "number": "7IPZ-154",   "path": "file:///a/1.mp4"},
-            {"id": 2, "number": "TKIPZ-154",  "path": "file:///a/2.mp4"},
-            {"id": 3, "number": "K9IPZ-154",  "path": "file:///a/3.mp4"},
-            {"id": 4, "number": "R-IPZ-154",  "path": "file:///a/4.mp4"},
+            {"id": 1, "number": "7IPZ-154",   "path": to_file_uri("/a/1.mp4")},
+            {"id": 2, "number": "TKIPZ-154",  "path": to_file_uri("/a/2.mp4")},
+            {"id": 3, "number": "K9IPZ-154",  "path": to_file_uri("/a/3.mp4")},
+            {"id": 4, "number": "R-IPZ-154",  "path": to_file_uri("/a/4.mp4")},
         ]
 
         requested_names = ["digit_prefix"]

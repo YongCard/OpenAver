@@ -12,7 +12,7 @@ import { stateBase }     from '@/showcase/state-base.js';
 import { stateVideos }   from '@/showcase/state-videos.js';
 import { stateActress }  from '@/showcase/state-actress.js';
 import { stateLightbox } from '@/showcase/state-lightbox.js';
-import { stateClip }     from '@/showcase/state-clip.js';
+import { stateSimilar }  from '@/showcase/state-similar.js';
 
 function mergeState(...parts) {
     const target = {};
@@ -28,7 +28,7 @@ window.showcaseState = function() {
         stateVideos.call(this),
         stateActress.call(this),
         stateLightbox.call(this),
-        stateClip.call(this),
+        stateSimilar.call(this),
     );
 };
 

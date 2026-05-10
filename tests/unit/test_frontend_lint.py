@@ -1136,8 +1136,8 @@ class TestScrapeToastI18nGuard:
                     f"{locale}.json {dotted!r} must not be empty string"
 
 
-class TestClipModeI18nGuard:
-    """56c-T3: 守衛 Clip Mode 入口按鈕 i18n key（zh_TW.json）"""
+class TestSimilarModeI18nGuard:
+    """57c-T1a: 守衛 Similar Mode 入口按鈕 i18n key（zh_TW.json）"""
 
     def _locale(self, name):
         return json.loads((LOCALES_ROOT / name).read_text(encoding="utf-8"))
@@ -1151,77 +1151,77 @@ class TestClipModeI18nGuard:
             cur = cur[k]
         return cur
 
-    def test_zh_tw_has_clip_mode_button_aria_label(self):
-        """zh_TW.json 必須有 clip_mode.button_aria_label，且為非空字串"""
+    def test_zh_tw_has_similar_mode_button_aria_label(self):
+        """zh_TW.json 必須有 similar_mode.button_aria_label，且為非空字串"""
         data = self._locale("zh_TW.json")
-        val = self._get_nested(data, "clip_mode.button_aria_label")
+        val = self._get_nested(data, "similar_mode.button_aria_label")
         assert val is not None, \
-            "zh_TW.json missing: 'clip_mode.button_aria_label'"
+            "zh_TW.json missing: 'similar_mode.button_aria_label'"
         assert isinstance(val, str) and len(val) > 0, \
-            "zh_TW.json 'clip_mode.button_aria_label' must not be empty string"
+            "zh_TW.json 'similar_mode.button_aria_label' must not be empty string"
 
 
-class TestClipStageGuard:
-    """56c-T4: 守衛 state-clip.js 整合 contract — 確保新 mixin 串入 main.js mergeState
-    鏈、CLIP_ANCHORS 揭露給 Alpine template、.clip-stage sibling DOM 在 showcase.html 對齊。
+class TestSimilarStageGuard:
+    """57c-T4+T5: 守衛 state-similar.js 整合 contract — 確保新 mixin 串入 main.js mergeState
+    鏈、SIMILAR_ANCHORS 揭露給 Alpine template、.similar-stage sibling DOM 在 showcase.html 對齊。
     """
 
     SHOWCASE_DIR = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "showcase"
-    STATE_CLIP_JS = SHOWCASE_DIR / "state-clip.js"
+    STATE_SIMILAR_JS = SHOWCASE_DIR / "state-similar.js"
     MAIN_JS = SHOWCASE_DIR / "main.js"
 
     def _html(self):
         return SHOWCASE_HTML.read_text(encoding="utf-8")
 
-    def _state_clip(self):
-        return self.STATE_CLIP_JS.read_text(encoding="utf-8")
+    def _state_similar(self):
+        return self.STATE_SIMILAR_JS.read_text(encoding="utf-8")
 
     def _main(self):
         return self.MAIN_JS.read_text(encoding="utf-8")
 
-    def test_state_clip_file_exists(self):
-        """state-clip.js 必須存在（56c-T4 新建）"""
-        assert self.STATE_CLIP_JS.exists(), \
-            f"state-clip.js missing at {self.STATE_CLIP_JS!s}"
+    def test_state_similar_file_exists(self):
+        """state-similar.js 必須存在（57c-T4+T5 rename）"""
+        assert self.STATE_SIMILAR_JS.exists(), \
+            f"state-similar.js missing at {self.STATE_SIMILAR_JS!s}"
 
-    def test_main_js_imports_and_merges_state_clip(self):
-        """main.js 必須 import stateClip 並插入 mergeState 鏈（v0.8.4 descriptor-preserving 規範）"""
+    def test_main_js_imports_and_merges_state_similar(self):
+        """main.js 必須 import stateSimilar 並插入 mergeState 鏈（v0.8.4 descriptor-preserving 規範）"""
         src = self._main()
-        assert "from '@/showcase/state-clip.js'" in src, \
-            "main.js missing: import { stateClip } from '@/showcase/state-clip.js'"
-        # mergeState 鏈整合：stateClip.call(this) 必須出現
-        assert "stateClip.call(this)" in src, \
-            "main.js mergeState chain missing: stateClip.call(this)"
+        assert "from '@/showcase/state-similar.js'" in src, \
+            "main.js missing: import { stateSimilar } from '@/showcase/state-similar.js'"
+        # mergeState 鏈整合：stateSimilar.call(this) 必須出現
+        assert "stateSimilar.call(this)" in src, \
+            "main.js mergeState chain missing: stateSimilar.call(this)"
 
-    def test_state_clip_exports_clip_anchors(self):
-        """CLIP_ANCHORS 必須 export（Alpine template x-for 用：'anchor in CLIP_ANCHORS'）"""
-        src = self._state_clip()
-        assert "export const CLIP_ANCHORS" in src, \
-            "state-clip.js missing: export const CLIP_ANCHORS = ANCHORS.map(...)"
+    def test_state_similar_exports_similar_anchors(self):
+        """SIMILAR_ANCHORS 必須 export（Alpine template x-for 用：'anchor in SIMILAR_ANCHORS'）"""
+        src = self._state_similar()
+        assert "export const SIMILAR_ANCHORS" in src, \
+            "state-similar.js missing: export const SIMILAR_ANCHORS = ANCHORS.map(...)"
 
-    def test_state_clip_exposes_clip_mode_methods(self):
-        """state-clip.js 必須 export stateClip factory 並含 4 主流程 method（CD-56C-6）"""
-        src = self._state_clip()
-        assert re.search(r"export\s+function\s+stateClip\s*\(", src), \
-            "state-clip.js missing: export function stateClip()"
-        for method in ("openClipMode", "closeClipMode", "initClipStage", "destroyClipStage"):
+    def test_state_similar_exposes_similar_mode_methods(self):
+        """state-similar.js 必須 export stateSimilar factory 並含 4 主流程 method（CD-57c-5）"""
+        src = self._state_similar()
+        assert re.search(r"export\s+function\s+stateSimilar\s*\(", src), \
+            "state-similar.js missing: export function stateSimilar()"
+        for method in ("openSimilarMode", "closeSimilarMode", "initSimilarStage", "destroySimilarStage"):
             assert method in src, \
-                f"state-clip.js missing method: {method}"
+                f"state-similar.js missing method: {method}"
 
-    def test_clip_stage_sibling_dom_in_showcase_html(self):
-        """showcase.html 必須含 .clip-stage sibling DOM（z-index 1501，x-effect lifecycle）"""
+    def test_similar_stage_sibling_dom_in_showcase_html(self):
+        """showcase.html 必須含 .similar-stage sibling DOM（z-index 1501，x-effect lifecycle）"""
         html = self._html()
         # backdrop class
-        assert "clip-stage" in html, "showcase.html missing: .clip-stage sibling div"
+        assert "similar-stage" in html, "showcase.html missing: .similar-stage sibling div"
         # x-effect lifecycle 觸發 init/destroy（必須沿用 plan §6 §B 範例）
-        assert "initClipStage()" in html and "destroyClipStage()" in html, \
-            "showcase.html missing x-effect: clipModeOpen ? initClipStage() : destroyClipStage()"
+        assert "initSimilarStage()" in html and "destroySimilarStage()" in html, \
+            "showcase.html missing x-effect: similarModeOpen ? initSimilarStage() : destroySimilarStage()"
         # 960×620 inner stage（spec §1 CD-56C-11）
-        assert "clip-stage-inner" in html, \
-            "showcase.html missing: .clip-stage-inner (960×620 design-space container)"
-        # Alpine x-for 對齊 CLIP_ANCHORS export
-        assert "CLIP_ANCHORS" in html, \
-            "showcase.html missing: CLIP_ANCHORS reference (x-for=\"anchor in CLIP_ANCHORS\")"
+        assert "similar-stage-inner" in html, \
+            "showcase.html missing: .similar-stage-inner (960×620 design-space container)"
+        # Alpine x-for 對齊 SIMILAR_ANCHORS export
+        assert "SIMILAR_ANCHORS" in html, \
+            "showcase.html missing: SIMILAR_ANCHORS reference (x-for=\"anchor in SIMILAR_ANCHORS\")"
 
     # NOTE (v0.8.6 pre-merge SA-pre-6): test_no_filter_brightness_in_clip_files
     # 已遷移到 eslint.config.mjs SEL_FILTER_BRIGHTNESS（Group 5 + Group 5b），對齊
@@ -1244,6 +1244,73 @@ class TestClipStageGuard:
                 f"{fname} contains 'slot-icon-overlay' — spec §3 Phase 56c DoD 3 禁止 8 卡配置"
                 " action button；DOM + CSS 需完全移除（56c-T4fix7 防回歸）"
             )
+
+    def test_no_clip_selector_in_js(self):
+        """57c-T4+T5 Codex P1-1 guard: JS 不得用 closest/matches/querySelector 搭配 .clip- selector。
+        唯一合法位置：core/clip/ Python 模組（與 JS selector 無關）與 tests/unit/test_clip_*.py。
+        ghost-fly.js 已改用 .similar-stage（57c-T4 修正）。
+        排除：pages/motion-lab/ — .clip-lab-* 是 motion-lab sandbox 專屬（Non-Goal #12）。"""
+        JS_ROOT = Path(__file__).parent.parent.parent / "web" / "static" / "js"
+        MOTION_LAB_DIR = JS_ROOT / "pages" / "motion-lab"
+        pattern = re.compile(
+            r"""(?:closest|matches|querySelector|querySelectorAll)\s*\(\s*['"][^'"]*\.clip-"""
+        )
+        violations = []
+        for js_file in JS_ROOT.rglob("*.js"):
+            # motion-lab sandbox 的 .clip-lab-* 是 Non-Goal #12，不在此 guard 範圍
+            try:
+                js_file.relative_to(MOTION_LAB_DIR)
+                continue  # 在 motion-lab/ 下，跳過
+            except ValueError:
+                pass
+            content = js_file.read_text(encoding="utf-8")
+            for lineno, line in enumerate(content.splitlines(), 1):
+                if pattern.search(line):
+                    violations.append(f"{js_file.relative_to(JS_ROOT)}:{lineno}: {line.strip()}")
+        assert not violations, (
+            "JS 中 .clip- selector 被用於 closest/matches/querySelector — "
+            "應改用 .similar-stage（或其他已更名的 selector）：\n"
+            + "\n".join(violations)
+        )
+
+    def test_no_clip_alpine_methods_in_showcase_and_similar(self):
+        """57c-T4+T5 Codex P1-2 guard: showcase.html 與 state-similar.js 不得出現舊的
+        *Clip* Alpine method 名（如 onClipMobileCardClick / playClipMainVideo 等）。
+        pattern：\\b(?:on|play|build|calc|destroy|init|open|close)Clip[A-Z]
+        motion_lab.html 的 .clip-lab-* 不在此 guard 範圍（Non-Goal #12）。"""
+        SIMILAR_JS = (
+            Path(__file__).parent.parent.parent
+            / "web" / "static" / "js" / "pages" / "showcase" / "state-similar.js"
+        )
+        pattern = re.compile(r"\b(?:on|play|build|calc|destroy|init|open|close)Clip[A-Z]")
+        files_to_check = [
+            (SHOWCASE_HTML, "showcase.html"),
+            (SIMILAR_JS, "state-similar.js"),
+        ]
+        violations = []
+        for fpath, fname in files_to_check:
+            content = fpath.read_text(encoding="utf-8")
+            for lineno, line in enumerate(content.splitlines(), 1):
+                m = pattern.search(line)
+                if m:
+                    violations.append(f"{fname}:{lineno}: {line.strip()} (matched: {m.group()})")
+        assert not violations, (
+            "舊的 *Clip* Alpine method 名稱殘留 — "
+            "應改用對應的 *Similar* 名稱（57c-T4+T5 rename）：\n"
+            + "\n".join(violations)
+        )
+
+    def test_no_clip_stage_selector_in_ghost_fly(self):
+        """57c-T4+T5 Codex P1-1 guard: ghost-fly.js 不得用 closest('.clip-stage')。
+        57c 已改為 closest('.similar-stage')；此 guard 防止回歸。"""
+        GHOST_FLY_JS = (
+            Path(__file__).parent.parent.parent
+            / "web" / "static" / "js" / "shared" / "ghost-fly.js"
+        )
+        content = GHOST_FLY_JS.read_text(encoding="utf-8")
+        assert "closest('.clip-stage')" not in content and 'closest(".clip-stage")' not in content, (
+            "ghost-fly.js 含 closest('.clip-stage') — 應為 closest('.similar-stage')（57c-T4 修正）"
+        )
 
 
 SEARCH_STATE_DIR = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "search" / "state"
@@ -4644,7 +4711,7 @@ class TestMotionInfra:
             Path('pages') / 'search' / 'animations.js', # pages/search/animations.js（T6 預先加入）
             Path('pages') / 'showcase' / 'animations.js', # pages/showcase/animations.js（B6 動畫模組）
             Path('pages') / 'motion-lab' / 'constellation-host.js',  # 56b-T3 thin host（從 pages/clip-lab/main.js 搬遷）
-            Path('pages') / 'showcase' / 'state-clip.js',  # 56c-T4 showcase clip mode host（per-host BreathingManager / GSAP context lifecycle，CD-56C-6）
+            Path('pages') / 'showcase' / 'state-similar.js',  # 57c-T4+T5 showcase similar mode host（per-host BreathingManager / GSAP context lifecycle，CD-57c-5）
         }
         violations = []
 

@@ -36,7 +36,7 @@
      * 既有 caller 不傳 options → 走 default 'full' 分支零回歸。
      *
      * 56c-T4: 第三參數 options.parent 預設 `document.body`（向後相容）；
-     * 56c clip mode 傳入 `.clip-stage`，讓 ghost 進入 .clip-stage 自己建立的
+     * 56c similar mode 傳入 `.similar-stage`，讓 ghost 進入 .similar-stage 自己建立的
      * stacking context — 同 stacking context 內 main-overlay z=2001 才能正確
      * 蓋過 ghost z=2000。其他 callers 不傳 → 走 default body → 行為不變。
      *
@@ -81,8 +81,8 @@
             ghost.style.objectPosition = 'right center';
         }
 
-        // 56c-T4: parent 預設 body 維持向後相容；56c 傳 .clip-stage 讓 ghost
-        // 進入 .clip-stage stacking context，main-overlay z=2001 在同 context 下
+        // 56c-T4: parent 預設 body 維持向後相容；56c 傳 .similar-stage 讓 ghost
+        // 進入 .similar-stage stacking context，main-overlay z=2001 在同 context 下
         // 才能正確蓋過 ghost z=2000
         var parent = options.parent || document.body;
         parent.appendChild(ghost);
@@ -122,20 +122,20 @@
         }
     }
 
-    // ─── 56c Clip Mode 進退場 helper（plan-56c §1 CD-56C-3 / CD-56C-2 / CD-56C-11）──
+    // ─── 56c Similar Mode 進退場 helper（plan-56c §1 CD-56C-3 / CD-56C-2 / CD-56C-11）──
 
     /**
      * 56c-T2 (CD-56C-3 + CD-56C-11): Lightbox cover → Constellation stage 中央 進場
      *
      * 從 lightbox cover img 起飛，飛到 stageInner design-space (480, 310) 中央
      * 200×250 box；只顯示右半邊（cropMode: 'right-half'）。
-     * 動畫完成後 ghost **不 cleanup**（state-clip.js 接管 ghost ref）。
+     * 動畫完成後 ghost **不 cleanup**（state-similar.js 接管 ghost ref）。
      *
-     * caller 責任：呼叫前必須先 mount `.clip-stage.show`，並等 rAF 讓 stageInner
+     * caller 責任：呼叫前必須先 mount `.similar-stage.show`，並等 rAF 讓 stageInner
      * rect 有效（CD-56C-11 caveat）。
      *
      * @param {HTMLImageElement} coverImgEl - lightbox 內 .lightbox-cover img
-     * @param {HTMLElement} stageInnerEl - .clip-stage-inner（960×620 居中容器）
+     * @param {HTMLElement} stageInnerEl - .similar-stage-inner（960×620 居中容器）
      * @param {object} [opts] - { onComplete?: (ghost) => void }
      * @returns {gsap.core.Timeline|null}
      */
@@ -156,9 +156,9 @@
         // 1) 先建 ghost（createCoverGhost 內部 cleanupStaleGhosts() 會還原所有
         //    [data-ghost-hidden] 元素 opacity，故必須在 hide 之前呼叫；對齊
         //    playGridToLightbox 既有 pattern）
-        // 56c-T4: 取 .clip-stage 作為 ghost parent，讓 ghost 進入 .clip-stage
-        // stacking context → main-overlay z=2001 在 .clip-stage 內可以正確蓋過 ghost z=2000
-        var stageEl = stageInnerEl.closest('.clip-stage');
+        // 56c-T4: 取 .similar-stage 作為 ghost parent，讓 ghost 進入 .similar-stage
+        // stacking context → main-overlay z=2001 在 .similar-stage 內可以正確蓋過 ghost z=2000
+        var stageEl = stageInnerEl.closest('.similar-stage');
         var ghost = createCoverGhost(src, rect, {
             cropMode: 'right-half',
             parent: stageEl || document.body  // fallback safety
@@ -173,11 +173,11 @@
         coverImgEl.setAttribute('data-ghost-hidden', 'true');
         gsap.set(coverImgEl, { opacity: 0 });
 
-        // 56c-T4: single source of truth — 直接吃 .clip-main-anchor 的 native rect
+        // 56c-T4: single source of truth — 直接吃 .similar-main-anchor 的 native rect
         // （瀏覽器 transform: scale 後回傳 scaled rect），與 cards design-space 480/310
         // 完全同步，避免再算 480*scale 公式漂移
         var targetX, targetY, targetW, targetH;
-        var anchorEl = stageInnerEl.querySelector('.clip-main-anchor');
+        var anchorEl = stageInnerEl.querySelector('.similar-main-anchor');
         if (anchorEl) {
             var anchorRect = anchorEl.getBoundingClientRect();
             targetX = anchorRect.left;
@@ -203,9 +203,9 @@
         gsap.killTweensOf(ghost);
 
         var tl = gsap.timeline({
-            id: 'clipEnter',
+            id: 'similarEnter',
             onComplete: function () {
-                // ghost 留在中央給 state-clip.js 接管，**不 cleanup**
+                // ghost 留在中央給 state-similar.js 接管，**不 cleanup**
                 if (typeof opts.onComplete === 'function') opts.onComplete(ghost);
             },
             onInterrupt: function () {
@@ -262,7 +262,7 @@
         gsap.killTweensOf(mainImgGhost);
 
         var tl = gsap.timeline({
-            id: 'clipExit',
+            id: 'similarExit',
             onComplete: function () {
                 cleanupGhost(mainImgGhost, targetCoverEl);
                 if (typeof opts.onComplete === 'function') opts.onComplete();
@@ -284,7 +284,7 @@
     }
 
     /**
-     * 56c-T2 (CD-56C-2): Clip Scan Preview — lightbox 點 .bi-magic 時的 0.4s 預覽動畫
+     * 56c-T2 (CD-56C-2): Similar Scan Preview — lightbox 點 .bi-magic 時的 0.4s 預覽動畫
      *
      * 56c-T3fix: 改為 sparkle burst（10 顆四角星，stagger fade-in + scale + rotate + sine yoyo + accel fade-out）
      * 對應 magic.png 視覺隱喻；廢棄舊三層光帶（left dim / beam / right glow）。
@@ -305,7 +305,7 @@
      * @param {Function} [onComplete] - 動畫完成 callback（缺 DOM 時也會立即觸發）
      * @returns {gsap.core.Timeline|null}
      */
-    function play56cClipScanPreview(coverEl, onComplete) {
+    function play56cSimilarScanPreview(coverEl, onComplete) {
         var done = function () { if (typeof onComplete === 'function') onComplete(); };
 
         if (!coverEl) { done(); return null; }
@@ -324,7 +324,7 @@
         gsap.set(stars, { clearProps: 'opacity,scale,rotation,transform' });
         gsap.set(burst, { opacity: 0 });
 
-        var tl = gsap.timeline({ id: 'clipSparkleBurst' });
+        var tl = gsap.timeline({ id: 'similarSparkleBurst' });
         tl.set(burst, { opacity: 1 });
         tl.set(stars, { opacity: 0, scale: 0, rotation: 'random(-30, 30)' });
 
@@ -364,10 +364,10 @@
         cleanupGhost: cleanupGhost,
         cleanupStaleGhosts: cleanupStaleGhosts,
 
-        // 56c-T2: Clip Mode 進退場 + scan preview helper（callsite 在 56c-T3 / T5）
+        // 56c-T2: Similar Mode 進退場 + scan preview helper（callsite 在 56c-T3 / T5）
         play56cConstellationEnter: play56cConstellationEnter,
         play56cConstellationExit: play56cConstellationExit,
-        play56cClipScanPreview: play56cClipScanPreview,
+        play56cSimilarScanPreview: play56cSimilarScanPreview,
 
         /**
          * Grid → Lightbox ghost fly

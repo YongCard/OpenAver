@@ -57,105 +57,24 @@
             </div>
             <div class="card-body">
 
-                <div class="settings-toggle-pair-row">
-                    <div class="settings-form-group popover-anchor">
-                        <label class="settings-label">
-                            <input type="checkbox" class="toggle toggle-primary"
-                                   x-model="form.downloadSampleImages">
-                            <span class="label-text">{{ t('settings.scraper.download_sample_images_label') }}</span>
-                            <button type="button" class="help-popover-btn"
-                                    @click.prevent="showSampleImagesHelp = !showSampleImagesHelp"
-                                    :aria-expanded="showSampleImagesHelp">
-                                <i class="bi bi-question-circle"></i>
-                            </button>
-                        </label>
-                        <div x-show="showSampleImagesHelp" x-cloak x-transition
-                             @click.outside="showSampleImagesHelp = false"
-                             class="help-popover">
-                            <small class="help-popover__body">
-                                {{ t('settings.scraper.download_sample_images_hint') }}
-                            </small>
-                        </div>
-                    </div>
-
-                    <div class="settings-form-group popover-anchor">
-                        <label class="settings-label">
-                            <input type="checkbox" class="toggle toggle-primary"
-                                   x-model="clipEnabled"
-                                   @change="onClipToggleChange($event)">
-                            <span class="label-text">{{ t('settings.clip.toggle_label') }}</span>
-                            <span class="text-error font-semibold ml-1">{{ t('settings.clip.beta_suffix') }}</span>
-                            <button type="button" class="help-popover-btn"
-                                    @click.prevent="showClipHelp = !showClipHelp"
-                                    :aria-expanded="showClipHelp">
-                                <i class="bi bi-question-circle"></i>
-                            </button>
-                            <!-- 測試推論按鈕（同 row、icon-only-ish；clipEnabled 恆顯、
-                                 download/index 期間隱藏避免干擾進度條，56f-T5 UX fix）-->
-                            <button type="button"
-                                    x-show="clipEnabled && clipPhase !== 'downloading' && clipPhase !== 'indexing'"
-                                    x-cloak
-                                    class="btn btn-xs btn-ghost ml-2"
-                                    @click.prevent="testClipInference()"
-                                    :disabled="_testInferenceLoading">
-                                <i class="bi bi-stopwatch"></i>
-                                {{ t('clip.action.test_inference') }}
-                            </button>
-                        </label>
-                        <div x-show="showClipHelp" x-cloak x-transition
-                             @click.outside="showClipHelp = false"
-                             class="help-popover">
-                            <small class="help-popover__body">
-                                {{ t('settings.clip.toggle_hint') }}
-                                <a href="/help#clip" class="link link-primary">
-                                    {{ t('settings.clip.help_link') }}
-                                </a>
-                            </small>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Status box（clipStatusBoxVisible getter 控制可見性，CD-56D-2） -->
-                <div x-show="clipStatusBoxVisible" x-cloak x-transition
-                     class="clip-status-box mt-2 p-3 rounded-lg">
-
-                    <!-- 階段 1：下載中 -->
-                    <div x-show="clipPhase === 'downloading'" class="flex items-center gap-2">
-                        <span class="loading loading-spinner loading-sm"></span>
-                        <span x-text="t('clip.status.downloading')"></span>
-                        <span class="font-mono text-sm" x-text="clipDownloadMBStr"></span>
-                    </div>
-                    <progress x-show="clipPhase === 'downloading'"
-                              class="progress progress-primary w-full"
-                              :value="clipDownloadProgress" max="1"></progress>
-
-                    <!-- 階段 2：索引中 -->
-                    <div x-show="clipPhase === 'indexing'" class="flex items-center gap-2">
-                        <span class="loading loading-spinner loading-sm"></span>
-                        <span x-text="t('clip.status.indexing')"></span>
-                        <span class="font-mono text-sm"
-                              x-text="`${clipIndexDone} / ${clipIndexTotal}`"></span>
-                    </div>
-                    <progress x-show="clipPhase === 'indexing'"
-                              class="progress progress-primary w-full"
-                              :value="clipIndexDone" :max="clipIndexTotal || 1"></progress>
-
-                    <!-- 階段 3：完成 -->
-                    <div x-show="clipPhase === 'ready'" class="flex items-center gap-2 text-success">
-                        <i class="bi bi-check-circle-fill"></i>
-                        <span x-text="t('clip.status.ready')"></span>
-                    </div>
-
-                    <!-- 階段 4：失敗 -->
-                    <div x-show="clipPhase === 'error'" class="flex items-center gap-2 text-error">
-                        <i class="bi bi-x-circle-fill"></i>
-                        <span x-text="clipErrorMessage"></span>
-                        <button class="btn btn-xs btn-outline btn-error ml-2"
-                                @click="onClipToggleChange()">
-                            {{ t('clip.action.retry') }}
+                <div class="settings-form-group popover-anchor">
+                    <label class="settings-label">
+                        <input type="checkbox" class="toggle toggle-primary"
+                               x-model="form.downloadSampleImages">
+                        <span class="label-text">{{ t('settings.scraper.download_sample_images_label') }}</span>
+                        <button type="button" class="help-popover-btn"
+                                @click.prevent="showSampleImagesHelp = !showSampleImagesHelp"
+                                :aria-expanded="showSampleImagesHelp">
+                            <i class="bi bi-question-circle"></i>
                         </button>
+                    </label>
+                    <div x-show="showSampleImagesHelp" x-cloak x-transition
+                         @click.outside="showSampleImagesHelp = false"
+                         class="help-popover">
+                        <small class="help-popover__body">
+                            {{ t('settings.scraper.download_sample_images_hint') }}
+                        </small>
                     </div>
-
                 </div>
 
                 <div class="settings-form-group">
@@ -857,34 +776,6 @@
                     <span x-show="_resetConfigLoading" class="loading loading-spinner loading-xs"></span>
                     <span x-show="!_resetConfigLoading"><i class="bi bi-arrow-counterclockwise"></i></span>
                     {{ t('settings.reset_modal.confirm') }}
-                </button>
-            </div>
-        </div>
-    </dialog>
-
-    <!-- TASK-56e-T2: Clip Disable Confirm Modal -->
-    <dialog class="modal fluent-modal"
-            :class="{ 'modal-open': clipDisableModalOpen }"
-            @click.self="cancelClipDisableModal()"
-            @keydown.escape.window="clipDisableModalOpen && cancelClipDisableModal()">
-        <div class="modal-box fluent-modal-box">
-            <h3 class="fluent-modal-title">
-                <i class="bi bi-exclamation-triangle text-error"></i>
-                {{ t('clip.disable_modal.title') }}
-            </h3>
-            <p class="fluent-modal-body" style="white-space: pre-line;">
-                {{ t('clip.disable_modal.body') }}
-            </p>
-            <div class="modal-action fluent-modal-actions">
-                <button type="button" class="btn btn-ghost" @click="cancelClipDisableModal()">
-                    {{ t('common.action.cancel') }}
-                </button>
-                <button type="button" class="btn btn-error"
-                        @click="confirmClipDisable()"
-                        :disabled="_clipDisableLoading">
-                    <span x-show="_clipDisableLoading" class="loading loading-spinner loading-xs"></span>
-                    <span x-show="!_clipDisableLoading"><i class="bi bi-trash"></i></span>
-                    {{ t('clip.disable_modal.confirm') }}
                 </button>
             </div>
         </div>

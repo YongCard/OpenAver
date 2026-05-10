@@ -1002,7 +1002,7 @@ _TOOLS: list[dict] = [
     },
     {
         "name": "similar_covers_by_number",
-        "description": "找視覺相似的封面：給定番號，回傳 12 部 cosine 相似度最高的影片（已排除同女優、含右半邊裁切預處理）。讀取既有 CLIP 索引，不修改資料庫。",
+        "description": "規則式相似度排序：基於 tag IDF-weighted Jaccard + 系列 / 片商 / 年份多訊號 + MMR diversity；給定番號回傳 12 部探索星空候選。不修改資料庫。",
         "side_effect": False,
         "method": "GET",
         "path": "/api/similar-covers/by-number/{number}",
@@ -1018,7 +1018,7 @@ _TOOLS: list[dict] = [
             "required": ["number"],
         },
         "output_schema": {
-            "model_id": "string — CLIP 模型版本",
+            "model_id": "string — ranker 版本識別（固定 'rule-based:v1'，非 ML model id）",
             "query_video": "{video_id, number, title, cover_url}",
             "results": "[{video_id, number, title, cover_url, cosine_score, penalty_applied, actresses}]",
         },
@@ -1040,7 +1040,7 @@ _TOOLS: list[dict] = [
             "required": ["video_id"],
         },
         "output_schema": {
-            "model_id": "string — CLIP 模型版本",
+            "model_id": "string — ranker 版本識別（固定 'rule-based:v1'，非 ML model id）",
             "query_video": "{video_id, number, title, cover_url}",
             "results": "[{video_id, number, title, cover_url, cosine_score, penalty_applied, actresses}]",
         },

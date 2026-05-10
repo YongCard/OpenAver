@@ -52,7 +52,7 @@ const SEL_STARSETTLE_LITERAL = {
 
 // ── 56c-T4fix7 filter: brightness() ban（取代 TestClipStageGuard pytest 守衛）────
 // Hover dim 路徑必須改用 --slot-dim-opacity CSS var tween；filter: brightness() 已退役。
-// 限定 state-clip.js + constellation-host.js（兩 host），其他檔案不限制
+// 限定 state-similar.js + constellation-host.js（兩 host），其他檔案不限制
 // （cover-image filter / scrubber 等仍可能合法用 brightness）。
 const SEL_FILTER_BRIGHTNESS = {
   selector: "Literal[value=/brightness\\(/]",
@@ -118,7 +118,7 @@ export default [
 
   // Group 2: 其他 state/** — createElement + window.confirm + BreathingManager（不含 showModal）
   // + starSettle Literal ban（Codex r1 P3）
-  // + closeClipMode 定義唯一性守衛（CD-56C-4）：state-clip.js 白名單（Group 5b），其餘 state 禁止定義
+  // + closeSimilarMode 定義唯一性守衛（CD-56C-4）：state-similar.js 白名單（Group 5b），其餘 state 禁止定義
   {
     files: ["web/static/js/pages/**/state/**/*.js"],
     ignores: ["web/static/js/pages/search/state/**/*.js"],
@@ -131,11 +131,11 @@ export default [
         SEL_STARSETTLE_LITERAL,
         {
           selector: [
-            "Property[key.name='closeClipMode']",
-            "MethodDefinition[key.name='closeClipMode']",
+            "Property[key.name='closeSimilarMode']",
+            "MethodDefinition[key.name='closeSimilarMode']",
           ].join(', '),
           message:
-            "closeClipMode 只能在 state-clip.js 定義（CD-56C-4 單一定義原則）。其他檔案可呼叫 this.closeClipMode()，但不可定義同名 method。",
+            "closeSimilarMode 只能在 state-similar.js 定義（CD-56C-4 單一定義原則）。其他檔案可呼叫 this.closeSimilarMode()，但不可定義同名 method。",
         },
       ],
     },
@@ -275,14 +275,14 @@ export default [
     },
   },
 
-  // Group 5b (56c-T4)：showcase/state-clip.js 完整規則集（supersedes Group 3）
+  // Group 5b (56c-T4)：showcase/state-similar.js 完整規則集（supersedes Group 3）
   // 56c clip mode 與 motion-lab Constellation tab 是雙 host：constellation-host.js 是
-  // motion-lab sandbox 的 thin host；state-clip.js 是 showcase lightbox takeover 的 host。
+  // motion-lab sandbox 的 thin host；state-similar.js 是 showcase lightbox takeover 的 host。
   // 兩者都是合法的 BreathingManager 建立者（per-host lifecycle 持有原則，CD-56B-T2 同源延伸）。
   // 規則繼承 Group 6 base：window.confirm + Set.intersection（ES2025） + starSettle Literal
   // 但允許 new BreathingManager（host 持有 lifecycle）。
   {
-    files: ["web/static/js/pages/showcase/state-clip.js"],
+    files: ["web/static/js/pages/showcase/state-similar.js"],
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -303,14 +303,14 @@ export default [
   // 包含：window.confirm guard + BreathingManager 實例化禁令（CD-56B-T2）
   // + starSettle Literal ban（CD-T2FIX-1）：其他檔案完全不允許出現 'starSettle' 字串
   //   （animations.js 在 ignores 中，由 Group 4 Property selector 保護）
-  //   （state-clip.js 在 ignores 中，由 Group 5b 完整覆寫並允許 new BreathingManager）
-  // + closeClipMode 定義唯一性守衛（CD-56C-4）：state-clip.js 在 ignores 中（Group 5b 白名單）
+  //   （state-similar.js 在 ignores 中，由 Group 5b 完整覆寫並允許 new BreathingManager）
+  // + closeSimilarMode 定義唯一性守衛（CD-56C-4）：state-similar.js 在 ignores 中（Group 5b 白名單）
   {
     files: ["web/static/js/**/*.js"],
     ignores: [
       "web/static/js/pages/**/state/**/*.js",
       "web/static/js/pages/motion-lab/constellation-host.js",
-      "web/static/js/pages/showcase/state-clip.js",
+      "web/static/js/pages/showcase/state-similar.js",
       "web/static/js/shared/constellation/animations.js",
       "web/static/js/shared/constellation/breathing.js",
     ],
@@ -330,11 +330,11 @@ export default [
         },
         {
           selector: [
-            "Property[key.name='closeClipMode']",
-            "MethodDefinition[key.name='closeClipMode']",
+            "Property[key.name='closeSimilarMode']",
+            "MethodDefinition[key.name='closeSimilarMode']",
           ].join(', '),
           message:
-            "closeClipMode 只能在 state-clip.js 定義（CD-56C-4 單一定義原則）。其他檔案可呼叫 this.closeClipMode()，但不可定義同名 method。",
+            "closeSimilarMode 只能在 state-similar.js 定義（CD-56C-4 單一定義原則）。其他檔案可呼叫 this.closeSimilarMode()，但不可定義同名 method。",
         },
       ],
     },

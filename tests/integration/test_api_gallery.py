@@ -11,6 +11,8 @@ import base64
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from core.path_utils import to_file_uri
+
 
 # ============ 圖片代理測試 ============
 
@@ -145,8 +147,8 @@ class TestClearCache:
         init_db(db_path)
         repo = VideoRepository(db_path)
         repo.upsert_batch([
-            Video(path="file:///v1.mp4", mtime=100.0),
-            Video(path="file:///v2.mp4", mtime=200.0),
+            Video(path=to_file_uri("/v1.mp4"), mtime=100.0),
+            Video(path=to_file_uri("/v2.mp4"), mtime=200.0),
         ])
         mocker.patch('web.routers.scanner.get_db_path', return_value=db_path)
 
@@ -262,7 +264,7 @@ class TestGenerateFromIds:
         """Mock VideoRepository.get_by_numbers → DB hit，含指定 cover_path。"""
         from core.database import Video
         fake_video = MagicMock(spec=Video)
-        fake_video.path = f'file:///fake/{number}.mp4'
+        fake_video.path = to_file_uri(f'/fake/{number}.mp4')
         fake_video.title = f'Test {number}'
         fake_video.original_title = ''
         fake_video.actresses = []
@@ -415,7 +417,7 @@ class TestGenerateFromIds:
         mocker.patch('web.routers.scanner.Path.read_bytes', return_value=fake_bytes)
         mocker.patch('web.routers.scanner.uri_to_fs_path', return_value='/fake/cover.jpg')
 
-        result = _embed_cover('file:///fake/cover.jpg')
+        result = _embed_cover(to_file_uri('/fake/cover.jpg'))
 
         expected_b64 = base64.b64encode(fake_bytes).decode('ascii')
         assert result == f'data:image/jpeg;base64,{expected_b64}'

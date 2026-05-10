@@ -220,15 +220,15 @@ def init_db(db_path: Path = None) -> None:
     if 'user_tags' not in existing_cols:
         cursor.execute("ALTER TABLE videos ADD COLUMN user_tags TEXT DEFAULT '[]'")
 
-    # Migration: 加入 Phase 56a clip_embedding / clip_model_id 欄位
-    if 'clip_embedding' not in existing_cols:
-        cursor.execute("ALTER TABLE videos ADD COLUMN clip_embedding BLOB DEFAULT NULL")
-    if 'clip_model_id' not in existing_cols:
-        cursor.execute("ALTER TABLE videos ADD COLUMN clip_model_id TEXT DEFAULT NULL")
-
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_videos_clip_model_id ON videos(clip_model_id)"
-    )
+    # Migration: 57b — 移除 v0.8.6 視覺搜尋欄位（idempotent；clean install 不爆）
+    # DROP INDEX 必先於 DROP COLUMN（SQLite 不允許 drop 被 index 引用的 column）
+    cursor.execute("DROP INDEX IF EXISTS idx_videos_clip_model_id")  # IF EXISTS 本身 idempotent  # 57d 連帶刪
+    if 'clip_embedding' in existing_cols:  # 57d 連帶刪
+        cursor.execute("ALTER TABLE videos DROP COLUMN clip_embedding")  # 57d 連帶刪
+        existing_cols.discard('clip_embedding')  # 57d 連帶刪
+    if 'clip_model_id' in existing_cols:  # 57d 連帶刪
+        cursor.execute("ALTER TABLE videos DROP COLUMN clip_model_id")  # 57d 連帶刪
+        existing_cols.discard('clip_model_id')  # 57d 連帶刪
 
     conn.commit()
     conn.close()
@@ -258,8 +258,6 @@ class Video:
     nfo_mtime: float = 0.0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    clip_embedding: Optional[bytes] = None
-    clip_model_id: Optional[str] = None
 
     @classmethod
     def from_video_info(cls, info) -> 'Video':
@@ -411,14 +409,6 @@ class VideoRepository:
             for col in columns:
                 if col == 'path':
                     continue
-                elif col == 'clip_embedding':
-                    update_parts.append(
-                        "clip_embedding = CASE WHEN excluded.clip_embedding IS NULL THEN videos.clip_embedding ELSE excluded.clip_embedding END"
-                    )
-                elif col == 'clip_model_id':
-                    update_parts.append(
-                        "clip_model_id = CASE WHEN excluded.clip_model_id IS NULL THEN videos.clip_model_id ELSE excluded.clip_model_id END"
-                    )
                 elif col == 'user_tags':
                     # user_tags = '[]' 時視同「不更新」，保留 DB 現有值
                     update_parts.append(
@@ -438,6 +428,13 @@ class VideoRepository:
 
             cursor.execute(sql, list(video_dict.values()))
             conn.commit()
+
+            # invalidate ranker cache（寫成功才 invalidate；commit 失敗跳過）
+            try:
+                from core.similar.ranker_cache import SimilarRankerCache
+                SimilarRankerCache.invalidate()
+            except Exception:
+                logger.exception("SimilarRankerCache invalidate failed (non-fatal)")
 
             # 取得 id
             cursor.execute("SELECT id FROM videos WHERE path = ?", (video.path,))
@@ -480,14 +477,6 @@ class VideoRepository:
                 for col in columns:
                     if col == 'path':
                         continue
-                    elif col == 'clip_embedding':
-                        update_parts.append(
-                            "clip_embedding = CASE WHEN excluded.clip_embedding IS NULL THEN videos.clip_embedding ELSE excluded.clip_embedding END"
-                        )
-                    elif col == 'clip_model_id':
-                        update_parts.append(
-                            "clip_model_id = CASE WHEN excluded.clip_model_id IS NULL THEN videos.clip_model_id ELSE excluded.clip_model_id END"
-                        )
                     elif col == 'user_tags':
                         # user_tags = '[]' 時視同「不更新」，保留 DB 現有值
                         update_parts.append(
@@ -513,6 +502,14 @@ class VideoRepository:
                     inserted += 1
 
             conn.commit()
+
+            # invalidate ranker cache（寫成功才 invalidate；commit 失敗跳過）
+            try:
+                from core.similar.ranker_cache import SimilarRankerCache
+                SimilarRankerCache.invalidate()
+            except Exception:
+                logger.exception("SimilarRankerCache invalidate failed (non-fatal)")
+
             return (inserted, updated)
         finally:
             conn.close()
@@ -572,6 +569,14 @@ class VideoRepository:
             cursor.execute(f"DELETE FROM videos WHERE path IN ({placeholders})", paths)
             deleted_count = cursor.rowcount
             conn.commit()
+
+            # invalidate ranker cache（寫成功才 invalidate；commit 失敗跳過）
+            try:
+                from core.similar.ranker_cache import SimilarRankerCache
+                SimilarRankerCache.invalidate()
+            except Exception:
+                logger.exception("SimilarRankerCache invalidate failed (non-fatal)")
+
             return deleted_count
         finally:
             conn.close()
@@ -602,54 +607,15 @@ class VideoRepository:
             count = cursor.fetchone()[0]
             cursor.execute("DELETE FROM videos")
             conn.commit()
+
+            # invalidate ranker cache（寫成功才 invalidate；commit 失敗跳過）
+            try:
+                from core.similar.ranker_cache import SimilarRankerCache
+                SimilarRankerCache.invalidate()
+            except Exception:
+                logger.exception("SimilarRankerCache invalidate failed (non-fatal)")
+
             return count
-        finally:
-            conn.close()
-
-    def update_clip_embedding(self, video_id: int, embedding_bytes: bytes, model_id: str) -> bool:
-        """更新指定影片的 clip_embedding 與 clip_model_id（原子操作）。
-
-        Returns:
-            bool: True 若更新成功（rowcount > 0），False 若 video_id 不存在
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(
-                "UPDATE videos SET clip_embedding = ?, clip_model_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (embedding_bytes, model_id, video_id)
-            )
-            conn.commit()
-            return cursor.rowcount > 0
-        finally:
-            conn.close()
-
-    def get_videos_pending_clip_indexing(self, model_id: str) -> List[Video]:
-        """回傳需要（重）建 CLIP 索引的影片：有封面但 embedding 為 NULL、model_id 為 NULL，
-        或 model_id 與當前模型不符的影片。
-
-        NULL-safe 三條件：
-        - clip_embedding IS NULL（從未索引）
-        - clip_model_id IS NULL（model_id 遺失）
-        - clip_model_id != model_id（模型版本升級需重建）
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(
-                """
-                SELECT * FROM videos
-                WHERE cover_path IS NOT NULL AND cover_path != ''
-                  AND (
-                    clip_embedding IS NULL
-                    OR clip_model_id IS NULL
-                    OR clip_model_id != :current_model_id
-                  )
-                """,
-                {"current_model_id": model_id}
-            )
-            rows = cursor.fetchall()
-            return [Video.from_row(row, self._get_columns()) for row in rows]
         finally:
             conn.close()
 
@@ -673,7 +639,7 @@ class VideoRepository:
     def get_by_ids(self, video_ids: list[int]) -> dict[int, Video]:
         """批次查詢多筆影片（避免 N+1 — codex P2 fix）。
 
-        clip 視覺搜尋一次需取所有候選影片資訊（套 diversity penalty 用），
+        相似搜尋一次需取所有候選影片資訊（套 diversity penalty 用），
         個別 get_by_id 在 2000+ 候選時 → 2000 SQL round-trip。
 
         Returns:
@@ -922,28 +888,6 @@ class VideoRepository:
         finally:
             conn.close()
         return row is not None
-
-    def clear_all_clip_embeddings(self) -> int:
-        """清空所有影片的 CLIP 索引狀態，含 embedding 與 model_id 兩欄。
-
-        使用 OR clause 確保同時清除以下兩種情形：
-        - clip_embedding IS NOT NULL（正常已索引）
-        - clip_model_id IS NOT NULL（僅有 model_id、無 embedding 的孤兒列）
-
-        Returns:
-            被清除的列數。
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(
-                "UPDATE videos SET clip_embedding = NULL, clip_model_id = NULL "
-                "WHERE clip_embedding IS NOT NULL OR clip_model_id IS NOT NULL"
-            )
-            conn.commit()
-            return cursor.rowcount
-        finally:
-            conn.close()
 
 
 def migrate_json_to_sqlite(json_path: Path, db_path: Path = None,

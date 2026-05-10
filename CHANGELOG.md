@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7] - 2026-05-10
+
+本版拔除 v0.8.6「以圖搜圖（CLIP Visual Search, Beta）」全部 ML 引擎，改為純規則式 metadata 多訊號相似搜尋。
+無需下載模型、無外部依賴、無 opt-in flow，Lightbox 魔杖按鈕開箱即用。主 ZIP 從 271MB 回 ~43MB baseline。
+
+*This release rips out the v0.8.6 "Visual Search (CLIP Beta)" ML engine and replaces it with rule-based 
+metadata multi-signal similarity. No model download, no external deps, no opt-in flow — Lightbox magic 
+wand works out of the box. Main ZIP returns from 271MB to ~43MB baseline.*
+
+### Removed
+
+#### ⚠️ BREAKING — v0.8.6 CLIP 視覺搜尋下架（CLIP Visual Search Removed）
+- 移除 `core/clip/` 整目錄（CLIPProvider / LocalONNXProvider / ClipIndexer / 影像 preprocessing / 模型下載 / cosine ranking）
+- 移除 `web/routers/clip.py` + `web/routers/clip_lifecycle.py`（4 個 lifecycle endpoints + similar-covers 舊實作）
+- 移除 ML 依賴：`onnxruntime` / `numpy` / `huggingface_hub` / `hf_xet`（連帶 scipy 等傳遞依賴）
+- 移除 Settings「以圖搜圖（Beta）」opt-in flow（toggle / status box / disable modal / popover；57c 已拔 UI，57d 拔後端）
+- 移除 11 個純後端 CLIP 測試檔（~2700 行）
+- 主 ZIP 體積從 271MB 回 ~43MB baseline
+
+*BREAKING: removes core/clip/ entire module + clip routers + ML deps (onnxruntime/numpy/huggingface_hub/hf_xet)
++ Settings opt-in UI + 11 backend test files (~2700 lines). Main ZIP: 271MB → ~43MB.*
+
+### Added
+#### 🔍 57 — 相似影片探索（規則式 / Rule-Based Similar Discovery）
+（57a/57b/57c 成果在此一併歸檔；57d 主要是物理拔除 + ZIP 體積驗收）
+- 純規則式相似度排序器 `core/similar/`：IDF-weighted tag Jaccard 主訊號 + 系列 / 片商 / 年份 / 片長 / cast 桶多訊號加成 + MMR diversity rerank（λ=0.7）
+- hardcoded 同義對表（~30 條）+ stopword 列表（~14 條），v0.8.8 後可透過 tag_aliases UI 動態維護
+- Lightbox 魔杖按鈕**直接可用**，無需 Settings 啟用，無需下載模型
+- API contract `GET /api/similar-covers/by-number/{number}` / `GET /api/similar-covers/{video_id}` 完全不變（前端零改動）
+
+*Added: rule-based similarity ranker (`core/similar/`) with IDF-weighted Jaccard + multi-signal scoring + MMR diversity. 
+Hardcoded synonym map (~30 pairs) + stopwords (~14). Lightbox magic wand works without enable gate. API contract preserved.*
+
+### Changed
+- 探索星空動畫 UI 資產（56b/56c）100% 保留（CSS class `.clip-*` → `.similar-*`，state factory `state-clip.js` → `state-similar.js`，i18n key `clip_mode.*` → `similar_mode.*`）— 57c 完成
+
+### Fixed
+- N/A（57 系列為 feature replacement 非 bug fix）
+
 ## [0.8.6] - 2026-05-09
 
 本版完整出貨「以圖搜圖（Beta）」（feature/56）— OpenAver 第一個視覺搜尋功能。在 Showcase Lightbox 加魔杖按鈕，點下去進入「探索星空」模式：原封面飛中央變主圖、12 顆星辰繞主圖排列、香檳金星線從中央延伸到各星辰，點任一顆即「鑽入」變新主圖無限探索。技術層用 OpenAI CLIP 模型把每張封面轉成 512 維特徵向量、cosine similarity 排序，封面進入 CLIP 前自動裁切右半邊（避開左標題雜訊），對「相同女優」自動降權確保結果多樣性。預設關閉，Settings opt-in 後下載 80MB INT8 模型,全程本地推論不上傳。AI agent 可透過新揭露的 `similar_covers_by_number` 端點找視覺相似番。

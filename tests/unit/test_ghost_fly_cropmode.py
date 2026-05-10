@@ -6,7 +6,7 @@ caller 不可自算右半邊 rect / 自設 objectPosition: right。
 規則：
   1. `cropMode` 字串只能在 `shared/ghost-fly.js` 出現。
   2. `'right-half'` 字面量只能在 `shared/ghost-fly.js` 出現。
-  3. showcase state 檔（state-clip.js / state-lightbox.js / state-base.js）
+  3. showcase state 檔（state-similar.js / state-lightbox.js / state-base.js）
      禁止 `objectPosition.*right` regex 命中（caller 不得自算右半邊裁切）。
   4. 白名單 motion-lab namespace：`MotionLab.createCoverGhost` 是另一個函式，
      不接受 cropMode 也不會出現 cropMode / 'right-half'，自然不會被命中；
@@ -19,10 +19,10 @@ import pytest
 JS_ROOT = Path(__file__).parent.parent.parent / "web" / "static" / "js"
 GHOST_FLY_JS = JS_ROOT / "shared" / "ghost-fly.js"
 
-# 規則 3 目標檔案：caller 範圍（state-clip.js 在 56c-T5 才建檔，先放清單，缺檔 skip）
+# 規則 3 目標檔案：caller 範圍（state-similar.js 在 57c-T4+T5 rename 後）
 SHOWCASE_DIR = JS_ROOT / "pages" / "showcase"
 CALLER_SCOPE_FILES = [
-    SHOWCASE_DIR / "state-clip.js",      # 56c-T5 新建
+    SHOWCASE_DIR / "state-similar.js",  # 57c-T4+T5 showcase similar mode host
     SHOWCASE_DIR / "state-lightbox.js",
     SHOWCASE_DIR / "state-base.js",
 ]
@@ -31,7 +31,7 @@ CALLER_SCOPE_FILES = [
 # 因為它們透過 GhostFly API 呼叫而非自行實作 strip 邏輯。
 # 新增條件見 TASK-56c-T4fix8 Maintainer Note。
 CROPMODE_CALLER_WHITELIST = {
-    SHOWCASE_DIR / "state-clip.js",  # 56c-T4: createCoverGhost({ cropMode: 'full' }) + flyGhost objectPosition
+    SHOWCASE_DIR / "state-similar.js",  # 57c-T4+T5: createCoverGhost cropMode caller (via GhostFly API)
 }
 
 import re

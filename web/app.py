@@ -21,9 +21,7 @@ setup_logging()
 logger = get_logger(__name__)
 
 from core.config import load_config, save_config
-from core.clip import get_provider, _DEFAULT_MODEL_PATH
-from core.database import VideoRepository
-from web.routers.clip_lifecycle import _set_status as _clip_set_status
+from core.database import VideoRepository, init_db
 
 
 # 路徑設定
@@ -32,86 +30,13 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 
 
-async def _clip_self_heal_on_startup():
-    """啟動時偵測模型版本不一致 → 自動清空舊 embedding。（CD-56D-6）"""
-    try:
-        cfg = load_config()
-        clip_cfg = cfg.get("clip", {})
-        if not clip_cfg.get("enabled", False):
-            return
-
-        model_path = Path(clip_cfg.get("model_path") or _DEFAULT_MODEL_PATH)
-        if not model_path.exists():
-            logger.warning(
-                "CLIP enabled but model file missing: %s. Disabling.", model_path
-            )
-            cfg.setdefault("clip", {})["enabled"] = False
-            save_config(cfg)
-            return
-
-        provider = get_provider(model_path)
-        repo = VideoRepository()
-
-        conn = repo._get_connection()
-        try:
-            cur = conn.execute(
-                "SELECT DISTINCT clip_model_id FROM videos "
-                "WHERE clip_embedding IS NOT NULL"
-            )
-            existing_ids = {row[0] for row in cur.fetchall() if row[0]}
-        finally:
-            conn.close()
-
-        stale = existing_ids - {provider.model_id}
-        if not stale:
-            return
-
-        conn = repo._get_connection()
-        try:
-            placeholders = ",".join("?" * len(stale))
-            cur = conn.execute(
-                f"UPDATE videos SET clip_embedding = NULL, clip_model_id = NULL "
-                f"WHERE clip_model_id IN ({placeholders})",
-                tuple(stale),
-            )
-            conn.commit()
-            cleared = cur.rowcount
-        finally:
-            conn.close()
-
-        logger.info(
-            "CLIP self-heal: cleared %d rows with stale model_id (%s) → next Scanner run will rebuild",
-            cleared, sorted(stale),
-        )
-    except Exception:
-        logger.exception("CLIP self-heal failed")
-
-
-async def _clip_sync_status_on_startup():
-    """啟動後若 CLIP 已啟用且 model 存在，將 status 同步為 ready。（Codex-56D-P2）
-
-    必須在 _clip_self_heal_on_startup() 之後呼叫，確保 self-heal 已完成（
-    可能將 enabled 改為 False 或清空 stale embedding）。
-    整段包 try/except + logger.exception 不 raise，lifespan 失敗不能讓 server crash。
-    """
-    try:
-        cfg = load_config()
-        clip_cfg = cfg.get("clip", {})
-        if not clip_cfg.get("enabled", False):
-            return
-        model_path = Path(clip_cfg.get("model_path") or _DEFAULT_MODEL_PATH)
-        if model_path.exists():
-            _clip_set_status(phase="ready")
-            logger.info("CLIP status synced to ready on startup (model: %s)", model_path)
-    except Exception:
-        logger.exception("CLIP status sync on startup failed")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── startup ───────────────────────────────────────────────
-    await _clip_self_heal_on_startup()
-    await _clip_sync_status_on_startup()
+    # init_db() 必須在任何 request 前執行：執行 DROP COLUMN migration（v0.8.7：
+    # 移除 legacy clip_embedding / clip_model_id），確保 Video.from_row cls(**data)
+    # 不會因 legacy schema 欄位收到未知 keyword 而 500。CD-57b-8 contract。
+    init_db()
     yield
     # ── shutdown ──────────────────────────────────────────────
     # 目前無 shutdown 邏輯（setup_logging 是 module-level，不需 teardown）
@@ -147,8 +72,7 @@ from web.routers import collection as collection_router
 from web.routers import actress as actress_router
 from web.routers import actress_alias as actress_alias_router
 from web.routers import notifications as notifications_router
-from web.routers import clip as clip_router
-from web.routers import clip_lifecycle as clip_lifecycle_router
+from web.routers import similar as similar_router
 app.include_router(search_router.router)
 app.include_router(config_router.router)
 app.include_router(scraper_router.router)
@@ -165,8 +89,7 @@ app.include_router(collection_router.user_tags_router)
 app.include_router(actress_router.router)
 app.include_router(actress_alias_router.router)
 app.include_router(notifications_router.router)
-app.include_router(clip_router.router)
-app.include_router(clip_lifecycle_router.router)
+app.include_router(similar_router.router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -288,9 +211,6 @@ async def showcase_page(request: Request):
     """Showcase 頁面"""
     context = get_common_context(request)
     context["page"] = "showcase"
-    # Fix 4 (codex P2): server-side render clip.enabled → template gate magic button
-    cfg = context.get("config") or {}
-    context["clip_enabled"] = cfg.get("clip", {}).get("enabled", False)
     return templates.TemplateResponse(request, "showcase.html", context)
 
 

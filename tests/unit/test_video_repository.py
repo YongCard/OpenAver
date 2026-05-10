@@ -9,6 +9,7 @@ from core.database import (
     VideoRepository,
     migrate_json_to_sqlite
 )
+from core.path_utils import to_file_uri
 
 
 # temp_db fixture 定義於 tests/unit/conftest.py
@@ -18,7 +19,7 @@ from core.database import (
 def sample_video():
     """建立測試用影片"""
     return Video(
-        path="file:///C:/Videos/test.mp4",
+        path=to_file_uri("C:/Videos/test.mp4"),
         number="ABC-123",
         title="測試影片",
         original_title="Test Video",
@@ -28,7 +29,7 @@ def sample_video():
         tags=["類型1", "類型2"],
         duration=120,
         size_bytes=1024 * 1024 * 100,
-        cover_path="file:///C:/Videos/test.jpg",
+        cover_path=to_file_uri("C:/Videos/test.jpg"),
         release_date="2024-01-20",
         mtime=1234567890.0,
         nfo_mtime=1234567800.0
@@ -80,9 +81,9 @@ class TestVideoRepository:
         repo = VideoRepository(temp_db)
 
         videos = [
-            Video(path="file:///video1.mp4", title="影片1", mtime=100.0),
-            Video(path="file:///video2.mp4", title="影片2", mtime=200.0),
-            Video(path="file:///video3.mp4", title="影片3", mtime=300.0),
+            Video(path=to_file_uri("/video1.mp4"), title="影片1", mtime=100.0),
+            Video(path=to_file_uri("/video2.mp4"), title="影片2", mtime=200.0),
+            Video(path=to_file_uri("/video3.mp4"), title="影片3", mtime=300.0),
         ]
 
         inserted, updated = repo.upsert_batch(videos)
@@ -97,15 +98,15 @@ class TestVideoRepository:
 
         # 先插入兩部
         initial_videos = [
-            Video(path="file:///video1.mp4", title="影片1", mtime=100.0),
-            Video(path="file:///video2.mp4", title="影片2", mtime=200.0),
+            Video(path=to_file_uri("/video1.mp4"), title="影片1", mtime=100.0),
+            Video(path=to_file_uri("/video2.mp4"), title="影片2", mtime=200.0),
         ]
         repo.upsert_batch(initial_videos)
 
         # 批次操作：1 部更新 + 1 部新增
         batch_videos = [
-            Video(path="file:///video1.mp4", title="影片1-更新", mtime=150.0),
-            Video(path="file:///video3.mp4", title="影片3", mtime=300.0),
+            Video(path=to_file_uri("/video1.mp4"), title="影片1-更新", mtime=150.0),
+            Video(path=to_file_uri("/video3.mp4"), title="影片3", mtime=300.0),
         ]
         inserted, updated = repo.upsert_batch(batch_videos)
 
@@ -137,7 +138,7 @@ class TestVideoRepository:
     def test_get_by_path_not_found(self, temp_db):
         """測試 get_by_path 找不到"""
         repo = VideoRepository(temp_db)
-        result = repo.get_by_path("file:///not_exist.mp4")
+        result = repo.get_by_path(to_file_uri("/not_exist.mp4"))
         assert result is None
 
     def test_get_all_empty(self, temp_db):
@@ -151,49 +152,49 @@ class TestVideoRepository:
         repo = VideoRepository(temp_db)
 
         videos = [
-            Video(path="file:///video1.mp4", title="影片1", mtime=100.0),
-            Video(path="file:///video2.mp4", title="影片2", mtime=200.0),
+            Video(path=to_file_uri("/video1.mp4"), title="影片1", mtime=100.0),
+            Video(path=to_file_uri("/video2.mp4"), title="影片2", mtime=200.0),
         ]
         repo.upsert_batch(videos)
 
         result = repo.get_all()
 
         assert len(result) == 2
-        assert result[0].path == "file:///video1.mp4"
-        assert result[1].path == "file:///video2.mp4"
+        assert result[0].path == to_file_uri("/video1.mp4")
+        assert result[1].path == to_file_uri("/video2.mp4")
 
     def test_get_mtime_index(self, temp_db):
         """測試 get_mtime_index"""
         repo = VideoRepository(temp_db)
 
         videos = [
-            Video(path="file:///video1.mp4", mtime=100.5, nfo_mtime=100.0),
-            Video(path="file:///video2.mp4", mtime=200.5, nfo_mtime=200.0),
+            Video(path=to_file_uri("/video1.mp4"), mtime=100.5, nfo_mtime=100.0),
+            Video(path=to_file_uri("/video2.mp4"), mtime=200.5, nfo_mtime=200.0),
         ]
         repo.upsert_batch(videos)
 
         index = repo.get_mtime_index()
 
         assert len(index) == 2
-        assert index["file:///video1.mp4"] == (100.5, 100.0)
-        assert index["file:///video2.mp4"] == (200.5, 200.0)
+        assert index[to_file_uri("/video1.mp4")] == (100.5, 100.0)
+        assert index[to_file_uri("/video2.mp4")] == (200.5, 200.0)
 
     def test_delete_by_paths(self, temp_db):
         """測試 delete_by_paths"""
         repo = VideoRepository(temp_db)
 
         videos = [
-            Video(path="file:///video1.mp4", mtime=100.0),
-            Video(path="file:///video2.mp4", mtime=200.0),
-            Video(path="file:///video3.mp4", mtime=300.0),
+            Video(path=to_file_uri("/video1.mp4"), mtime=100.0),
+            Video(path=to_file_uri("/video2.mp4"), mtime=200.0),
+            Video(path=to_file_uri("/video3.mp4"), mtime=300.0),
         ]
         repo.upsert_batch(videos)
 
-        deleted = repo.delete_by_paths(["file:///video1.mp4", "file:///video3.mp4"])
+        deleted = repo.delete_by_paths([to_file_uri("/video1.mp4"), to_file_uri("/video3.mp4")])
 
         assert deleted == 2
         assert repo.count() == 1
-        assert repo.get_by_path("file:///video2.mp4") is not None
+        assert repo.get_by_path(to_file_uri("/video2.mp4")) is not None
 
     def test_delete_by_paths_empty(self, temp_db):
         """測試 delete_by_paths 空列表"""
@@ -204,7 +205,7 @@ class TestVideoRepository:
     def test_delete_by_paths_not_exist(self, temp_db):
         """測試 delete_by_paths 刪除不存在的路徑"""
         repo = VideoRepository(temp_db)
-        deleted = repo.delete_by_paths(["file:///not_exist.mp4"])
+        deleted = repo.delete_by_paths([to_file_uri("/not_exist.mp4")])
         assert deleted == 0
 
     def test_count_empty(self, temp_db):
@@ -217,9 +218,9 @@ class TestVideoRepository:
         repo = VideoRepository(temp_db)
 
         videos = [
-            Video(path="file:///video1.mp4", mtime=100.0),
-            Video(path="file:///video2.mp4", mtime=200.0),
-            Video(path="file:///video3.mp4", mtime=300.0),
+            Video(path=to_file_uri("/video1.mp4"), mtime=100.0),
+            Video(path=to_file_uri("/video2.mp4"), mtime=200.0),
+            Video(path=to_file_uri("/video3.mp4"), mtime=300.0),
         ]
         repo.upsert_batch(videos)
 
@@ -237,9 +238,9 @@ class TestVideoRepository:
         """測試 clear_all 有資料"""
         repo = VideoRepository(temp_db)
         videos = [
-            Video(path="file:///video1.mp4", mtime=100.0),
-            Video(path="file:///video2.mp4", mtime=200.0),
-            Video(path="file:///video3.mp4", mtime=300.0),
+            Video(path=to_file_uri("/video1.mp4"), mtime=100.0),
+            Video(path=to_file_uri("/video2.mp4"), mtime=200.0),
+            Video(path=to_file_uri("/video3.mp4"), mtime=300.0),
         ]
         repo.upsert_batch(videos)
         assert repo.count() == 3
@@ -263,7 +264,7 @@ class TestMigrateJsonToSqlite:
                 "mtime": 1234567890.0,
                 "nfo_mtime": 1234567800.0,
                 "info": {
-                    "path": "file:///C:/video1.mp4",
+                    "path": to_file_uri("C:/video1.mp4"),
                     "title": "影片1",
                     "originaltitle": "Video 1",
                     "actor": "演員A,演員B",
@@ -273,14 +274,14 @@ class TestMigrateJsonToSqlite:
                     "genre": "類型1,類型2",
                     "size": 1024,
                     "mtime": 133500000000000000,
-                    "img": "file:///C:/cover1.jpg"
+                    "img": to_file_uri("C:/cover1.jpg")
                 }
             },
             "/path/to/video2.mp4": {
                 "mtime": 1234567891.0,
                 "nfo_mtime": 1234567801.0,
                 "info": {
-                    "path": "file:///C:/video2.mp4",
+                    "path": to_file_uri("C:/video2.mp4"),
                     "title": "影片2",
                     "originaltitle": "",
                     "actor": "",
@@ -308,7 +309,7 @@ class TestMigrateJsonToSqlite:
         repo = VideoRepository(db_path)
         assert repo.count() == 2
 
-        video1 = repo.get_by_path("file:///C:/video1.mp4")
+        video1 = repo.get_by_path(to_file_uri("C:/video1.mp4"))
         assert video1 is not None
         assert video1.title == "影片1"
         assert video1.number == "ABC-001"
@@ -330,7 +331,7 @@ class TestMigrateJsonToSqlite:
                 "mtime": 1234567890.0,
                 "nfo_mtime": 0,
                 "info": {
-                    "path": "file:///C:/video.mp4",
+                    "path": to_file_uri("C:/video.mp4"),
                     "title": "影片",
                     "originaltitle": "",
                     "actor": "",
@@ -364,7 +365,7 @@ class TestMigrateJsonToSqlite:
                 "mtime": 1234567890.0,
                 "nfo_mtime": 0,
                 "info": {
-                    "path": "file:///C:/video.mp4",
+                    "path": to_file_uri("C:/video.mp4"),
                     "title": "影片",
                     "originaltitle": "",
                     "actor": "",
@@ -397,7 +398,7 @@ class TestMigrateJsonToSqlite:
                 "mtime": 1234567890.0,
                 "nfo_mtime": 0,
                 "info": {
-                    "path": "file:///C:/video.mp4",
+                    "path": to_file_uri("C:/video.mp4"),
                     "title": "影片",
                     "originaltitle": "",
                     "actor": "",

@@ -119,15 +119,12 @@ export function _killLightboxTimelines(options) {
 
 export function stateBase() {
     return {
-        // Fix 4 (codex P2): clip.enabled gate — server-side rendered via window.__CLIP_ENABLED__
-        // magic 按鈕（bi-magic）與 openClipMode 只在 clipEnabled=true 時可用
-        clipEnabled: !!(window.__CLIP_ENABLED__),
 
-        // 56c-fix: clip exit standalone video — 當 _clipLastDrilledNumber 不在 _filteredVideos 時，
-        // closeClipMode 直接把 clipResults 的最後鑽入 item 包成 standalone lightbox source。
+        // 56c-fix: similar exit standalone video — 當 _similarLastDrilledNumber 不在 _filteredVideos 時，
+        // closeSimilarMode 直接把 similarResults 的最後鑽入 item 包成 standalone lightbox source。
         // null = 非 standalone 模式（既有 _filteredVideos 路徑）；
         // non-null = standalone 模式：currentLightboxVideo 顯示此物件，prev/next 暫禁。
-        clipExitVideo: null,
+        similarExitVideo: null,
 
         // 53a-T2: 持久化容器（$persist 自動同步 localStorage 的 'showcase_state' key）
         // sort/order/actressSort/actressOrder 用 null sentinel，讓 restoreState 走 URL > _persisted > config > fallback 優先序

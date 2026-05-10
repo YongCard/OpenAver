@@ -643,6 +643,14 @@ def fix_numbers_apply(request: FixNumbersApplyRequest) -> dict:
             updated += 1
 
         conn.commit()
+
+        # invalidate ranker cache（寫成功才 invalidate；commit 失敗跳過）
+        try:
+            from core.similar.ranker_cache import SimilarRankerCache
+            SimilarRankerCache.invalidate()
+        except Exception:
+            logger.exception("SimilarRankerCache invalidate failed (non-fatal)")
+
         return {"updated": updated, "failed": failed}
 
     except Exception as e:

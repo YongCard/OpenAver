@@ -14,6 +14,7 @@ from core.database import (
     VideoRepository
 )
 from core.gallery_scanner import VideoInfo
+from core.path_utils import to_file_uri
 
 
 def test_get_db_path():
@@ -417,11 +418,11 @@ def test_migrate_json_to_sqlite_success(tmp_path):
     # 準備假的 json cache 資料
     fake_cache = {
         "_metadata": {"version": 1},
-        "file:///videos/test1.mp4": {
+        to_file_uri("/videos/test1.mp4"): {
             "mtime": 100.0,
             "nfo_mtime": 200.0,
             "info": {
-                "path": "file:///videos/test1.mp4",
+                "path": to_file_uri("/videos/test1.mp4"),
                 "title": "Title 1",
                 "num": "TEST-001"
             }
@@ -437,7 +438,7 @@ def test_migrate_json_to_sqlite_success(tmp_path):
 
     # 檢查 mtime/nfo_mtime 預設值
     repo = VideoRepository(db_path)
-    video = repo.get_by_path("file:///videos/test1.mp4")
+    video = repo.get_by_path(to_file_uri("/videos/test1.mp4"))
     assert video.mtime == 100.0
     assert video.nfo_mtime == 200.0
 
@@ -605,7 +606,7 @@ class TestDbMigration:
         # 插入一筆舊資料
         cursor.execute(
             "INSERT INTO videos (path, number, title) VALUES (?, ?, ?)",
-            ("file:///old.mp4", "OLD-001", "舊資料")
+            (to_file_uri("/old.mp4"), "OLD-001", "舊資料")
         )
         conn.commit()
         conn.close()
@@ -650,7 +651,7 @@ class TestDbMigration:
 
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
-        cursor.execute("SELECT number, title FROM videos WHERE path = ?", ("file:///old.mp4",))
+        cursor.execute("SELECT number, title FROM videos WHERE path = ?", (to_file_uri("/old.mp4"),))
         row = cursor.fetchone()
         conn.close()
 
@@ -685,7 +686,7 @@ class TestGetColumnsOrder:
 
         # 建立含新欄位的 Video
         video = Video(
-            path="file:///test/roundtrip.mp4",
+            path=to_file_uri("/test/roundtrip.mp4"),
             number="RT-001",
             title="Round-trip 測試",
             director="監督名",
@@ -696,7 +697,7 @@ class TestGetColumnsOrder:
         repo.upsert(video)
 
         # 讀回來
-        result = repo.get_by_path("file:///test/roundtrip.mp4")
+        result = repo.get_by_path(to_file_uri("/test/roundtrip.mp4"))
         assert result is not None
         assert result.director == "監督名"
         assert result.label == "S1"
@@ -748,229 +749,76 @@ def test_alias_repository_crud(tmp_path):
     assert len(repo.get_all()) == 0
 
 
-# ============ T1: clip_embedding / clip_model_id migration 測試 ============
+# ============ 57b: DROP clip_embedding / clip_model_id 測試 ============
 
-class TestClipEmbeddingMigration:
-    """T1 — clip_embedding / clip_model_id migration 測試"""
+class TestClipColumnDrop:
+    """spec-57 §2.6 + plan-57b CD-57b-4：DROP clip_embedding / clip_model_id（idempotent）"""
 
-    def test_migration_adds_clip_embedding_column(self, tmp_path):
-        """新 DB 有 clip_embedding 欄位"""
-        db_path = tmp_path / "test.db"
+    def test_drop_clip_embedding_column_clean_install(self, tmp_path):
+        """clean install：欄位從未存在，DROP 是 no-op，啟動正常"""
+        db_path = tmp_path / "clean.db"
         init_db(db_path)
-
-        conn = sqlite3.connect(str(db_path))
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(videos)")
-        columns = [row[1] for row in cursor.fetchall()]
+        # 驗 clip 欄位不在 schema
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(videos)").fetchall()}
         conn.close()
+        assert 'clip_embedding' not in cols
+        assert 'clip_model_id' not in cols
 
-        assert 'clip_embedding' in columns
-
-    def test_migration_adds_clip_model_id_column(self, tmp_path):
-        """新 DB 有 clip_model_id 欄位"""
-        db_path = tmp_path / "test.db"
-        init_db(db_path)
-
-        conn = sqlite3.connect(str(db_path))
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(videos)")
-        columns = [row[1] for row in cursor.fetchall()]
-        conn.close()
-
-        assert 'clip_model_id' in columns
-
-    def test_migration_adds_clip_model_id_index(self, tmp_path):
-        """idx_videos_clip_model_id index 存在"""
-        db_path = tmp_path / "test.db"
-        init_db(db_path)
-
-        conn = sqlite3.connect(str(db_path))
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_videos_clip_model_id'"
-        )
-        row = cursor.fetchone()
-        conn.close()
-
-        assert row is not None
-
-    def test_migration_idempotent_on_existing_clip_columns(self, tmp_path):
-        """re-run init_db() 不報錯（ALTER 已有欄位 guard）"""
-        db_path = tmp_path / "test.db"
-        init_db(db_path)
-        # 第二次呼叫不應拋出任何例外
-        init_db(db_path)
-
-    def test_clip_embedding_stored_and_retrieved_as_bytes(self, tmp_path):
-        """bytes 寫入 BLOB → 讀回仍是 bytes，值相同"""
-        db_path = tmp_path / "test.db"
-        init_db(db_path)
-        repo = VideoRepository(db_path)
-
-        embedding_bytes = b'\x00\x01\x02\x03\x04\x05'
-
-        video = Video(
-            path="file:///test/clip_bytes.mp4",
-            number="CB-001",
-            title="CLIP Bytes Test",
-            cover_path="/covers/cb001.jpg",
-            clip_embedding=embedding_bytes,
-            clip_model_id="ViT-B/32",
-        )
-        repo.upsert(video)
-
-        result = repo.get_by_path("file:///test/clip_bytes.mp4")
-        assert result is not None
-        assert isinstance(result.clip_embedding, bytes)
-        assert result.clip_embedding == embedding_bytes
-        assert result.clip_model_id == "ViT-B/32"
-
-    def test_scanner_rescan_preserves_embedding(self, tmp_path):
-        """核心 regression：upsert(clip_embedding=None) 不覆蓋既有 embedding。
-        步驟：
-        1. 用 update_clip_embedding() 寫入 embedding bytes
-        2. 建立 Video(clip_embedding=None)（模擬 from_video_info 輸出）
-        3. repo.upsert(video)
-        4. 查回 DB → clip_embedding 仍等於步驟 1 寫入的值
-        """
-        db_path = tmp_path / "test.db"
-        init_db(db_path)
-        repo = VideoRepository(db_path)
-
-        # Step 1: 插入初始影片
-        video = Video(
-            path="file:///test/rescan.mp4",
-            number="RS-001",
-            title="Rescan Test",
-            cover_path="/covers/rs001.jpg",
-        )
-        video_id = repo.upsert(video)
-
-        # Step 2: 寫入 embedding
-        original_embedding = b'\xff\xfe\xfd\xfc'
-        ok = repo.update_clip_embedding(video_id, original_embedding, "ViT-B/32")
-        assert ok is True
-
-        # Step 3: 模擬 scanner 重掃（clip_embedding=None）
-        rescanned = Video(
-            path="file:///test/rescan.mp4",
-            number="RS-001",
-            title="Rescan Test Updated Title",
-            cover_path="/covers/rs001.jpg",
-            clip_embedding=None,
-            clip_model_id=None,
-        )
-        repo.upsert(rescanned)
-
-        # Step 4: 查回，確認 embedding 未被清空
-        result = repo.get_by_path("file:///test/rescan.mp4")
-        assert result is not None
-        assert result.clip_embedding == original_embedding
-        assert result.clip_model_id == "ViT-B/32"
-
-    def test_pending_query_returns_null_embedding(self, tmp_path):
-        """clip_embedding IS NULL → 出現在 pending list"""
-        db_path = tmp_path / "test.db"
-        init_db(db_path)
-        repo = VideoRepository(db_path)
-
-        video = Video(
-            path="file:///test/pending_null.mp4",
-            number="PN-001",
-            title="Pending Null Embedding",
-            cover_path="/covers/pn001.jpg",
-            clip_embedding=None,
-        )
-        repo.upsert(video)
-
-        pending = repo.get_videos_pending_clip_indexing("ViT-B/32")
-        paths = [v.path for v in pending]
-        assert "file:///test/pending_null.mp4" in paths
-
-    def test_pending_query_returns_null_model_id(self, tmp_path):
-        """clip_model_id IS NULL（embedding 有值）→ 出現在 pending list"""
-        db_path = tmp_path / "test.db"
-        init_db(db_path)
-        repo = VideoRepository(db_path)
-
-        video = Video(
-            path="file:///test/pending_null_model.mp4",
-            number="PNM-001",
-            title="Pending Null Model ID",
-            cover_path="/covers/pnm001.jpg",
-        )
-        video_id = repo.upsert(video)
-
-        # 直接用 SQL 寫入 embedding 但不設 model_id（模擬舊資料損壞狀態）
-        conn = sqlite3.connect(str(db_path))
-        conn.execute(
-            "UPDATE videos SET clip_embedding = ? WHERE id = ?",
-            (b'\x01\x02', video_id)
-        )
+    def test_drop_clip_embedding_column_legacy_db(self, tmp_path):
+        """legacy DB（v0.8.6 schema）：欄位存在，init_db 後被 DROP"""
+        db_path = tmp_path / "legacy.db"
+        # 模擬 v0.8.6 schema：手動建 table 含 clip 欄位（完整 column set，含 maker 等）
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        conn.execute("""
+            CREATE TABLE videos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                path TEXT UNIQUE NOT NULL,
+                number TEXT,
+                title TEXT,
+                original_title TEXT,
+                actresses TEXT,
+                maker TEXT,
+                director TEXT DEFAULT '',
+                series TEXT,
+                label TEXT DEFAULT '',
+                tags TEXT,
+                sample_images TEXT DEFAULT '',
+                user_tags TEXT DEFAULT '[]',
+                duration INTEGER,
+                size_bytes INTEGER,
+                cover_path TEXT,
+                release_date TEXT,
+                mtime REAL,
+                nfo_mtime REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                clip_embedding BLOB DEFAULT NULL,
+                clip_model_id TEXT DEFAULT NULL
+            )
+        """)
         conn.commit()
         conn.close()
-
-        pending = repo.get_videos_pending_clip_indexing("ViT-B/32")
-        paths = [v.path for v in pending]
-        assert "file:///test/pending_null_model.mp4" in paths
-
-    def test_pending_query_returns_wrong_model_id(self, tmp_path):
-        """clip_model_id != current_model_id → 出現在 pending list"""
-        db_path = tmp_path / "test.db"
+        # 用 init_db 觸發 migration
         init_db(db_path)
-        repo = VideoRepository(db_path)
+        # 驗欄位已 DROP
+        conn = sqlite3.connect(db_path)
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(videos)").fetchall()}
+        conn.close()
+        assert 'clip_embedding' not in cols
+        assert 'clip_model_id' not in cols
 
-        video = Video(
-            path="file:///test/pending_wrong_model.mp4",
-            number="PWM-001",
-            title="Pending Wrong Model",
-            cover_path="/covers/pwm001.jpg",
-            clip_embedding=b'\xaa\xbb\xcc',
-            clip_model_id="ViT-B/16",  # 舊模型
-        )
-        repo.upsert(video)
+    def test_drop_idempotent_on_rerun(self, tmp_path):
+        """連續兩次 init_db 不爆（idempotent）"""
+        db_path = tmp_path / "idempotent.db"
+        init_db(db_path)  # 第一次
+        init_db(db_path)  # 第二次不報錯
 
-        # 用新模型 ID 查詢
-        pending = repo.get_videos_pending_clip_indexing("ViT-B/32")
-        paths = [v.path for v in pending]
-        assert "file:///test/pending_wrong_model.mp4" in paths
-
-    def test_pending_query_excludes_no_cover(self, tmp_path):
-        """cover_path 為空 → 不出現在 pending list（即使 embedding IS NULL）"""
-        db_path = tmp_path / "test.db"
-        init_db(db_path)
-        repo = VideoRepository(db_path)
-
-        video = Video(
-            path="file:///test/no_cover.mp4",
-            number="NC-001",
-            title="No Cover Video",
-            cover_path="",  # 無封面
-            clip_embedding=None,
-        )
-        repo.upsert(video)
-
-        pending = repo.get_videos_pending_clip_indexing("ViT-B/32")
-        paths = [v.path for v in pending]
-        assert "file:///test/no_cover.mp4" not in paths
-
-    def test_pending_query_excludes_indexed_video(self, tmp_path):
-        """已有正確 model_id 的 embedding → 不出現在 pending list"""
-        db_path = tmp_path / "test.db"
-        init_db(db_path)
-        repo = VideoRepository(db_path)
-
-        video = Video(
-            path="file:///test/already_indexed.mp4",
-            number="AI-001",
-            title="Already Indexed",
-            cover_path="/covers/ai001.jpg",
-            clip_embedding=b'\x11\x22\x33',
-            clip_model_id="ViT-B/32",
-        )
-        repo.upsert(video)
-
-        pending = repo.get_videos_pending_clip_indexing("ViT-B/32")
-        paths = [v.path for v in pending]
-        assert "file:///test/already_indexed.mp4" not in paths
+    def test_drop_index_idempotent(self, tmp_path):
+        """DROP INDEX IF EXISTS — clean install 不爆（index 不存在也不報錯）"""
+        db_path = tmp_path / "noindex.db"
+        # 建完整 schema（有 init_db 觸發）— index 從未建立（因為 clean install）
+        init_db(db_path)  # 不爆即 pass
 
