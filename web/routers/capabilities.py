@@ -1047,6 +1047,123 @@ _TOOLS: list[dict] = [
         "retry_safe": True,
         "_example_template": "curl '{base}/api/similar-covers/123'",
     },
+    {
+        "name": "tag_alias_crud_read",
+        "description": (
+            "列出所有 tag 別名組或查詢單一 group。"
+            " GET /api/tag-aliases 回傳全部 group（primary_name + aliases list）；"
+            " GET /api/tag-aliases/{name} 可用 primary_name 或 alias 查詢所屬 group。"
+            " 適合 AI 查看目前 tag alias 設定或確認某個 tag 是否已被收錄。"
+        ),
+        "method": "GET",
+        "path": "/api/tag-aliases",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "tag 名稱（URL path parameter，可為 primary_name 或 alias）。省略時列出所有 group。",
+                },
+            },
+            "required": [],
+        },
+        "output_schema": {
+            "success": "boolean",
+            "groups": "TagAliasGroup[] — 列表時回傳；每筆含 primary_name/aliases/source/created_at/updated_at",
+            "total": "integer — 群組總數（列表時）",
+            "group": "TagAliasGroup — 單筆查詢時回傳",
+        },
+        "side_effect": False,
+        "confirmation_required": False,
+        "retry_safe": True,
+        "_example_template": "curl '{base}/api/tag-aliases'",
+    },
+    {
+        "name": "tag_alias_crud_write",
+        "description": (
+            "Tag 別名 CRUD 寫入（建立 group、新增 alias、刪除 group、刪除 alias）。"
+            " ⚠️ 刪除整個 group 不可逆，必須先讓用戶確認再執行。"
+            " POST /api/tag-aliases 建立新 group；"
+            " POST /api/tag-aliases/{name}/alias 新增單一 alias；"
+            " DELETE /api/tag-aliases/{name} 刪除整個 group（name 可為 primary 或 alias）；"
+            " DELETE /api/tag-aliases/{name}/alias/{alias} 移除單一 alias。"
+            " tag alias 影響 Showcase 過濾展開與 SimilarRanker canonicalize，寫入後立即生效（cache 自動清除）。"
+        ),
+        "method": "POST",
+        "path": "/api/tag-aliases",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "primary_name": {
+                    "type": "string",
+                    "description": "主要 tag 名稱（必填，建立 group 時使用）",
+                },
+                "aliases": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "別名清單（可選，省略等同空 list）",
+                },
+                "alias": {
+                    "type": "string",
+                    "description": "單一別名（新增或刪除 alias 時使用）",
+                },
+            },
+            "required": [],
+        },
+        "output_schema": {
+            "success": "boolean",
+            "group": "TagAliasGroup — 建立或新增 alias 成功後的最新 group 資料",
+            "error": "string — 衝突或找不到時的錯誤訊息",
+        },
+        "side_effect": True,
+        "confirmation_required": True,
+        "retry_safe": False,
+        "_example_template": (
+            "curl -X POST -H 'Content-Type: application/json'"
+            " -d '{{\"primary_name\":\"巨乳\",\"aliases\":[\"Big Tits\",\"おっぱい\"]}}'"
+            " {base}/api/tag-aliases"
+        ),
+    },
+    {
+        "name": "tags_top",
+        "description": (
+            "列出 NFO tag 頻次排序（前 N 名），適合 AI 用 LLM 判斷跨語言同義詞候選後"
+            " 呼叫 tag_alias_crud_write 建立 alias group。"
+            " min_count=2（預設）過濾噪音單次 tag；total_unique_tags 不受 min_count 影響。"
+            " 不含 user_tags（user_tags 為獨立欄位）。"
+        ),
+        "method": "GET",
+        "path": "/api/tags/top",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "default": 100,
+                    "minimum": 1,
+                    "maximum": 500,
+                    "description": "回傳筆數上限（預設 100，最大 500）",
+                },
+                "min_count": {
+                    "type": "integer",
+                    "default": 2,
+                    "minimum": 1,
+                    "description": "最低出現次數過濾（預設 2，過濾噪音；設 1 看全集合）",
+                },
+            },
+            "required": [],
+        },
+        "output_schema": {
+            "success": "boolean",
+            "items": "[{tag: string, count: integer}] — 依 count 降序排列",
+            "total_unique_tags": "integer — 全庫 unique tag 數（不受 min_count 影響）",
+            "applied_min_count": "integer — 本次查詢使用的 min_count 值",
+        },
+        "side_effect": False,
+        "confirmation_required": False,
+        "retry_safe": True,
+        "_example_template": "curl '{base}/api/tags/top?limit=50&min_count=2'",
+    },
 ]
 
 

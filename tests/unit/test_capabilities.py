@@ -62,6 +62,9 @@ EXPECTED_TOOL_NAMES = {
     "clear_notifications",
     "similar_covers_by_number",
     "similar_covers",
+    "tag_alias_crud_read",
+    "tag_alias_crud_write",
+    "tags_top",
 }
 
 REQUIRED_TOOL_FIELDS = [
@@ -108,9 +111,9 @@ class TestCapabilitiesEndpoint:
         data = client.get("/api/capabilities").json()
         assert "retry_hint" in data["error_format"]
 
-    def test_tools_count_is_34(self, client):
+    def test_tools_count_is_37(self, client):
         data = client.get("/api/capabilities").json()
-        assert len(data["tools"]) == 34
+        assert len(data["tools"]) == 37
 
     def test_all_tool_names_present(self, client):
         data = client.get("/api/capabilities").json()
