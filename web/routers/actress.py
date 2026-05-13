@@ -352,13 +352,19 @@ def _get_random_videos_with_covers(actress_name: str, count: int) -> list:
     """
     取得女優隨機影片（有封面的）。
 
+    使用 AliasRepository.resolve 展開 alias set，以 get_videos_by_actress_names
+    多名查詢，涵蓋所有 alias 標記的影片。無 alias 時 resolve 回 {actress_name}，
+    行為等價舊版。雲端路徑不受影響（仍只用 primary name）。
+
     Returns:
         Video list（最多 count 筆，有 cover_path 且非空）
     """
     try:
         init_db()
         repo = VideoRepository()
-        videos = repo.get_videos_by_actress(actress_name)
+        alias_repo = AliasRepository()
+        names = list(alias_repo.resolve(actress_name))  # 雙向展開；無 alias 時回 {actress_name}
+        videos = repo.get_videos_by_actress_names(names)
         with_covers = [v for v in videos if v.cover_path]
         random.shuffle(with_covers)
         return with_covers[:count]

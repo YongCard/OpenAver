@@ -797,6 +797,50 @@ class VideoRepository:
         finally:
             conn.close()
 
+    def get_videos_by_actress_names(self, names: list) -> List['Video']:
+        """多名 OR 查詢（用於 alias 展開後的本地封面候選）
+
+        對 names list 的每個名稱產生同 get_videos_by_actress 的 4 個 LIKE 條件，
+        以 UNION 合併（SQLite 自動去重）後回傳。
+
+        Args:
+            names: 女優名稱 list（alias 展開後的所有名稱）
+
+        Returns:
+            List[Video]: 包含任一名稱的影片列表（去重）
+        """
+        if not names:
+            return []
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        try:
+            # 每個 name 產生一個 SELECT（4 個 LIKE 條件），最後 UNION 去重
+            select_parts = []
+            params = []
+            for name in names:
+                select_parts.append(
+                    """SELECT * FROM videos
+                       WHERE actresses LIKE ?
+                          OR actresses LIKE ?
+                          OR actresses LIKE ?
+                          OR actresses = ?"""
+                )
+                params.extend([
+                    f'["{name}",%',
+                    f'%, "{name}",%',
+                    f'%, "{name}"]',
+                    f'["{name}"]',
+                ])
+
+            union_sql = "\nUNION\n".join(select_parts) + "\nORDER BY id"
+            cursor.execute(union_sql, params)
+            rows = cursor.fetchall()
+            return [Video.from_row(row, self._get_columns()) for row in rows]
+        finally:
+            conn.close()
+
     def update_user_tags(self, path: str, user_tags: List[str]) -> bool:
         """安全更新 user_tags 欄位（不碰其他欄位）
 
