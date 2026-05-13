@@ -10,7 +10,7 @@ import sqlite3
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
-from core.database import get_db_path
+from core.database import get_db_path, init_db
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -26,6 +26,10 @@ def get_top_tags(
     """頻次排序 NFO tags（不含 user_tags），AI agent 可用於跨語言同義詞候選分析。"""
     try:
         db_path = get_db_path()
+        # Codex P2-1: AI agent 可能在 first-run（用戶尚未跑過 scan/search）直接呼叫此端點，
+        # 此時 DB 檔尚未建立 → sqlite3.connect 會新建空檔但 videos 表不存在 → OperationalError。
+        # init_db() idempotent，已存在 schema 時為 no-op。
+        init_db(db_path)
         with sqlite3.connect(str(db_path)) as conn:
             cur = conn.cursor()
 

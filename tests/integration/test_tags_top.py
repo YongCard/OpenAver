@@ -281,3 +281,28 @@ class TestEmptyStringFilter:
         resp = client.get("/api/tags/top?min_count=1")
         tags = [item["tag"] for item in resp.json()["items"]]
         assert "" not in tags
+
+
+# ── First-run（Codex P2-1）──────────────────────────────────────────────────────
+
+class TestFirstRunNoDb:
+    """Regression: AI agent 在用戶第一次跑 scan/search 前直接呼叫 /api/tags/top，
+    DB 檔尚未建立 → 端點應 init_db 自救，回 success=True + 空 corpus，不噴 500。"""
+
+    def test_first_run_db_missing_returns_empty_success(self, tmp_path, monkeypatch):
+        """DB 檔不存在 → init_db 自動建表 → 回 success=True + items=[]"""
+        missing_db = tmp_path / "nonexistent.db"
+        assert not missing_db.exists()
+
+        monkeypatch.setattr("web.routers.tags.get_db_path", lambda: missing_db)
+        from web.app import app
+        client = TestClient(app)
+        resp = client.get("/api/tags/top")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["items"] == []
+        assert data["total_unique_tags"] == 0
+        # 端點呼叫後 DB 檔應已被建立（init_db 副作用）
+        assert missing_db.exists()
