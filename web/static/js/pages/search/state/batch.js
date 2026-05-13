@@ -49,6 +49,71 @@ export function searchStateBatch() {
         batchTranslatingIndices.delete(index);
     },
 
+    _dbSyncCoverSrc(file, fromEl) {
+        if (fromEl && fromEl.tagName === 'IMG' && fromEl.src) {
+            return fromEl.src;
+        }
+        const cover = file?.searchResults?.[0]?.cover || this.current()?.cover || '';
+        return cover ? `/api/proxy-image?url=${encodeURIComponent(cover)}` : '';
+    },
+
+    _isVisibleDbSyncSource(el) {
+        if (!el) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+    },
+
+    _findDbSyncSourceEl(rowEl) {
+        const detailCover = this.$refs?.coverImg || document.getElementById('resultCover');
+        if (this._isVisibleDbSyncSource(detailCover)) return detailCover;
+
+        const gridImg = document.querySelector(
+            `.search-grid .av-card-preview[data-slot="${this.currentIndex}"] .av-card-preview-img img`
+        );
+        if (this._isVisibleDbSyncSource(gridImg)) return gridImg;
+
+        const rowButton = rowEl
+            ? [...rowEl.querySelectorAll('.btn-scrape-single')].find(b => b.offsetParent !== null)
+            : null;
+        if (this._isVisibleDbSyncSource(rowButton)) return rowButton;
+
+        const rowIcon = rowEl?.querySelector('.file-icon');
+        if (this._isVisibleDbSyncSource(rowIcon)) return rowIcon;
+
+        return this._isVisibleDbSyncSource(rowEl) ? rowEl : null;
+    },
+
+    _pulseShowcaseLink(toEl) {
+        if (!toEl) return;
+        toEl.classList.remove('pulse-once');
+        void toEl.offsetWidth; // force reflow
+        toEl.classList.add('pulse-once');
+    },
+
+    _handleDbSyncFeedback(result, file, rowEl) {
+        const syncStatus = result?.db_sync_status;
+        if (syncStatus === 'synced') {
+            const toEl = document.getElementById('sidebar-showcase-link');
+            const fromEl = this._findDbSyncSourceEl(rowEl);
+            const coverSrc = this._dbSyncCoverSrc(file, fromEl);
+            if (fromEl && toEl &&
+                window.GhostFly &&
+                typeof window.GhostFly.playToIcon === 'function') {
+                window.GhostFly.playToIcon(fromEl, toEl, {
+                    coverSrc: coverSrc,
+                    duration: 0.65,
+                    onComplete: () => this._pulseShowcaseLink(toEl)
+                });
+            } else {
+                this._pulseShowcaseLink(toEl);
+            }
+        } else if (syncStatus === 'not_linked') {
+            this.showToast(window.t('search.toast.db_not_synced'), 'info', 1500);
+        } else if (syncStatus === 'failed') {
+            this.showToast(window.t('search.toast.db_sync_failed'), 'warning', 2000);
+        }
+    },
+
     async translateBatch(titles) {
         return translateBatchHelper(titles);
     },
@@ -296,6 +361,7 @@ export function searchStateBatch() {
 
         for (const file of scrapableFiles) {
             const index = this.fileList.indexOf(file);
+            let dbSyncResult = null;
 
             this.currentFileIndex = index;
             this.searchResults = file.searchResults;
@@ -331,6 +397,7 @@ export function searchStateBatch() {
                     continue;
                 }
                 if (result.success) {
+                    dbSyncResult = result;
                     file.scraped = true;
                     file.scrapeStatus = 'done';
                     successCount++;
@@ -364,6 +431,7 @@ export function searchStateBatch() {
                         .find(b => b.offsetParent !== null);
                     if (file.scrapeStatus === 'done') {
                         window.SearchAnimations?.playOrganizeSuccess?.(btn, rowEl);
+                        this._handleDbSyncFeedback(dbSyncResult, file, rowEl);
                     } else if (file.scrapeStatus === 'failed') {
                         window.SearchAnimations?.playOrganizeFail?.(btn);
                     }
@@ -428,34 +496,7 @@ export function searchStateBatch() {
                     const btn = [...rowEl.querySelectorAll('.btn-scrape-single')]
                         .find(b => b.offsetParent !== null);
                     window.SearchAnimations?.playOrganizeSuccess?.(btn, rowEl);
-
-                    // B2：db_sync_status 驅動 GhostFly / toast
-                    var syncStatus = result.db_sync_status;
-                    if (syncStatus === 'synced') {
-                        var toEl = document.getElementById('sidebar-showcase-link');
-                        // fromEl：左側主封面預覽 <img id="resultCover" class="av-card-full-cover-img">
-                        var fromEl = document.getElementById('resultCover') ||
-                                     document.querySelector('.av-card-full-cover-img') ||
-                                     null;
-                        if (fromEl && toEl &&
-                            window.GhostFly &&
-                            typeof window.GhostFly.playToIcon === 'function') {
-                            window.GhostFly.playToIcon(fromEl, toEl, {
-                                coverSrc: fromEl.src,
-                                duration: 0.65,
-                                onComplete: function () {
-                                    toEl.classList.remove('pulse-once');
-                                    void toEl.offsetWidth; // force reflow
-                                    toEl.classList.add('pulse-once');
-                                }
-                            });
-                        }
-                    } else if (syncStatus === 'not_linked') {
-                        this.showToast(window.t('search.toast.db_not_synced'), 'info', 1500);
-                    } else if (syncStatus === 'failed') {
-                        this.showToast(window.t('search.toast.db_sync_failed'), 'warning', 2000);
-                    }
-                    // syncStatus 缺失（舊 API）→ 靜默不飛不 toast（向後相容）
+                    this._handleDbSyncFeedback(result, file, rowEl);
                 });
             } else {
                 console.error('[Scrape]', file.filename, result.error);
