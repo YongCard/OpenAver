@@ -375,7 +375,7 @@
                         <div class="info-tags" x-show="video.tags">
                             <template x-for="tag in (video.tags || '').split(',').filter(t => t.trim())" :key="tag">
                                 <a class="tag info-link" href="#"
-                                   @click.prevent.stop="searchFromMetadata(tag.trim())"
+                                   @click.prevent.stop="searchFromMetadata(tag.trim(), 'tag')"
                                    x-text="tag.trim()"></a>
                             </template>
                         </div>
@@ -755,7 +755,7 @@
                             <!-- Row 5: Tags (with +N chips, T4) -->
                             <div class="lb-tags" x-show="currentLightboxVideo?.tags">
                                 <template x-for="tag in _visibleVideoTags()" :key="tag">
-                                    <a href="#" class="lb-tag lb-link" @click.prevent="searchFromMetadata(tag.trim())" x-text="tag.trim()"></a>
+                                    <a href="#" class="lb-tag lb-link" @click.prevent="searchFromMetadata(tag.trim(), 'tag')" x-text="tag.trim()"></a>
                                 </template>
                                 <span class="lb-tag lb-chips-more"
                                       x-show="_videoTagsOverflow() > 0 && !_videoChipsExpanded"

@@ -68,6 +68,34 @@ export async function _loadAliasMap() {
     _aliasMapLoaded = true;
 }
 
+export var _tagToGroup = {};  // { "女僕": ["メイド", "女僕", "女傭"], ... } 雙向 tag alias map
+export var _tagAliasMapLoaded = false;
+
+/**
+ * A3-4: 獨立載入 tag alias map，init() 時無條件呼叫（在 _loadAliasMap 之後）。
+ * 冪等：已載入時直接 return。
+ * 結構鏡射 _loadAliasMap()，API 改為 /api/tag-aliases。
+ */
+export async function _loadTagAliasMap() {
+    if (_tagAliasMapLoaded) return;
+    try {
+        var resp = await fetch('/api/tag-aliases');
+        if (resp.ok) {
+            var data = await resp.json();
+            var groups = (data && data.groups) || [];
+            _tagToGroup = {};
+            groups.forEach(function(g) {
+                var all = [g.primary_name].concat(g.aliases || []);
+                all.forEach(function(n) { _tagToGroup[n] = all; });
+            });
+        }
+    } catch (e) {
+        console.warn('[Showcase] Failed to fetch tag aliases:', e);
+        _tagToGroup = {};
+    }
+    _tagAliasMapLoaded = true;
+}
+
 // 41c B-lite: 無封面 placeholder SVG (cover 載入失敗時 handleCoverError 換上)
 // viewBox 800x600 對齊 lightbox 4:3，grid card aspect-ratio:3/2 會 crop 上下少許但不影響 icon 居中
 // 設計：暗色漸層背景 + 中央 image-frame icon (邊框+太陽+山形)
@@ -199,6 +227,7 @@ export function stateBase() {
             // 失敗靜默（端點不存在的舊 server / 網路斷線都不影響 showcase 主流程）。
             fetch('/api/similar/warmup').catch(() => {});
             await _loadAliasMap();      // 45-P2: 無條件載入 alias map（影片搜尋也需要）
+            await _loadTagAliasMap();   // A3-4: 無條件載入 tag alias map
             if (this.showFavoriteActresses) { this.loadActresses(); }
             this.applyFilterAndSort(true);  // M4a: 套用搜尋篩選（跳過 pagination，下面統一處理）
             this.page = savedPage;          // 恢復儲存的頁碼

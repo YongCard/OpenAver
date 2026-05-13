@@ -1820,6 +1820,81 @@ class TestShowcaseAliasGuard:
             "showcase JS _checkPreciseActressMatch missing: '_nameToGroup'"
 
 
+
+# ---------------------------------------------------------------------------
+# TestShowcaseTagAliasGuard: A3-4 Showcase tag alias 展開守衛
+# ---------------------------------------------------------------------------
+
+class TestShowcaseTagAliasGuard:
+    """A3-4: Frontend Guard — Showcase tag alias expansion guard"""
+
+    def _base_js(self):
+        return SHOWCASE_BASE_JS.read_text(encoding="utf-8")
+
+    def _videos_js(self):
+        return SHOWCASE_VIDEOS_JS.read_text(encoding="utf-8")
+
+    def _html(self):
+        return SHOWCASE_HTML.read_text(encoding="utf-8")
+
+    def test_state_base_tag_group_declarations(self):
+        """state-base.js 含 _tagToGroup 與 _loadTagAliasMap 函數宣告"""
+        js = self._base_js()
+        assert "var _tagToGroup = {}" in js, \
+            "state-base.js missing: 'var _tagToGroup = {}'"
+        assert "_tagAliasMapLoaded" in js, \
+            "state-base.js missing: '_tagAliasMapLoaded'"
+        assert "_loadTagAliasMap" in js, \
+            "state-base.js missing: '_loadTagAliasMap'"
+        assert "/api/tag-aliases" in js, \
+            "state-base.js missing: '/api/tag-aliases'"
+
+    def test_state_base_init_awaits_load_tag_alias_map(self):
+        """state-base.js init() 在 _loadAliasMap() 之後 await _loadTagAliasMap()"""
+        js = self._base_js()
+        alias_pos = js.find("await _loadAliasMap()")
+        tag_alias_pos = js.find("await _loadTagAliasMap()")
+        assert alias_pos != -1, "state-base.js missing: 'await _loadAliasMap()'"
+        assert tag_alias_pos != -1, "state-base.js missing: 'await _loadTagAliasMap()'"
+        assert tag_alias_pos > alias_pos, \
+            "state-base.js: 'await _loadTagAliasMap()' must appear after 'await _loadAliasMap()'"
+
+    def test_state_videos_imports_tag_to_group(self):
+        """state-videos.js import 區含 _tagToGroup from state-base"""
+        js = self._videos_js()
+        assert "_tagToGroup" in js, \
+            "state-videos.js missing: '_tagToGroup' in import"
+        # Verify it's in an import statement from state-base
+        import_line = next(
+            (line for line in js.splitlines() if line.strip().startswith("import") and "state-base" in line),
+            None
+        )
+        assert import_line is not None, \
+            "state-videos.js missing import from state-base.js"
+        assert "_tagToGroup" in import_line, \
+            f"state-videos.js import from state-base missing '_tagToGroup'. Found: {import_line!r}"
+
+    def test_state_videos_apply_filter_tag_alias_branch(self):
+        """state-videos.js applyFilterAndSort 函數體含 _tagToGroup 展開分支"""
+        js = self._videos_js()
+        # Find the function *definition* (not a call site) by looking for the definition pattern
+        func_start = js.find("applyFilterAndSort(skipPagination)")
+        assert func_start != -1, "state-videos.js missing: 'applyFilterAndSort(skipPagination)' definition"
+        func_body = js[func_start:func_start + 3000]
+        assert "_tagToGroup[" in func_body, \
+            "state-videos.js applyFilterAndSort missing: '_tagToGroup[' tag alias expand branch"
+
+    def test_showcase_html_tag_chip_has_tag_second_param(self):
+        """showcase.html 兩個 tag chip callsite 含 searchFromMetadata(tag.trim(), 'tag')"""
+        html = self._html()
+        assert "searchFromMetadata(tag.trim(), 'tag')" in html, \
+            "showcase.html missing: searchFromMetadata(tag.trim(), 'tag') — both tag chips need second param"
+        # Count occurrences — should be at least 2 (grid + lightbox)
+        count = html.count("searchFromMetadata(tag.trim(), 'tag')")
+        assert count >= 2, \
+            f"showcase.html should have at least 2 occurrences of searchFromMetadata(tag.trim(), 'tag'), found {count}"
+
+
 # ---------------------------------------------------------------------------
 # T6: Scanner Alias UI v2 — 舊 token 移除 + 新 token 存在守衛
 # ---------------------------------------------------------------------------

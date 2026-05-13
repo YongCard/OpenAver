@@ -6,7 +6,7 @@
  * 從 state-base.js import 共用大陣列（F1：移出 Alpine reactive scope）。
  */
 
-import { _videos, _filteredVideos, _nameToGroup, _setVideos, _setFilteredVideos } from '@/showcase/state-base.js';
+import { _videos, _filteredVideos, _nameToGroup, _tagToGroup, _setVideos, _setFilteredVideos } from '@/showcase/state-base.js';
 
 export function stateVideos() {
     return {
@@ -319,7 +319,13 @@ export function stateVideos() {
                         if (numNorm && numNorm.includes(termNorm)) return true;
                         // alias 展開 match：搜尋詞反查 alias group，任一 alias name 命中即可
                         var termNames = _nameToGroup[term] || [term];
-                        return termNames.some(function(n) { return searchable.includes(n.toLowerCase()); });
+                        if (termNames.some(function(n) { return searchable.includes(n.toLowerCase()); })) return true;
+                        // tag alias 展開：搜尋詞反查 tag alias group，任一同義 tag 命中即可（A3-4）
+                        var termTagNames = _tagToGroup[term] || null;
+                        if (termTagNames) {
+                            if (termTagNames.some(function(tn) { return searchable.includes(tn.toLowerCase()); })) return true;
+                        }
+                        return false;
                     });
                 });
                 _setFilteredVideos(filtered);
