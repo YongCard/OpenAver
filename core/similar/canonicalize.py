@@ -1,5 +1,9 @@
 from typing import Iterable
 
+from core.logger import get_logger
+
+logger = get_logger(__name__)
+
 _HARDCODED_ALIAS_MAP: dict[str, str] = {
     "中出": "中出し",
     "内射": "中出し",
@@ -36,14 +40,58 @@ _STOPWORDS: frozenset[str] = frozenset({
     "Blu-ray",
 })
 
+# module-level cache — None = not loaded yet
+_merged_alias_map: dict[str, str] | None = None
+
+
+def _load_merged_map() -> dict[str, str]:
+    """
+    Lazy-load DB tag_aliases and merge with hardcoded map.
+    DB entries override hardcoded entries (DB 優先).
+    Falls back to hardcoded-only on any DB error.
+    Result is cached in _merged_alias_map until _invalidate_cache() is called.
+    """
+    global _merged_alias_map
+    if _merged_alias_map is not None:
+        return _merged_alias_map
+
+    # lazy import — must stay inside function to avoid circular import
+    # and to avoid triggering DB connection at module import time
+    from core.database import TagAliasRepository
+
+    try:
+        repo = TagAliasRepository()
+        records = repo.get_all()
+        # flatten: {primary_name: "X", aliases: ["Y", "Z"]} → {"Y": "X", "Z": "X"}
+        db_flat: dict[str, str] = {}
+        for record in records:
+            for alias in record.aliases:
+                if alias:
+                    db_flat[alias] = record.primary_name
+        # DB 後 merge → DB 優先
+        merged = {**_HARDCODED_ALIAS_MAP, **db_flat}
+    except Exception:
+        logger.warning("[canonicalize] DB load 失敗，fallback hardcoded-only")
+        merged = dict(_HARDCODED_ALIAS_MAP)
+
+    _merged_alias_map = merged
+    return _merged_alias_map
+
+
+def _invalidate_cache() -> None:
+    """清 module-level alias map cache，下次 canonicalize() 重新從 DB 讀取。"""
+    global _merged_alias_map
+    _merged_alias_map = None
+
 
 def canonicalize(tags: Iterable[str]) -> list[str]:
+    alias_map = _load_merged_map()
     seen: set[str] = set()
     result: list[str] = []
     for tag in tags:
         if not tag:
             continue
-        canonical = _HARDCODED_ALIAS_MAP.get(tag, tag)
+        canonical = alias_map.get(tag, tag)
         if canonical in _STOPWORDS:
             continue
         if canonical in seen:

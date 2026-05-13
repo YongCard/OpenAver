@@ -11,7 +11,6 @@ Tag 別名 API Router — /api/tag-aliases
 
 注意：無 search-online 端點（CD-58-4）。
 衝突回 409（CD-58-9）；error response 固定中文，不 leak str(exc)（CD-58-14）。
-A3-2 階段不加 _canonicalize_module._invalidate_cache() 呼叫（A5 task 才補）。
 """
 
 from typing import List
@@ -22,6 +21,7 @@ from pydantic import BaseModel, field_validator
 
 from core.database import TagAliasRepository, init_db
 from core.logger import get_logger
+from core.similar import canonicalize as _canonicalize_module
 
 logger = get_logger(__name__)
 
@@ -113,6 +113,7 @@ def create_alias_group(req: CreateAliasRequest):
         repo = TagAliasRepository()
         record = repo.add(req.primary_name, req.aliases)
         logger.info("[tag_alias] 新增 group：%s", req.primary_name)
+        _canonicalize_module._invalidate_cache()
         return JSONResponse(
             status_code=200,
             content={"success": True, "group": _record_to_dict(record)},
@@ -171,6 +172,7 @@ def delete_alias_group(name: str):
         if not deleted:
             return JSONResponse(status_code=404, content={"error": "not_found"})
         logger.info("[tag_alias] 刪除 group：%s", name)
+        _canonicalize_module._invalidate_cache()
         return JSONResponse(status_code=200, content={"success": True})
     except Exception:
         logger.exception("[tag_alias] delete_alias_group 失敗")
@@ -209,6 +211,7 @@ def add_alias(name: str, req: AddAliasRequest):
         # re-read record
         updated = repo.get_by_primary(name)
         logger.info("[tag_alias] 新增 alias：%s → %s", name, req.alias)
+        _canonicalize_module._invalidate_cache()
         return JSONResponse(
             status_code=200,
             content={"success": True, "group": _record_to_dict(updated)},
@@ -244,6 +247,7 @@ def remove_alias(name: str, alias: str):
             return JSONResponse(status_code=404, content={"error": "alias_not_found"})
 
         logger.info("[tag_alias] 移除 alias：%s ← %s", name, alias)
+        _canonicalize_module._invalidate_cache()
         return JSONResponse(status_code=200, content={"success": True})
     except Exception:
         logger.exception("[tag_alias] remove_alias 失敗")
