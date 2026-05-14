@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.9] - 2026-05-15
+
+本版是 v0.9 release candidate 前的最後 polish 包（feature/59-onboarding-help-polish），三軌道出貨：**主軸 59a — Onboarding & Help 翻轉**（新手敘事從 Search-first「文件管理員心智」翻為 Scanner-first「相簿心智」：7 步 tutorial 重排 / Help 頁 3 卡 + Next Steps + Tag Alias + power_user 區塊 / README 同步 / 4 locale parity）；**主軸 59b — test_frontend_lint.py 體檢**（2026-05-14 4-agent audit；DELETE 2 + REFACTOR 1 過時 transient-guard pytest class；pre-merge SA-pre-7 /simplify review + transient-guard 生命週期 checklist 引入）；**主軸 59c — E2E 用戶旅程劇本 v2**（24 舊 scenarios 全面審計後改寫為 7 個 User Story 串連 US1-US7，純文字劇本「人類用瀏覽器 / AI 用 Playwright MCP」雙軌可跑；Codex 5 輪 + CDP 實機抽跑驗收）。Bonus：PyWebView 視窗幾何（位置 / 大小）跨重啟持久化。
+
+*This release is the final polish bundle before v0.9 RC (feature/59-onboarding-help-polish). Three tracks: **Track 59a — Onboarding & Help flip** (new-user narrative pivots from Search-first "file-manager mindset" to Scanner-first "photo-album mindset": 7-step tutorial reordered, Help page 3-card + Next Steps + Tag Alias + power_user sections, README sync, 4-locale parity); **Track 59b — test_frontend_lint.py audit** (4-agent audit on 2026-05-14; DELETE 2 + REFACTOR 1 obsolete transient-guard pytest classes; pre-merge SA-pre-7 /simplify review + transient-guard lifecycle checklist); **Track 59c — E2E user-journey playbook v2** (24 old scenarios fully audited and rewritten as 7-User-Story serial US1-US7, plain-text playbook runnable by humans-in-browser and AI-via-Playwright-MCP; verified by 5 rounds of Codex review + live CDP run). Bonus: PyWebView window geometry persists across launches.*
+
+### Added
+
+#### 🎓 59a — Onboarding & Help Scanner-first 翻轉
+
+- **Tutorial step array Scanner-first 重排**：7 步順序翻轉為「加入片庫 → 產生網頁 → NFO 補全 → Showcase → 進階 Search / Settings / Help」，首步聚焦 `#btnSelectFolder` 降低新手認知門檻
+- **`default_page` shipped default 改 scanner**：全新安裝預設打開 Scanner 頁（既有用戶 `config.json` 不受影響）
+- **Help 頁 4 個新區塊**：「✅ 完成！接下來試試」mini-list / 「想要更多控制？」分流段 / Tag 別名管理段（v0.8.8 A3 補文檔）/ 既有段落補強（A2 alias 展開、B1 dropdown picker、B0 NFO skip）
+- **Help 卡片順序對齊 tutorial step 1-4**（CD-59-12）：Scanner → Showcase → 相似探索 → Tag Alias
+- **README 補齊**：tagline 翻轉、L25 工作流程順序、Scanner 段補 Tag Alias bullet、新增「Search → Showcase 即時化」段、`GPT-5.4 mini` → `GPT mini`（去版號）
+- **4 locale parity**：zh_TW / zh_CN / en / ja 全部翻譯到位，tutorial 7 步 + Help 新區塊（共 ~17 新增 keys × 4 + 23 修值 keys × 4）
+
+#### 🧪 59b — test_frontend_lint.py 體檢
+
+- **pre-merge.md SA-pre-7 步驟**：可選 `/simplify` review skill 引入（建議 diff > 200 行時跑）
+- **pre-merge.md transient-guard 生命週期 checklist**：負向 fingerprint 守衛標 `[transient-guard]` 下個 milestone 刪，含 4 條例外保留（安全 / Alpine contract / regression fingerprint / 中文 i18n fingerprint）
+
+#### 🎭 59c — E2E 用戶旅程劇本 v2
+
+- **`tests/e2e/e2e-scenarios.md` 全面改寫**（192 行 → 661 行 → polish 後）：7 個 User Story 串連 US1-US7
+  - US1: 新手 Onboarding（11 steps，含 tutorial restart 分支 + Help verify）
+  - US2: Search → 整理 → 即時上架（11 steps，file-list 流 searchAll → scrapeAll）
+  - US3: Showcase 瀏覽 + Lightbox + 魔杖探索（10 steps，含 ESC 2 段式）
+  - US4: 跨語言 Tag Alias 篩選（8 steps）
+  - US5: 女優最愛流（8 steps）
+  - US6: i18n 完整切換（9 steps）
+  - US7: 控制狂工作流（6 steps）
+- **Appendix C: Capabilities Smoke**（5 個 curl quick-smoke A1-A5，optional / 不算 milestone 必跑）
+- **檔頭含 Playwright MCP 雙 server 用法**（`playwright` headless vs `playwright-cdp` attach）+ Risk-2 cache 黏性 mitigation 指引
+- **24 個舊 scenarios 全數歸併 / deprecated**：strikethrough + 一行 reason 保留歷史
+
+#### 🪟 Bonus — PyWebView 視窗幾何持久化
+
+- PyWebView 視窗位置 + 大小跨重啟記憶（commit `20f1788`）；按用戶決定**不揭露**進 docs（CD-59-8）
+
+### Changed
+
+- **Tutorial auto-trigger pathname**：`/search` → `/scanner`（CD-59-3，`/` 保留作首頁 redirect）
+- **Help Hero CTA**：`/search?tutorial=restart` → `/scanner?tutorial=restart`（CD-59-5，i18n key 與 value 不動）
+- **Help 3 步卡 icon + 文案**：`bi-search` / `bi-list-ul` / `bi-collection-play` → `bi-folder-plus` / `bi-file-earmark-play` / `bi-magic`（i18n key 不動只改 value，CD-59-4）
+
+### Internal
+
+- **`tests/unit/test_frontend_lint.py` 行數體檢**：DELETE 2 class（`TestSettingsSimplify` / `TestProxyDirectGuard`，transient-guard 生命週期已結束）+ REFACTOR 1 class（`TestSettingsSourceBadge` 的 `primarySource` 正向 assert 併入既有 `TestSettingsESMGuard.test_settings_html_xdata_is_settings`，整 class 刪）；總 test 數 468 → 465
+- **`tests/unit/test_frontend_lint.py` 更新 `TestTutorialExpandGuard`**：對齊 Scanner-first step IDs
+- **`web/templates/help.html` CRLF → LF**：行尾正規化，消 diff 噪音
+
+### Fixed
+
+- Codex 5 輪 review 修正 e2e-scenarios.md：US2/US7 整理流程 `#btnScrapeAll` 需 `listMode === 'file'` + 進度 selector 改 `#scrapeProgress`（`#batchProgress` 是 searchAll 用）；US5 三處 `/api/favorite-actresses` → `GET /api/actresses/{name}`；US4 tag alias payload `"primary"` → `"primary_name"`；Appendix C A3 補 `file_path` required；A5 `ids/output_dir` → `numbers` + 回傳改 `html_path/video_count`
+- Codex 第 4 輪：US2 step 5a 補「先清 search state（`#btnClear` / `clearAll()` → 等 `#emptyState`）」才能 click `#btnFavorite`
+- CDP 抽跑驗收：US3 grid 卡片實際 class 是 `.av-card-preview:not(.hero-card)`，原文件誤寫 `.video-card`
+
 ## [0.8.8] - 2026-05-13
 
 本版是 v0.9 release candidate 前的 polish 包（feature/58-tag-alias-polish），雙主軸出貨：**主軸 A — alias / 變體一致性**（A1 Scanner 多字母後綴 regex / A2 女優 alias 換頭像本地展開 / A3 跨語言 Tag Alias 系統 / A4 AI tag 揭露端點 / A5 規則式相似探索吃 DB tag_aliases）；**主軸 B — Search→Showcase pipeline 即時化**（B0 最愛資料夾 NFO skip / B1 Scanner dropdown picker + inline 連動狀態 / B2 整理完即時寫 DB + GhostFly 飛到 sidebar Showcase icon）。共通主題是「同一概念有多種表記法」（`アリス = 愛麗絲 = Alice`、`メイド = 女僕`、`abp-321 = abp-321ch`）在系統內各路徑的處理一致化。
