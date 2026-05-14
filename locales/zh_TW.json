@@ -726,12 +726,32 @@
     "workflow": {
       "title": "第一次使用？先看這 3 步",
       "subtitle": "照著左側三個頁面操作，從找資料到展示收藏",
-      "step1_title": "搜尋影片資訊",
-      "step1_desc": "用番號找到封面與影片資料",
-      "step2_title": "生成展示牆",
-      "step2_desc": "掃描資料夾並建立收藏頁",
-      "step3_title": "瀏覽收藏",
-      "step3_desc": "用海報牆方式瀏覽你的收藏"
+      "step1_title": "加入片庫資料夾",
+      "step1_desc": "在 Scanner 追蹤你的 AV 影片資料夾",
+      "step2_title": "產生網頁",
+      "step2_desc": "一鍵掃描並建立可瀏覽的收藏頁",
+      "step3_title": "NFO 補全",
+      "step3_desc": "缺封面或資料？點一下從網路自動補齊",
+      "next_steps_title": "✅ 完成！接下來試試",
+      "next_steps_similar": "燈箱魔杖按鈕：模糊探索類似片",
+      "next_steps_favorite": "把喜歡的女優加最愛",
+      "next_steps_tag_alias": "Tag chip 點一下展開同義詞（中日英自動 cross-language）"
+    },
+    "power_user": {
+      "title": "想要更多控制？",
+      "intro": "OpenAver 也給控制狂用。你可以一片一片精準刮削、自訂命名規則、管理跨語言別名 — 詳見下方 Search、Settings、Tag 別名管理段落。"
+    },
+    "tag_alias": {
+      "title": "Tag 別名管理",
+      "intro": "中日英同義詞集中管理，讓搜尋框、chip 篩選、模糊探索全部說同一種語言。",
+      "h6_scanner": "在 Scanner 建立別名組",
+      "scanner_chipwall": "chip 牆列出所有 Tag 別名組。點「+」新增 alias，主名（primary）以粉紅色顯示，別名以灰色顯示。",
+      "scanner_ai_hint": "點「?」開啟 AI 建議框：把你的 tag 需求描述給 AI，它會回傳建議的別名組供你直接匯入。",
+      "h6_showcase": "Showcase 自動展開",
+      "showcase_expand": "搜尋框輸入或 chip 點擊時，自動展開同義詞過濾，與女優別名行為對齊。",
+      "showcase_click": "點任一 tag chip → 篩出所有同義 tag 的影片，不需要知道正確日文寫法。",
+      "h6_tips": "進階提示",
+      "tip_ranker": "建完別名後，星座模式（模糊探索）也立即吃 — 同義詞的影片會計入相似分數。"
     },
     "search": {
       "title": "搜尋功能",
@@ -763,9 +783,10 @@
       "add_filter": "<strong>自動過濾</strong>：排除非影片檔與小於設定大小的檔案",
       "add_batch": "<strong>批次搜尋</strong>：每批 20 個檔案，並發 2 個請求",
       "add_progress": "<strong>進度顯示</strong>：即時顯示搜尋進度（如：處理 15/100）",
-      "fav_settings": "在<strong>設定頁</strong>設定常用資料夾路徑",
+      "fav_settings": "在<strong>設定頁</strong>設定常用資料夾路徑，可從 Scanner 已追蹤資料夾下拉選擇，inline 即時顯示連動狀態（✓ 已連動 Scanner / ⚠ 不在追蹤範圍）",
       "fav_load": "點擊「⭐ 我的最愛」按鈕一鍵載入",
       "fav_auto": "自動開始搜尋前 20 個檔案",
+      "fav_nfo_skip": "同名 .nfo 存在則視為已整理，不重打 scraper",
       "pause_pause": "批次搜尋時可點擊「暫停」按鈕",
       "pause_resume": "點擊「繼續」從暫停處恢復",
       "generate_all": "批次搜尋完成後，可一次整理所有成功結果（重命名、建資料夾、下載封面、寫 NFO）",
@@ -816,7 +837,7 @@
       "manage_add": "從搜尋頁或瀏覽頁加入收藏，照片自動下載至本地",
       "manage_alias": "別名管理：Scanner 頁面可新增、編輯女優別名，搜尋時自動展開所有已知名稱",
       "manage_enrich": "燈箱右上 🔄 可替換女優照片，候選來源含雲端與本機影片封面",
-      "manage_photo_path": "收藏女優的照片存放於 output/Gfriends/ 目錄下"
+      "manage_photo_path": "收藏女優的照片存放於 output/Gfriends/ 目錄下，換頭像時會自動展開女優的所有 alias 名做本地候選查詢"
     },
     "scanner": {
       "title": "影片列表生成 (Scanner)",
@@ -953,19 +974,19 @@
     "skip": "跳過",
     "next": "下一步 →",
     "done": "完成 🎉",
-    "step1_title": "💡 搜尋影片資訊",
-    "step1_content": "輸入番號（如 SONE-001）或女優名稱就能搜尋<br>找到後點一下，自動刮削封面、演員、劇情一次完成",
-    "step2_title": "📁 批次整理",
-    "step2_content": "把一整個資料夾的影片加進來，批量搜尋刮削<br>幾十部片自動補齊封面與 NFO，不用一個一個處理",
-    "step3_title": "📋 掃描資料夾",
-    "step3_content": "把本地資料夾加進來掃描，一鍵補齊缺少的 NFO 和封面<br>掃完後在 Showcase 就能看到整個收藏",
+    "step1_title": "📂 加入片庫資料夾",
+    "step1_content": "把放 AV 影片的資料夾路徑加進來<br>OpenAver 會掃出所有影片並建立瀏覽頁",
+    "step2_title": "▶ 產生網頁",
+    "step2_content": "按下這顆按鈕，掃描 + 建立你的私人收藏頁<br>幾秒就好",
+    "step3_title": "🌐 NFO 補全入口",
+    "step3_content": "掃完後，回到 Scanner 頁面<br>NFO 補全按鈕會自動出現，缺封面或資料一鍵從網路補齊",
     "step4_title": "🎬 瀏覽你的收藏",
-    "step4_content": "Showcase 是你的私人影片庫，影片封面牆一目了然<br>切換成女優模式，還能瀏覽收藏女優的照片與作品",
-    "step5_title": "⚙️ 個人化設定",
-    "step5_content": "切換深色模式、調整語言和字體大小，打造舒適的使用介面<br>也可以設定搜尋來源偏好和啟動時預設開啟的頁面",
-    "step6_title": "🤖 讓 AI 幫你操作",
-    "step6_content": "Help 頁有一個指令，複製後貼給 Claude Code 或 Cursor<br>AI 就能自動幫你搜尋、刮削、整理，不用自己一步一步來",
-    "step7_title": "🎯 立即體驗！",
-    "step7_content": "拖放 <code>教學檔案</code> 資料夾<br>或其中任一 <code>.mp4</code> 檔案到此視窗<br><br><small class=\"text-muted\">內含 11 個真實可搜尋的範例</small>"
+    "step4_content": "完成後從這裡進 Showcase<br>燈箱裡有魔杖按鈕可以模糊探索類似片",
+    "step5_title": "🔍 進階 — 逐片刮削",
+    "step5_content": "想精準掌控每片的資料？<br>Search 讓你一片一片手動處理",
+    "step6_title": "⚙️ 進階 — 自訂規則",
+    "step6_content": "命名格式、AI 翻譯、視覺策略都在 Settings 裡<br>玩透了再來",
+    "step7_title": "📖 說明手冊",
+    "step7_content": "隨時在網址加 <code>?tutorial=restart</code> 回來重看<br>Help 頁也有功能詳解與 AI agent 指令"
   }
 }
