@@ -69,7 +69,7 @@
     "player": ""
   },
   "general": {
-    "default_page": "search",
+    "default_page": "scanner",
     "theme": "light",
     "sidebar_collapsed": false,
     "tutorial_completed": false,

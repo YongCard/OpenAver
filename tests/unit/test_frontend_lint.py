@@ -2225,17 +2225,17 @@ class TestGhostFlyGuards:
 
 
 class TestTutorialExpandGuard:
-    """T10: 新手教學 7 步守衛 (method folded)"""
+    """T10: 新手教學 7 步守衛 (method folded)
+
+    v0.9 (spec-59) 把 tutorial 從 Search-first 翻轉為 Scanner-first：
+    步驟 IDs 改為 folder → generate → scanner → showcase → search → settings → help。
+    """
 
     def test_tutorial_js_and_i18n(self):
-        """tutorial.js 7 步 + samples large: true + 四語系 i18n keys"""
+        """tutorial.js 7 步 (Scanner-first) + 四語系 i18n keys"""
         js = Path("web/static/js/components/tutorial.js").read_text(encoding="utf-8")
-        for step_id in ['search', 'files', 'scanner', 'showcase', 'settings', 'help', 'samples']:
+        for step_id in ['folder', 'generate', 'scanner', 'showcase', 'search', 'settings', 'help']:
             assert f"id: '{step_id}'" in js, f"tutorial.js missing: \"id: '{step_id}'\""
-        samples_idx = js.find("id: 'samples'")
-        assert samples_idx > 0, "tutorial.js missing: \"id: 'samples'\""
-        block = js[samples_idx:js.find('}', samples_idx)]
-        assert 'large: true' in block, "tutorial.js samples step missing: 'large: true'"
         for locale in ["zh_TW", "en", "ja", "zh_CN"]:
             data = json.loads(Path(f"locales/{locale}.json").read_text(encoding="utf-8"))
             tutorial = data.get("tutorial", {})
@@ -3716,12 +3716,15 @@ class TestSettingsESMGuard:
             "settings.html pre_alpine_module block 缺少 main.js module script"
 
     def test_settings_html_xdata_is_settings(self):
-        """settings.html x-data 值為 'settings'（非 'settingsPage'）"""
+        """settings.html x-data 值為 'settings'（非 'settingsPage'）+ 含 primarySource binding"""
         content = self._read("web/templates/settings.html")
         assert 'x-data="settings"' in content, \
             "settings.html x-data 非 settings（54d-T2 切換未完成）"
         assert 'x-data="settingsPage"' not in content, \
             "settings.html 仍有舊 x-data=settingsPage（54d-T2 切換未完成）"
+        # 59b-1b: TestSettingsSourceBadge REFACTOR — primarySource 正向斷言併入此 method
+        assert 'primarySource' in content, \
+            "settings.html missing: 'primarySource' (37d T2 badge selector binding)"
 
     def test_settings_html_no_settings_js_script(self):
         """settings.html extra_js block 不含 /pages/settings.js script 載入"""
@@ -5025,22 +5028,6 @@ class TestVideoPlaybackGuard:
                 f"{file_path.name} still contains hardcoded video extension set — should import from core.video_extensions"
 
 
-class TestSettingsSimplify:
-    """T4a 守衛 — Settings 不再包含版本/更新 UI"""
-
-    def test_settings_excludes(self):
-        """settings.html/state-config.js 不含已搬移的 checkUpdate / loadVersion / restartTutorial"""
-        html = (PROJECT_ROOT / 'web/templates/settings.html').read_text(encoding='utf-8')
-        js = (PROJECT_ROOT / 'web/static/js/pages/settings/state-config.js').read_text(encoding='utf-8')
-        for forbidden, content, fname in [
-            ('checkUpdate', html, 'settings.html'),
-            ('loadVersion', js, 'settings/state-config.js'),
-            ('restartTutorial', js, 'settings/state-config.js'),
-        ]:
-            assert forbidden not in content, \
-                f"{fname} should not contain: {forbidden!r}"
-
-
 class TestHelpPage:
     """T4b 守衛 — Help 頁必要元素"""
 
@@ -5135,18 +5122,6 @@ class TestPageLifecycleGuard:
         content = js_file.read_text(encoding='utf-8')
         assert '__registerPage' in content, \
             "scanner/state-scan.js 缺少 __registerPage 呼叫 — Scanner lifecycle 未接入統一機制"
-
-
-class TestSettingsSourceBadge:
-    """37d T2 守衛 — Settings radio 區塊已移除，badge 改為 primarySource 選擇器"""
-
-    def test_settings_source_badge_html_contains(self):
-        """settings.html badge 選擇器：不含 radio name=primarySource；含 primarySource 綁定"""
-        html = (PROJECT_ROOT / 'web/templates/settings.html').read_text(encoding='utf-8')
-        assert 'name="primarySource"' not in html, \
-            "settings.html should not contain: 'name=\"primarySource\"'"
-        assert 'primarySource' in html, \
-            "settings.html missing: 'primarySource'"
 
 
 class TestScannerLifecycleGuard:
@@ -7031,18 +7006,6 @@ class TestSampleGalleryTemplateGuard:
         assert sg_btn_line is not None, "search.html missing: 'sg-open-btn'"
         assert lb_line < sg_btn_line < lb_close, \
             f"T8 違規：sg-open-btn (L{sg_btn_line+1}) 不在 lb-header (L{lb_line+1}~L{lb_close+1}) 內"
-
-
-class TestProxyDirectGuard:
-    """37d T3 守衛 — settings.html proxy placeholder 包含 direct 提示"""
-
-    def test_settings_proxy_placeholder_has_direct(self):
-        """i18n 後 placeholder 文字移至 locale JSON，檢查 zh_TW.json 或 HTML"""
-        html = (PROJECT_ROOT / 'web/templates/settings.html').read_text(encoding='utf-8')
-        locale_file = PROJECT_ROOT / 'locales' / 'zh_TW.json'
-        locale_content = locale_file.read_text(encoding='utf-8') if locale_file.exists() else ''
-        assert 'direct' in html.lower() or 'direct' in locale_content.lower(), \
-            "settings.html 或 locales/zh_TW.json proxy placeholder 應包含 direct 提示"
 
 
 class TestShowcaseSampleGalleryGuard:

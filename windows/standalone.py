@@ -283,20 +283,37 @@ def main():
     logger.info("啟動視窗...")
     webview.settings['OPEN_DEVTOOLS_IN_DEBUG'] = False
 
+    import window_state
+    saved = window_state.load_state()
+    create_kwargs = dict(js_api=api, width=saved['width'], height=saved['height'])
+    if saved['x'] is not None and saved['y'] is not None:
+        create_kwargs['x'] = saved['x']
+        create_kwargs['y'] = saved['y']
+
     window = webview.create_window(
         'OpenAver',
         f'http://{HOST}:{port}',
-        js_api=api,
-        width=1200,
-        height=800
+        **create_kwargs,
     )
+
+    def startup(w):
+        bind_events(w)
+        live = window_state.attach(w, saved)
+        if saved['maximized']:
+            try:
+                w.maximize()
+            except Exception as e:
+                logger.warning(f"window maximize failed: {e}")
+                # Codex P2: maximize 失敗時清 live state，否則 on_resized/on_moved
+                # 永遠 early-return，下次啟動仍寫回 maximized=true 形成 sticky failure
+                live["maximized"] = False
 
     # 5. 開始 GUI 事件循環（阻塞直到窗口關閉）
     # 根據平台選擇 GUI 後端
     if sys.platform == 'darwin':
-        webview.start(bind_events, window)  # macOS 使用預設 (Cocoa/WebKit)
+        webview.start(startup, window)  # macOS 使用預設 (Cocoa/WebKit)
     else:
-        webview.start(bind_events, window, gui='edgechromium')  # Windows
+        webview.start(startup, window, gui='edgechromium')  # Windows
 
 
 if __name__ == '__main__':

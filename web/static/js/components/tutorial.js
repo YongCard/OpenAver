@@ -6,18 +6,18 @@ class SpotlightTutorial {
         this.currentStep = 0;
         this.steps = [
             {
-                id: 'search',
-                target: '.spotlight-search',
+                id: 'folder',
+                target: '#btnSelectFolder',
                 title: window.t('tutorial.step1_title'),
                 content: window.t('tutorial.step1_content'),
                 position: 'bottom'
             },
             {
-                id: 'files',
-                target: '#btnAddFiles',
+                id: 'generate',
+                target: '#btnGenerate',
                 title: window.t('tutorial.step2_title'),
                 content: window.t('tutorial.step2_content'),
-                position: 'right'
+                position: 'bottom'
             },
             {
                 id: 'scanner',
@@ -34,26 +34,25 @@ class SpotlightTutorial {
                 position: 'right'
             },
             {
-                id: 'settings',
-                target: '#sidebar a[href="/settings"]',
+                id: 'search',
+                target: '#sidebar a[href="/search"]',
                 title: window.t('tutorial.step5_title'),
                 content: window.t('tutorial.step5_content'),
                 position: 'right'
             },
             {
-                id: 'help',
-                target: '#sidebar a[href="/help"]',
+                id: 'settings',
+                target: '#sidebar a[href="/settings"]',
                 title: window.t('tutorial.step6_title'),
                 content: window.t('tutorial.step6_content'),
                 position: 'right'
             },
             {
-                id: 'samples',
-                target: '#emptyState',
+                id: 'help',
+                target: '#sidebar a[href="/help"]',
                 title: window.t('tutorial.step7_title'),
                 content: window.t('tutorial.step7_content'),
-                position: 'bottom',
-                large: true
+                position: 'right'
             }
         ];
         this.isActive = false;
@@ -305,8 +304,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // 首次啟動自動觸發（僅 /search 頁面）
-    if (window.location.pathname === '/search' || window.location.pathname === '/') {
+    // 首次啟動自動觸發（僅 /scanner 頁面）
+    if (window.location.pathname === '/scanner' || window.location.pathname === '/') {
         setTimeout(async () => {
             if (await window.SpotlightTutorial.shouldShow()) {
                 window.SpotlightTutorial.start();

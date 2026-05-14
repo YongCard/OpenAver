@@ -24,7 +24,7 @@
                 <div class="flex flex-wrap items-center gap-2">
                     <!-- 主 CTA -->
                     <button class="btn btn-primary btn-sm"
-                            @click="window.location.href = '/search?tutorial=restart'">
+                            @click="window.location.href = '/scanner?tutorial=restart'">
                         <i class="bi bi-play-circle"></i> {{ t('help.hero.btn_tutorial') }}
                     </button>
                     <!-- 次 CTA -->
@@ -93,7 +93,7 @@
             <div class="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 lg:gap-4">
                 <!-- Step 1 -->
                 <div class="flex-1 rounded-xl bg-base-200 p-6 text-center">
-                    <i class="bi bi-search workflow-step-icon"></i>
+                    <i class="bi bi-folder-plus workflow-step-icon"></i>
                     <div class="font-bold text-lg mt-1"><span class="workflow-step-num">1</span> {{ t('help.workflow.step1_title') }}</div>
                     <div class="text-base opacity-50 mt-0.5">{{ t('help.workflow.step1_desc') }}</div>
                 </div>
@@ -101,7 +101,7 @@
                 <div class="workflow-arrow text-xl leading-none">▶</div>
                 <!-- Step 2 -->
                 <div class="flex-1 rounded-xl bg-base-200 p-6 text-center">
-                    <i class="bi bi-list-ul workflow-step-icon"></i>
+                    <i class="bi bi-file-earmark-play workflow-step-icon"></i>
                     <div class="font-bold text-lg mt-1"><span class="workflow-step-num">2</span> {{ t('help.workflow.step2_title') }}</div>
                     <div class="text-base opacity-50 mt-0.5">{{ t('help.workflow.step2_desc') }}</div>
                 </div>
@@ -109,154 +109,29 @@
                 <div class="workflow-arrow text-xl leading-none">▶</div>
                 <!-- Step 3 -->
                 <div class="flex-1 rounded-xl bg-base-200 p-6 text-center">
-                    <i class="bi bi-collection-play workflow-step-icon"></i>
+                    <i class="bi bi-magic workflow-step-icon"></i>
                     <div class="font-bold text-lg mt-1"><span class="workflow-step-num">3</span> {{ t('help.workflow.step3_title') }}</div>
                     <div class="text-base opacity-50 mt-0.5">{{ t('help.workflow.step3_desc') }}</div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- 搜尋功能 -->
-    <div class="card help-card fluent-rounded-xl mb-4">
-        <div class="card-body">
-            <h2 class="card-title text-lg">
-                <i class="bi bi-search"></i> {{ t('help.search.title') }}
-            </h2>
-            <h6>{{ t('help.search.h6_methods') }}</h6>
-            <ul>
-                <li>{{ t('help.search.method_full') | safe }}</li>
-                <li>{{ t('help.search.method_partial') | safe }}</li>
-                <li>{{ t('help.search.method_series') | safe }}</li>
-                <li>{{ t('help.search.method_actress') | safe }}</li>
-            </ul>
-
-            <h6 class="mt-4">{{ t('help.search.h6_dragdrop') }}</h6>
-            <ul>
-                <li>{{ t('help.search.drag_auto') }}</li>
-                <li>{{ t('help.search.drag_batch') }}</li>
-                <li>{{ t('help.search.drag_generate') }}</li>
-            </ul>
-
-            <h6 class="mt-4">{{ t('help.search.h6_grid') }}</h6>
-            <ul>
-                <li>{{ t('help.search.grid_switch') }}</li>
-                <li>{{ t('help.search.grid_lightbox') | safe }}</li>
-                <li>{{ t('help.search.grid_detail') }}</li>
-                <li>{{ t('help.search.grid_gallery') | safe }}</li>
-            </ul>
-
-            <h6 class="mt-4">{{ t('help.search.h6_badge') }}</h6>
-            <ul>
-                <li>{{ t('help.search.badge_keywords') | safe }}</li>
-            </ul>
-        </div>
-    </div>
-
-    <!-- 批次檔案搜尋 -->
-    <div class="card help-card fluent-rounded-xl mb-4">
-        <div class="card-body">
-            <h2 class="card-title text-lg">
-                <i class="bi bi-files"></i> {{ t('help.batch.title') }}
-            </h2>
-            <h6>{{ t('help.batch.h6_add') }}</h6>
-            <ul>
-                <li>{{ t('help.batch.add_folder') | safe }}</li>
-                <li>{{ t('help.batch.add_filter') | safe }}</li>
-                <li>{{ t('help.batch.add_batch') | safe }}</li>
-                <li>{{ t('help.batch.add_progress') | safe }}</li>
-            </ul>
-
-            <h6 class="mt-4">{{ t('help.batch.h6_favorite') }}</h6>
-            <ul>
-                <li>{{ t('help.batch.fav_settings') | safe }}</li>
-                <li>{{ t('help.batch.fav_load') }}</li>
-                <li>{{ t('help.batch.fav_auto') }}</li>
-            </ul>
-
-            <h6 class="mt-4">{{ t('help.batch.h6_pause') }}</h6>
-            <ul>
-                <li>{{ t('help.batch.pause_pause') }}</li>
-                <li>{{ t('help.batch.pause_resume') }}</li>
-            </ul>
-
-            <h6 class="mt-4">{{ t('help.batch.h6_generate_all') }}</h6>
-            <ul>
-                <li>{{ t('help.batch.generate_all') }}</li>
-            </ul>
-
-            <h6 class="mt-4">{{ t('help.batch.h6_badge') }}</h6>
-            <ul>
-                <li>{{ t('help.batch.badge_suffix') | safe }}</li>
-            </ul>
-        </div>
-    </div>
-
-    <!-- 格式變數一覽表 -->
-    <div class="card help-card fluent-rounded-xl mb-4">
-        <div class="card-body">
-            <h2 class="card-title text-lg">
-                <i class="bi bi-braces"></i> {{ t('help.format.title') }}
-            </h2>
-            <div class="overflow-x-auto">
-                <table class="table table-sm">
-                    <thead>
-                        <tr><th>{{ t('help.format.col_var') }}</th><th>{{ t('help.format.col_desc') }}</th><th>{{ t('help.format.col_example') }}</th><th>{{ t('help.format.col_fallback') }}</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td><code>{num}</code></td><td>{{ t('help.format.var_num_desc') }}</td><td>SONE-205</td><td>—</td></tr>
-                        <tr><td><code>{title}</code></td><td>{{ t('help.format.var_title_desc') }}</td><td>新人出道...</td><td>{{ t('help.format.fallback_unknown_title') }}</td></tr>
-                        <tr><td><code>{actor}</code></td><td>{{ t('help.format.var_actor_desc') }}</td><td>三上悠亜</td><td>{{ t('help.format.fallback_unknown_actor') }}</td></tr>
-                        <tr><td><code>{actors}</code></td><td>{{ t('help.format.var_actors_desc') }}</td><td>三上悠亜, 明日花</td><td>{{ t('help.format.fallback_unknown_actor') }}</td></tr>
-                        <tr><td><code>{maker}</code></td><td>{{ t('help.format.var_maker_desc') }}</td><td>S1</td><td>{{ t('help.format.fallback_unknown_maker') }}</td></tr>
-                        <tr><td><code>{date}</code></td><td>{{ t('help.format.var_date_desc') }}</td><td>2024-01-15</td><td>{{ t('help.format.fallback_unknown_date') }}</td></tr>
-                        <tr><td><code>{year}</code></td><td>{{ t('help.format.var_year_desc') }}</td><td>2024</td><td>{{ t('help.format.fallback_unknown_year') }}</td></tr>
-                        <tr><td><code>{month}</code></td><td>{{ t('help.format.var_month_desc') }}</td><td>01</td><td>{{ t('help.format.fallback_unknown_month') }}</td></tr>
-                        <tr><td><code>{day}</code></td><td>{{ t('help.format.var_day_desc') }}</td><td>15</td><td>{{ t('help.format.fallback_unknown_day') }}</td></tr>
-                        <tr><td><code>{suffix}</code></td><td>{{ t('help.format.var_suffix_desc') }}</td><td>-4k</td><td>{{ t('help.format.fallback_empty') }}</td></tr>
-                    </tbody>
-                </table>
+            <!-- Next Steps mini-list -->
+            <div class="mt-4">
+                <h6 class="text-sm font-bold mb-2">{{ t('help.workflow.next_steps_title') }}</h6>
+                <ul class="text-sm opacity-80">
+                    <li>{{ t('help.workflow.next_steps_similar') }}</li>
+                    <li>{{ t('help.workflow.next_steps_favorite') }}</li>
+                    <li>{{ t('help.workflow.next_steps_tag_alias') }}</li>
+                </ul>
             </div>
-            <h6 class="mt-4">{{ t('help.format.h6_default') }}</h6>
-            <ul>
-                <li>{{ t('help.format.default_filename') | safe }}</li>
-                <li>{{ t('help.format.default_folder') | safe }}</li>
-            </ul>
-            <h6 class="mt-4">{{ t('help.format.h6_fallback') }}</h6>
-            <ul>
-                <li>{{ t('help.format.fallback_folder_rule') }}</li>
-                <li>{{ t('help.format.fallback_filename_rule') }}</li>
-            </ul>
         </div>
     </div>
 
-    <!-- 女優功能 -->
+    <!-- 想要更多控制？分流段 -->
     <div class="card help-card fluent-rounded-xl mb-4">
-        <div class="card-body">
-            <h2 class="card-title text-lg">
-                <i class="bi bi-person-circle"></i> {{ t('help.actress.title') }}
-            </h2>
-            <h6>{{ t('help.actress.h6_search') }}</h6>
-            <ul>
-                <li>{{ t('help.actress.search_hero') }}</li>
-                <li>{{ t('help.actress.search_favorite') }}</li>
-                <li>{{ t('help.actress.search_grid') }}</li>
-            </ul>
-
-            <h6 class="mt-4">{{ t('help.actress.h6_showcase') }}</h6>
-            <ul>
-                <li>{{ t('help.actress.showcase_toggle') }}</li>
-                <li>{{ t('help.actress.showcase_grid') }}</li>
-                <li>{{ t('help.actress.showcase_lightbox') }}</li>
-            </ul>
-
-            <h6 class="mt-4">{{ t('help.actress.h6_manage') }}</h6>
-            <ul>
-                <li>{{ t('help.actress.manage_add') }}</li>
-                <li>{{ t('help.actress.manage_alias') }}</li>
-                <li>{{ t('help.actress.manage_enrich') }}</li>
-                <li>{{ t('help.actress.manage_photo_path') }}</li>
-            </ul>
+        <div class="card-body py-3 px-5">
+            <h3 class="text-base font-bold mb-2">{{ t('help.power_user.title') }}</h3>
+            <p class="text-sm opacity-80 mb-0">{{ t('help.power_user.intro') }}</p>
         </div>
     </div>
 
@@ -360,6 +235,177 @@
             <ul>
                 <li>{{ t('help.similar.manage_enable') | safe }}</li>
                 <li>{{ t('help.similar.manage_scanner') | safe }}</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Tag 別名管理 -->
+    <div class="card help-card fluent-rounded-xl mb-4" id="tag-alias">
+        <div class="card-body">
+            <h2 class="card-title text-lg">
+                <i class="bi bi-tags"></i> {{ t('help.tag_alias.title') }}
+            </h2>
+            <p>{{ t('help.tag_alias.intro') }}</p>
+
+            <h6 class="mt-4">{{ t('help.tag_alias.h6_scanner') }}</h6>
+            <ul>
+                <li>{{ t('help.tag_alias.scanner_chipwall') }}</li>
+                <li>{{ t('help.tag_alias.scanner_ai_hint') }}</li>
+            </ul>
+
+            <h6 class="mt-4">{{ t('help.tag_alias.h6_showcase') }}</h6>
+            <ul>
+                <li>{{ t('help.tag_alias.showcase_expand') }}</li>
+                <li>{{ t('help.tag_alias.showcase_click') }}</li>
+            </ul>
+
+            <h6 class="mt-4">{{ t('help.tag_alias.h6_tips') }}</h6>
+            <ul>
+                <li>{{ t('help.tag_alias.tip_ranker') }}</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 女優功能 -->
+    <div class="card help-card fluent-rounded-xl mb-4">
+        <div class="card-body">
+            <h2 class="card-title text-lg">
+                <i class="bi bi-person-circle"></i> {{ t('help.actress.title') }}
+            </h2>
+            <h6>{{ t('help.actress.h6_search') }}</h6>
+            <ul>
+                <li>{{ t('help.actress.search_hero') }}</li>
+                <li>{{ t('help.actress.search_favorite') }}</li>
+                <li>{{ t('help.actress.search_grid') }}</li>
+            </ul>
+
+            <h6 class="mt-4">{{ t('help.actress.h6_showcase') }}</h6>
+            <ul>
+                <li>{{ t('help.actress.showcase_toggle') }}</li>
+                <li>{{ t('help.actress.showcase_grid') }}</li>
+                <li>{{ t('help.actress.showcase_lightbox') }}</li>
+            </ul>
+
+            <h6 class="mt-4">{{ t('help.actress.h6_manage') }}</h6>
+            <ul>
+                <li>{{ t('help.actress.manage_add') }}</li>
+                <li>{{ t('help.actress.manage_alias') }}</li>
+                <li>{{ t('help.actress.manage_enrich') }}</li>
+                <li>{{ t('help.actress.manage_photo_path') }}</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 搜尋功能 -->
+    <div class="card help-card fluent-rounded-xl mb-4">
+        <div class="card-body">
+            <h2 class="card-title text-lg">
+                <i class="bi bi-search"></i> {{ t('help.search.title') }}
+            </h2>
+            <h6>{{ t('help.search.h6_methods') }}</h6>
+            <ul>
+                <li>{{ t('help.search.method_full') | safe }}</li>
+                <li>{{ t('help.search.method_partial') | safe }}</li>
+                <li>{{ t('help.search.method_series') | safe }}</li>
+                <li>{{ t('help.search.method_actress') | safe }}</li>
+            </ul>
+
+            <h6 class="mt-4">{{ t('help.search.h6_dragdrop') }}</h6>
+            <ul>
+                <li>{{ t('help.search.drag_auto') }}</li>
+                <li>{{ t('help.search.drag_batch') }}</li>
+                <li>{{ t('help.search.drag_generate') }}</li>
+            </ul>
+
+            <h6 class="mt-4">{{ t('help.search.h6_grid') }}</h6>
+            <ul>
+                <li>{{ t('help.search.grid_switch') }}</li>
+                <li>{{ t('help.search.grid_lightbox') | safe }}</li>
+                <li>{{ t('help.search.grid_detail') }}</li>
+                <li>{{ t('help.search.grid_gallery') | safe }}</li>
+            </ul>
+
+            <h6 class="mt-4">{{ t('help.search.h6_badge') }}</h6>
+            <ul>
+                <li>{{ t('help.search.badge_keywords') | safe }}</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 批次檔案搜尋 -->
+    <div class="card help-card fluent-rounded-xl mb-4">
+        <div class="card-body">
+            <h2 class="card-title text-lg">
+                <i class="bi bi-files"></i> {{ t('help.batch.title') }}
+            </h2>
+            <h6>{{ t('help.batch.h6_add') }}</h6>
+            <ul>
+                <li>{{ t('help.batch.add_folder') | safe }}</li>
+                <li>{{ t('help.batch.add_filter') | safe }}</li>
+                <li>{{ t('help.batch.add_batch') | safe }}</li>
+                <li>{{ t('help.batch.add_progress') | safe }}</li>
+            </ul>
+
+            <h6 class="mt-4">{{ t('help.batch.h6_favorite') }}</h6>
+            <ul>
+                <li>{{ t('help.batch.fav_settings') | safe }}</li>
+                <li>{{ t('help.batch.fav_load') }}</li>
+                <li>{{ t('help.batch.fav_auto') }}</li>
+                <li>{{ t('help.batch.fav_nfo_skip') | safe }}</li>
+            </ul>
+
+            <h6 class="mt-4">{{ t('help.batch.h6_pause') }}</h6>
+            <ul>
+                <li>{{ t('help.batch.pause_pause') }}</li>
+                <li>{{ t('help.batch.pause_resume') }}</li>
+            </ul>
+
+            <h6 class="mt-4">{{ t('help.batch.h6_generate_all') }}</h6>
+            <ul>
+                <li>{{ t('help.batch.generate_all') }}</li>
+            </ul>
+
+            <h6 class="mt-4">{{ t('help.batch.h6_badge') }}</h6>
+            <ul>
+                <li>{{ t('help.batch.badge_suffix') | safe }}</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 格式變數一覽表 -->
+    <div class="card help-card fluent-rounded-xl mb-4">
+        <div class="card-body">
+            <h2 class="card-title text-lg">
+                <i class="bi bi-braces"></i> {{ t('help.format.title') }}
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <thead>
+                        <tr><th>{{ t('help.format.col_var') }}</th><th>{{ t('help.format.col_desc') }}</th><th>{{ t('help.format.col_example') }}</th><th>{{ t('help.format.col_fallback') }}</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>{num}</code></td><td>{{ t('help.format.var_num_desc') }}</td><td>SONE-205</td><td>—</td></tr>
+                        <tr><td><code>{title}</code></td><td>{{ t('help.format.var_title_desc') }}</td><td>新人出道...</td><td>{{ t('help.format.fallback_unknown_title') }}</td></tr>
+                        <tr><td><code>{actor}</code></td><td>{{ t('help.format.var_actor_desc') }}</td><td>三上悠亜</td><td>{{ t('help.format.fallback_unknown_actor') }}</td></tr>
+                        <tr><td><code>{actors}</code></td><td>{{ t('help.format.var_actors_desc') }}</td><td>三上悠亜, 明日花</td><td>{{ t('help.format.fallback_unknown_actor') }}</td></tr>
+                        <tr><td><code>{maker}</code></td><td>{{ t('help.format.var_maker_desc') }}</td><td>S1</td><td>{{ t('help.format.fallback_unknown_maker') }}</td></tr>
+                        <tr><td><code>{date}</code></td><td>{{ t('help.format.var_date_desc') }}</td><td>2024-01-15</td><td>{{ t('help.format.fallback_unknown_date') }}</td></tr>
+                        <tr><td><code>{year}</code></td><td>{{ t('help.format.var_year_desc') }}</td><td>2024</td><td>{{ t('help.format.fallback_unknown_year') }}</td></tr>
+                        <tr><td><code>{month}</code></td><td>{{ t('help.format.var_month_desc') }}</td><td>01</td><td>{{ t('help.format.fallback_unknown_month') }}</td></tr>
+                        <tr><td><code>{day}</code></td><td>{{ t('help.format.var_day_desc') }}</td><td>15</td><td>{{ t('help.format.fallback_unknown_day') }}</td></tr>
+                        <tr><td><code>{suffix}</code></td><td>{{ t('help.format.var_suffix_desc') }}</td><td>-4k</td><td>{{ t('help.format.fallback_empty') }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <h6 class="mt-4">{{ t('help.format.h6_default') }}</h6>
+            <ul>
+                <li>{{ t('help.format.default_filename') | safe }}</li>
+                <li>{{ t('help.format.default_folder') | safe }}</li>
+            </ul>
+            <h6 class="mt-4">{{ t('help.format.h6_fallback') }}</h6>
+            <ul>
+                <li>{{ t('help.format.fallback_folder_rule') }}</li>
+                <li>{{ t('help.format.fallback_filename_rule') }}</li>
             </ul>
         </div>
     </div>

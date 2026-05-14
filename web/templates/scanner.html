@@ -37,7 +37,7 @@
                 <i class="bi bi-folder"></i> <span>{{ t('scanner.folder.section_title') }}</span>
             </div>
             <div class="actions">
-                <button class="btn-icon" @click="selectFolder()" title="{{ t('scanner.folder.select_title') }}">
+                <button id="btnSelectFolder" class="btn-icon" @click="selectFolder()" title="{{ t('scanner.folder.select_title') }}">
                     <i class="bi bi-folder-plus"></i>
                 </button>
                 <button class="btn-icon" @click="toggleManualInput()" title="{{ t('scanner.folder.manual_title') }}">
