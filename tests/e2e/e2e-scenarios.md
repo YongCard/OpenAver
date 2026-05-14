@@ -210,12 +210,12 @@ N/A — tutorial flow 是 browser-only，無需 PyWebView picker。Step 6 sideba
 ### Steps
 
 1. `browser_navigate` → `http://localhost:8000/showcase`
-2. `browser_wait_for` selector=`[x-for="(video, index) in paginatedVideos"]` 渲染（or wait for first card `.video-card` 出現）timeout=5s
+2. `browser_wait_for` selector=`[x-for="(video, index) in paginatedVideos"]` 渲染（or wait for first card `.av-card-preview:not(.hero-card)` 出現）timeout=5s
    - **驗**：grid 內卡片數 > 0、總數顯示（`videoCount` text 或 grid item count）
 3. **翻頁驗收**：點 `.pager-btn`（next 箭頭 `›`，`showcase.html:1227`）
    - `browser_wait_for` page 變化（page indicator 更新或 selected option 改變）
    - **驗**：卡片內容與第 1 頁不同（取第 1 張卡片 number text 對比）
-4. **進 Lightbox**：`browser_click` 任一卡片封面（`.video-card` 內 `<img>` 或封面區）
+4. **進 Lightbox**：`browser_click` 任一卡片封面（`.av-card-preview:not(.hero-card)` 內 `<img>` 或封面區）
    - `browser_wait_for` selector=`.showcase-lightbox.show` timeout=2s（`showcase.html:517-518`，`lightboxOpen` 為 true 時加 `.show`）
 5. **鍵盤導航**：
    - `browser_press_key` `ArrowRight` → 驗番號 / 封面更新（lightbox 內主圖換片）
