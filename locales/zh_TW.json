@@ -182,6 +182,14 @@
   },
   "settings": {
     "page_title": "設定",
+    "tabs": {
+      "display": "顯示偏好",
+      "scraping": "刮削行為",
+      "sources": "掃描來源",
+      "organize": "整理規則",
+      "translate": "AI 翻譯",
+      "advanced": "進階"
+    },
     "mock": {
       "page_title": "Settings IA POC",
       "eyebrow": "FEATURE/61 · VISUAL POC",

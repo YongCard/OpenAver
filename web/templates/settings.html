@@ -47,6 +47,76 @@
         </div>
     </div>
 
+    <!-- ===== Settings Tab Nav (61b-2) — top-tab IA (CD-61-1) =====
+         activeTab state is declared in 61b-3 (stateUI). Until then activeTab is
+         undefined → all panels x-show=false, no tab active. Expected intermediate
+         state. 61b-4 moves the existing form sections into the panels below. -->
+    <div class="settings-tab-bar" role="tablist" aria-label="{{ t('settings.header.title') }}">
+        <button type="button" class="settings-tab" role="tab"
+                :class="{ active: activeTab === 'display' }"
+                :aria-selected="activeTab === 'display'"
+                @click="activeTab = 'display'">
+            <i class="bi bi-palette"></i>
+            <span x-text="t('settings.tabs.display')">{{ t('settings.tabs.display') }}</span>
+        </button>
+        <button type="button" class="settings-tab" role="tab"
+                :class="{ active: activeTab === 'scraping' }"
+                :aria-selected="activeTab === 'scraping'"
+                @click="activeTab = 'scraping'">
+            <i class="bi bi-gear"></i>
+            <span x-text="t('settings.tabs.scraping')">{{ t('settings.tabs.scraping') }}</span>
+        </button>
+        <button type="button" class="settings-tab" role="tab"
+                :class="{ active: activeTab === 'sources' }"
+                :aria-selected="activeTab === 'sources'"
+                @click="activeTab = 'sources'">
+            <i class="bi bi-collection"></i>
+            <span x-text="t('settings.tabs.sources')">{{ t('settings.tabs.sources') }}</span>
+        </button>
+        <button type="button" class="settings-tab" role="tab"
+                :class="{ active: activeTab === 'organize' }"
+                :aria-selected="activeTab === 'organize'"
+                @click="activeTab = 'organize'">
+            <i class="bi bi-folder"></i>
+            <span x-text="t('settings.tabs.organize')">{{ t('settings.tabs.organize') }}</span>
+        </button>
+        <button type="button" class="settings-tab" role="tab"
+                :class="{ active: activeTab === 'translate' }"
+                :aria-selected="activeTab === 'translate'"
+                @click="activeTab = 'translate'">
+            <i class="bi bi-translate"></i>
+            <span x-text="t('settings.tabs.translate')">{{ t('settings.tabs.translate') }}</span>
+        </button>
+        <button type="button" class="settings-tab" role="tab"
+                :class="{ active: activeTab === 'advanced' }"
+                :aria-selected="activeTab === 'advanced'"
+                @click="activeTab = 'advanced'">
+            <i class="bi bi-tools"></i>
+            <span x-text="t('settings.tabs.advanced')">{{ t('settings.tabs.advanced') }}</span>
+        </button>
+    </div>
+
+    <!-- 6 empty panel containers (scaffolding). x-show only (no x-if — preserves
+         form binding / getElementById). 61b-4 moves the matching sections here. -->
+    <div class="settings-panel" role="tabpanel" x-show="activeTab === 'display'" x-cloak>
+        <!-- 61b-4: move display sections here -->
+    </div>
+    <div class="settings-panel" role="tabpanel" x-show="activeTab === 'scraping'" x-cloak>
+        <!-- 61b-4: move scraping sections here -->
+    </div>
+    <div class="settings-panel" role="tabpanel" x-show="activeTab === 'sources'" x-cloak>
+        <!-- 61b-4: move sources sections here -->
+    </div>
+    <div class="settings-panel" role="tabpanel" x-show="activeTab === 'organize'" x-cloak>
+        <!-- 61b-4: move organize sections here -->
+    </div>
+    <div class="settings-panel" role="tabpanel" x-show="activeTab === 'translate'" x-cloak>
+        <!-- 61b-4: move translate sections here -->
+    </div>
+    <div class="settings-panel" role="tabpanel" x-show="activeTab === 'advanced'" x-cloak>
+        <!-- 61b-4: move advanced sections here -->
+    </div>
+
     <!-- 靜態 inert：HTML 渲染即生效，Alpine boot 前保護 -->
     <!-- Alpine boot 後由 :inert binding 接管 -->
     <form id="settingsForm" @submit.prevent="saveConfig" inert :inert="_configLoading">
