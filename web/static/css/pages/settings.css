@@ -123,20 +123,8 @@
     color: var(--accent);
 }
 
-#settings-components .settings-panel {
-    animation: settings-panel-fade var(--fluent-duration-medium) var(--fluent-ease-decel);
-}
-
-@keyframes settings-panel-fade {
-    from {
-        opacity: 0;
-        transform: translateY(4px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
+/* 61b-5: panel 進場 fade 由 GSAP 全權負責（state-ui.js _initActiveTab watch），
+   不用 CSS keyframe，避免 CSS animation 與 GSAP inline opacity 雙軌（gotchas C21）。 */
 
 /* ========== Responsive: 行動版（窄螢幕）RWD ========== */
 
@@ -591,11 +579,9 @@
         animation: none;
     }
 
-    /* 61b-2: neutralize tab panel fade + tab transitions */
-    #settings-components .settings-panel {
-        animation: none !important;
-    }
-
+    /* 61b-2/61b-5: neutralize tab transitions.
+       panel fade 改由 GSAP 負責，其 reduced-motion guard（playEnter _shouldAnimate）
+       會直接跳過動畫，故不需 CSS panel 規則。 */
     #settings-components .settings-tab {
         transition: none !important;
     }

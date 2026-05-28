@@ -113,8 +113,8 @@ export function stateUI() {
 
             this.activeTab = resolved;
 
-            // tab 變更 → 記憶 + 同步 URL（replaceState，不堆瀏覽歷史）
-            this.$watch('activeTab', (val) => {
+            // tab 變更 → 記憶 + 同步 URL（replaceState，不堆瀏覽歷史）+ GSAP fade + mobile scroll
+            this.$watch('activeTab', async (val) => {
                 if (!SETTINGS_TAB_IDS.includes(val)) return;
                 try {
                     localStorage.setItem('settings_active_tab', val);
@@ -122,6 +122,29 @@ export function stateUI() {
                     console.warn('[settings] write settings_active_tab failed:', e);
                 }
                 history.replaceState(null, '', '#' + val);
+
+                // 61b-5: 等 Alpine 把新 panel 的 x-show 套上 display（避免 rect 0×0 /
+                // 幽靈動畫，gotchas L426 / C17：animate 在 nextTick 之後）。
+                await this.$nextTick();
+
+                // 對新顯示的 panel 起 GSAP fade（opacity 0→1，純淡入無位移）。
+                // playEnter 內含 reduced-motion guard，不自寫 matchMedia；缺 motion 時跳過。
+                const panel = this.$el.querySelector('[data-settings-panel="' + val + '"]');
+                if (panel && window.OpenAver && window.OpenAver.motion) {
+                    window.OpenAver.motion.playEnter(panel, {
+                        y: 0,
+                        duration: window.OpenAver.motion.DURATION.medium,
+                        ease: 'fluent-decel',
+                        ctx: this._gsapCtx
+                    });
+                }
+
+                // Mobile（<768px）橫向 scroll：把 active tab button 帶進可視範圍。
+                // block:'nearest' 防止頁面整體垂直跳動。
+                const tabBtn = this.$el.querySelector('[data-settings-tab="' + val + '"]');
+                if (tabBtn) {
+                    tabBtn.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+                }
             });
 
             // 外部深連結（如 /settings#translate）：監聽 hashchange

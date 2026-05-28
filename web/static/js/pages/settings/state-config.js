@@ -186,6 +186,12 @@ export function stateConfig() {
 
         // ===== Lifecycle =====
         init() {
+            // 61b-5: 頁面級 GSAP context（tab 切換 fade 用）。
+            // 缺 OpenAver.motion / gsap 時跳過，動畫退化為直接顯示（x-show 本就會顯示）。
+            if (window.OpenAver && window.OpenAver.motion) {
+                this._gsapCtx = window.OpenAver.motion.createContext(this.$el);
+            }
+
             this.loadConfig().then(() => {
                 // B1: init scanner link state after config loaded
                 if (typeof this._initB1 === 'function') this._initB1();
@@ -221,6 +227,8 @@ export function stateConfig() {
                     },
                     cleanup: () => {
                         if (this._toastTimer) clearTimeout(this._toastTimer);
+                        // 61b-5: 回收 GSAP inline props（frontend-stack-roles 共存規則 3）
+                        this._gsapCtx?.revert();
                     }
                 });
             }
