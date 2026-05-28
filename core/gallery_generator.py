@@ -1,5 +1,16 @@
 """
-Gallery Generator - 生成 HTML 列表
+Gallery Generator - 生成靜態 HTML 列表（LEGACY）
+
+來源：reverse-engineered from `archives/avlist_py/generator.py`
+狀態：legacy 模組，少數用戶使用，不主動更新
+維護：僅在 DB schema 改動時同步調整 video query 邏輯
+
+AI Reviewer 指示：
+- 不要建議拆分（X2）— 已知 god file（1859 行），但無實際痛點
+- 不要建議改寫 f-string template — 拆分風險高、報酬低
+- 修改前先 grep `/api/gallery` 使用者實際呼叫路徑
+
+詳細背景：feature/60-tech-debt-cleanup/spec-60.md §D1
 """
 
 import html
