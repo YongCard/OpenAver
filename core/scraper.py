@@ -24,6 +24,8 @@ from core.scrapers import (
 )
 from core.scrapers.utils import extract_number as _new_extract_number
 from core.maker_mapping import get_maker_by_prefix
+from core.source_config import validate_source_id
+from core.source_settings import get_enabled_source_ids
 
 
 # ============ 全域設定 ============
@@ -32,6 +34,9 @@ MAX_WORKERS = 2
 REQUEST_DELAY = 0.3
 
 # 爬蟲優先順序
+# 角色降級（TASK-61a-3）：auto fan-out 已改讀 get_enabled_source_ids()，
+# explicit dispatch 已改用 SOURCE_TO_SCRAPER map。此常數目前已無呼叫者（dead），
+# 依 plan-61 61a-3 DoD 保留為 legacy/fallback 參照，不再是 search_jav() 的 routing 來源。
 SCRAPER_CLASSES: List[Type[BaseScraper]] = [
     JavBusScraper, JAV321Scraper, JavDBScraper,
     FC2Scraper, AVSOXScraper,
@@ -155,49 +160,52 @@ def search_jav(number: str, source: str = 'auto', proxy_url: str = '', primary_s
     # 標準化番號
     number = normalize_number(number)
 
-    VALID_SOURCES = {'auto', 'dmm', 'javbus', 'jav321', 'javdb', 'd2pass', 'heyzo', 'fc2', 'avsox'}
-    if source not in VALID_SOURCES:
+    # 來源 id 驗證（TASK-61a-3）：改用 validate_source_id() 取代舊 VALID_SOURCES set。
+    # 'auto' 與 8 個 builtin id 通過；其餘 → return None（保留「未知來源不 raise」契約）。
+    if not validate_source_id(source):
         logger.warning(f"[Search] 未知來源: {source}")
         return None
 
     # DMM 需要日本 IP（proxy 或 direct），有啟用才建立
     dmm_config = ScraperConfig(proxy_url=_dmm_proxy_url(proxy_url)) if _is_dmm_enabled(proxy_url) else None
 
+    # javbus_lang 校驗 + config fallback（auto 與 explicit javbus 共用）
+    if javbus_lang is not None and javbus_lang not in VALID_JAVBUS_LANGS:
+        logger.warning("[Search] 無效的 javbus_lang: %s，fallback 到 config", javbus_lang)
+        javbus_lang = None
+    _javbus_lang = javbus_lang if javbus_lang is not None else _get_javbus_lang()
+
+    # 來源 id → scraper factory（無參數 callable，回 scraper instance list）。
+    # DMM 與 JavBus 是攜帶 closure 參數的特例：
+    #   - dmm：proxy-gated，dmm_config 為 None（無 proxy）時回 []（不建立）。
+    #   - javbus：帶校驗後的 lang。
+    # explicit 指定來源與 auto fan-out 共用同一份定義。
+    source_to_scraper = {
+        'dmm': lambda: [DMMScraper(dmm_config)] if dmm_config else [],
+        'javbus': lambda: [JavBusScraper(lang=_javbus_lang)],
+        'jav321': lambda: [JAV321Scraper()],
+        'javdb': lambda: [JavDBScraper()],
+        'd2pass': lambda: [D2PassScraper()],
+        'heyzo': lambda: [HEYZOScraper()],
+        'fc2': lambda: [FC2Scraper()],
+        'avsox': lambda: [AVSOXScraper()],
+    }
+
     # 決定要跑哪些爬蟲
     scrapers = []
     if source == 'auto':
-        if javbus_lang is not None and javbus_lang not in VALID_JAVBUS_LANGS:
-            logger.warning("[Search] 無效的 javbus_lang: %s，fallback 到 config", javbus_lang)
-            javbus_lang = None
-        lang = javbus_lang if javbus_lang is not None else _get_javbus_lang()
-        base = [JavBusScraper(lang=lang) if cls is JavBusScraper else cls() for cls in SCRAPER_CLASSES]
-        if dmm_config:
-            scrapers = [DMMScraper(dmm_config)] + base
-        else:
-            scrapers = base
-    elif source == 'dmm':
-        scrapers = [DMMScraper(dmm_config)] if dmm_config else []
-    elif source == 'javbus':
-        if javbus_lang is not None and javbus_lang not in VALID_JAVBUS_LANGS:
-            logger.warning("[Search] 無效的 javbus_lang: %s，fallback 到 config", javbus_lang)
-            javbus_lang = None
-        lang = javbus_lang if javbus_lang is not None else _get_javbus_lang()
-        scrapers = [JavBusScraper(lang=lang)]
-    elif source == 'jav321':
-        scrapers = [JAV321Scraper()]
-    elif source == 'javdb':
-        scrapers = [JavDBScraper()]
-    elif source == 'd2pass':
-        scrapers = [D2PassScraper()]
-    elif source == 'heyzo':
-        scrapers = [HEYZOScraper()]
-    elif source == 'fc2':
-        scrapers = [FC2Scraper()]
-    elif source == 'avsox':
-        scrapers = [AVSOXScraper()]
+        # auto fan-out 改讀 Runtime Auto Pool（enabled=True AND manual_only=False，依 order）。
+        # DMM proxy guard 由 source_to_scraper['dmm'] 的 dmm_config 條件自然吸收：
+        # 即使 'dmm' 在 enabled list，無 proxy（dmm_config 為 None）時 factory 回 [] → 不加入。
+        for sid in get_enabled_source_ids():
+            factory = source_to_scraper.get(sid)
+            if factory:
+                scrapers.extend(factory())
     else:
-        # 安全 fallback — 理論上已被上方 VALID_SOURCES 攔截，不應執行到此
-        scrapers = [cls() for cls in SCRAPER_CLASSES]
+        # explicit 單一來源 dispatch。未知 id 理論上已被 validate_source_id 攔截，
+        # factory 缺失時回空 list（行為等同舊 dead-else fallback）。
+        factory = source_to_scraper.get(source)
+        scrapers = factory() if factory else []
 
     # 執行搜尋
     logger.info(f"[Search] {number} 使用來源: {source}")

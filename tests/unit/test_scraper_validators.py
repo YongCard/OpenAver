@@ -8,8 +8,17 @@
 - is_prefix_only: regex ``^[A-Z]{2,6}$``
 - 三者都沒有 null guard (.strip() on None raises AttributeError)
 """
+from unittest.mock import patch
+
 import pytest
-from core.scraper import is_number_format, is_partial_number, is_prefix_only
+
+import core.scraper as scraper_mod
+from core.scraper import (
+    is_number_format,
+    is_partial_number,
+    is_prefix_only,
+    search_jav,
+)
 
 
 class TestIsNumberFormat:
@@ -124,3 +133,144 @@ class TestIsPrefixOnly:
         """None input raises AttributeError (no null guard)"""
         with pytest.raises(AttributeError):
             is_prefix_only(None)
+
+
+# ============ search_jav source routing (TASK-61a-3) ============
+
+# Scraper classes patched in core.scraper that may get constructed by search_jav.
+# Construction must be cheap & must NOT hit the network; we patch them with
+# spies recording instantiation and stub .search() so nothing real runs.
+_SCRAPER_ATTRS = [
+    'DMMScraper', 'JavBusScraper', 'JAV321Scraper', 'JavDBScraper',
+    'D2PassScraper', 'HEYZOScraper', 'FC2Scraper', 'AVSOXScraper',
+]
+
+# id -> scraper class attr name in core.scraper
+_ID_TO_ATTR = {
+    'dmm': 'DMMScraper',
+    'javbus': 'JavBusScraper',
+    'jav321': 'JAV321Scraper',
+    'javdb': 'JavDBScraper',
+    'd2pass': 'D2PassScraper',
+    'heyzo': 'HEYZOScraper',
+    'fc2': 'FC2Scraper',
+    'avsox': 'AVSOXScraper',
+}
+
+
+def _install_scraper_spies(monkeypatch):
+    """Replace each Scraper class on core.scraper with a spy.
+
+    Returns a dict {attr_name: list_of_calls}. Each spy:
+    - records its construction (args/kwargs ignored for the count),
+    - returns an object whose .search() returns None (no result, no network).
+    """
+    constructed: dict[str, int] = {attr: 0 for attr in _SCRAPER_ATTRS}
+
+    def make_spy(attr_name):
+        def factory(*args, **kwargs):
+            constructed[attr_name] += 1
+
+            class _Stub:
+                def search(self, number):
+                    return None
+
+            return _Stub()
+
+        return factory
+
+    for attr in _SCRAPER_ATTRS:
+        monkeypatch.setattr(scraper_mod, attr, make_spy(attr))
+
+    # normalize_number() constructs a real JavBusScraper at module scope (unrelated
+    # to routing). Stub it to identity so the spies don't break it and no network runs.
+    monkeypatch.setattr(scraper_mod, 'normalize_number', lambda n: n)
+
+    return constructed
+
+
+class TestValidateSourceIntegration:
+    """validate_source_id wiring: known ids + 'auto' accepted; unknown -> None."""
+
+    def test_unknown_source_returns_none_no_raise(self, monkeypatch):
+        # Should not raise; should short-circuit to None before constructing scrapers.
+        _install_scraper_spies(monkeypatch)
+        result = search_jav("ABP-001", source="not-a-real-source")
+        assert result is None
+
+    def test_auto_is_accepted(self, monkeypatch):
+        # 'auto' must pass validation; with empty enabled list -> no results -> None.
+        _install_scraper_spies(monkeypatch)
+        monkeypatch.setattr(scraper_mod, 'get_enabled_source_ids', lambda: [])
+        result = search_jav("ABP-001", source="auto")
+        assert result is None
+
+    def test_known_explicit_source_accepted(self, monkeypatch):
+        # 'javbus' must pass validation and construct exactly JavBusScraper.
+        constructed = _install_scraper_spies(monkeypatch)
+        result = search_jav("ABP-001", source="javbus")
+        assert result is None  # stub .search returns None
+        assert constructed['JavBusScraper'] == 1
+        # No other scrapers constructed for an explicit single source.
+        for attr in _SCRAPER_ATTRS:
+            if attr != 'JavBusScraper':
+                assert constructed[attr] == 0
+
+
+class TestAutoFanOutReadsEnabledIds:
+    """auto path fans out over get_enabled_source_ids()."""
+
+    def test_auto_only_constructs_enabled_subset(self, monkeypatch):
+        constructed = _install_scraper_spies(monkeypatch)
+        monkeypatch.setattr(
+            scraper_mod, 'get_enabled_source_ids', lambda: ['javbus', 'javdb']
+        )
+        search_jav("ABP-001", source="auto")
+        assert constructed['JavBusScraper'] == 1
+        assert constructed['JavDBScraper'] == 1
+        # Everything else (incl. DMM) must not be constructed.
+        for attr in _SCRAPER_ATTRS:
+            if attr not in ('JavBusScraper', 'JavDBScraper'):
+                assert constructed[attr] == 0
+
+    def test_auto_empty_enabled_list_returns_none(self, monkeypatch):
+        constructed = _install_scraper_spies(monkeypatch)
+        monkeypatch.setattr(scraper_mod, 'get_enabled_source_ids', lambda: [])
+        result = search_jav("ABP-001", source="auto")
+        assert result is None
+        assert all(v == 0 for v in constructed.values())
+
+
+class TestDmmProxyGuard:
+    """DMM proxy guard preserved across the refactor."""
+
+    def test_auto_dmm_enabled_but_no_proxy_not_constructed(self, monkeypatch):
+        # 'dmm' is in the enabled list but no proxy -> DMM must NOT be constructed.
+        constructed = _install_scraper_spies(monkeypatch)
+        monkeypatch.setattr(
+            scraper_mod, 'get_enabled_source_ids', lambda: ['dmm', 'javbus']
+        )
+        search_jav("ABP-001", source="auto", proxy_url="")
+        assert constructed['DMMScraper'] == 0
+        assert constructed['JavBusScraper'] == 1
+
+    def test_auto_dmm_with_proxy_constructed(self, monkeypatch):
+        # Proxy configured -> DMM included in the fan-out.
+        constructed = _install_scraper_spies(monkeypatch)
+        monkeypatch.setattr(
+            scraper_mod, 'get_enabled_source_ids', lambda: ['dmm', 'javbus']
+        )
+        search_jav("ABP-001", source="auto", proxy_url="http://127.0.0.1:8080")
+        assert constructed['DMMScraper'] == 1
+        assert constructed['JavBusScraper'] == 1
+
+    def test_explicit_dmm_no_proxy_not_constructed(self, monkeypatch):
+        constructed = _install_scraper_spies(monkeypatch)
+        result = search_jav("ABP-001", source="dmm", proxy_url="")
+        assert result is None
+        assert constructed['DMMScraper'] == 0
+
+    def test_explicit_dmm_with_proxy_constructed(self, monkeypatch):
+        constructed = _install_scraper_spies(monkeypatch)
+        search_jav("ABP-001", source="dmm", proxy_url="http://127.0.0.1:8080")
+        assert constructed['DMMScraper'] == 1
