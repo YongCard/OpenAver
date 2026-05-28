@@ -742,6 +742,9 @@ class VideoRepository:
     def count_by_actress(self, actress_name: str) -> int:
         """查詢某女優名字的片數
 
+        Uses json_each to expand the actresses JSON array and match exactly,
+        replacing the previous 4-LIKE-OR pattern to prevent prefix/suffix false matches.
+
         Args:
             actress_name: 女優名稱
 
@@ -749,33 +752,28 @@ class VideoRepository:
             int: 包含該女優的影片數量
         """
         conn = self._get_connection()
-        cursor = conn.cursor()
-
         try:
-            # actresses 欄位是 JSON array，使用 LIKE 查詢
-            # 需要處理完全匹配（避免部分匹配，例如 "miru" 匹配到 "miruku"）
-            cursor.execute(
-                """
-                SELECT COUNT(*) FROM videos
-                WHERE actresses LIKE ?
-                   OR actresses LIKE ?
-                   OR actresses LIKE ?
-                   OR actresses = ?
-                """,
-                (
-                    f'["{actress_name}",%',      # 開頭
-                    f'%, "{actress_name}",%',    # 中間
-                    f'%, "{actress_name}"]',     # 結尾
-                    f'["{actress_name}"]'        # 唯一
-                )
+            cursor = conn.execute(
+                """SELECT COUNT(DISTINCT videos.rowid) FROM videos, json_each(videos.actresses)
+                   WHERE json_valid(videos.actresses) AND json_each.value = ?""",
+                (actress_name,)
             )
             row = cursor.fetchone()
             return row[0] if row else 0
+        except sqlite3.OperationalError:
+            logger.exception(
+                "count_by_actress json_each failed for %r (returning 0)",
+                actress_name
+            )
+            return 0
         finally:
             conn.close()
 
     def get_videos_by_actress(self, actress_name: str) -> List['Video']:
         """取得包含某女優的所有影片
+
+        Uses json_each to expand the actresses JSON array and match exactly,
+        replacing the previous 4-LIKE-OR pattern to prevent prefix/suffix false matches.
 
         Args:
             actress_name: 女優名稱
@@ -784,35 +782,31 @@ class VideoRepository:
             List[Video]: 包含該女優的影片列表
         """
         conn = self._get_connection()
-        cursor = conn.cursor()
-
         try:
-            cursor.execute(
-                """
-                SELECT * FROM videos
-                WHERE actresses LIKE ?
-                   OR actresses LIKE ?
-                   OR actresses LIKE ?
-                   OR actresses = ?
-                ORDER BY id
-                """,
-                (
-                    f'["{actress_name}",%',
-                    f'%, "{actress_name}",%',
-                    f'%, "{actress_name}"]',
-                    f'["{actress_name}"]'
-                )
+            cursor = conn.execute(
+                """SELECT DISTINCT videos.* FROM videos, json_each(videos.actresses)
+                   WHERE json_valid(videos.actresses) AND json_each.value = ?
+                   ORDER BY videos.id""",
+                (actress_name,)
             )
             rows = cursor.fetchall()
             return [Video.from_row(row, self._get_columns()) for row in rows]
+        except sqlite3.OperationalError:
+            logger.exception(
+                "get_videos_by_actress json_each failed for %r (returning [])",
+                actress_name
+            )
+            return []
         finally:
             conn.close()
 
     def get_videos_by_actress_names(self, names: list) -> List['Video']:
         """多名 OR 查詢（用於 alias 展開後的本地封面候選）
 
-        對 names list 的每個名稱產生同 get_videos_by_actress 的 4 個 LIKE 條件，
-        以 UNION 合併（SQLite 自動去重）後回傳。
+        Uses json_each with IN (placeholders) and SELECT DISTINCT to match any of the
+        given names exactly, replacing the previous per-name UNION-of-LIKE pattern.
+        DISTINCT prevents duplicate rows when a video's actresses list contains
+        multiple names from the query set.
 
         Args:
             names: 女優名稱 list（alias 展開後的所有名稱）
@@ -823,32 +817,23 @@ class VideoRepository:
         if not names:
             return []
 
+        placeholders = ",".join("?" * len(names))
         conn = self._get_connection()
-        cursor = conn.cursor()
-
         try:
-            # 每個 name 產生一個 SELECT（4 個 LIKE 條件），最後 UNION 去重
-            select_parts = []
-            params = []
-            for name in names:
-                select_parts.append(
-                    """SELECT * FROM videos
-                       WHERE actresses LIKE ?
-                          OR actresses LIKE ?
-                          OR actresses LIKE ?
-                          OR actresses = ?"""
-                )
-                params.extend([
-                    f'["{name}",%',
-                    f'%, "{name}",%',
-                    f'%, "{name}"]',
-                    f'["{name}"]',
-                ])
-
-            union_sql = "\nUNION\n".join(select_parts) + "\nORDER BY id"
-            cursor.execute(union_sql, params)
+            cursor = conn.execute(
+                f"""SELECT DISTINCT videos.* FROM videos, json_each(videos.actresses)
+                   WHERE json_valid(videos.actresses) AND json_each.value IN ({placeholders})
+                   ORDER BY videos.id""",
+                tuple(names)
+            )
             rows = cursor.fetchall()
             return [Video.from_row(row, self._get_columns()) for row in rows]
+        except sqlite3.OperationalError:
+            logger.exception(
+                "get_videos_by_actress_names json_each failed for %d names (returning [])",
+                len(names)
+            )
+            return []
         finally:
             conn.close()
 

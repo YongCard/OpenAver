@@ -430,7 +430,7 @@ class OpenAICompatibleTranslateService(TranslateService):
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
-            "max_tokens": 100
+            "max_completion_tokens": 100,  # 不用 max_tokens：OpenAI reasoning models（gpt-5.x / o-series）會回 400
         }
 
         try:

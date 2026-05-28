@@ -1240,7 +1240,7 @@ def generate_from_ids(body: GenerateFromIdsRequest):
                     num=r.get('number', num),
                     maker=r.get('maker', ''),
                     date=r.get('date', ''),
-                    genre=','.join(r.get('genres', [])) if isinstance(r.get('genres'), list) else r.get('genre', ''),
+                    genre=','.join(r.get('tags', [])) if isinstance(r.get('tags'), list) else '',
                     size=0,
                     mtime=0,
                     img=r.get('cover', '') or r.get('cover_url', '')
