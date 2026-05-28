@@ -1,23 +1,22 @@
 {% extends "base.html" %}
 
 {#
-  Settings Mock — Visual POC for feature/61-settings-ia-sources, task 61b-1.
+  Settings Mock — Visual POC (feature/61-settings-ia-sources, task 61b-1).
 
-  Three viewpoints on one page so the user can pin down direction before
-  P3 / P4 implementation:
-    A. Tab IA — 6-tab top-nav redesign demoed on the new "Sources" tab
-    B. Source pill density variations — three viable candidates
-    C. Metatube greyed area drafts — three handling styles
+  v2 (canonical): the three-candidate framing (B1/B2/B3, C1/C2/C3) is gone.
+  This page shows ONE locked direction in three sections:
+    A. Tab IA — 6-tab top nav, sources tab is the demo target.
+    B. 掃描來源 — single canonical pill design (Minimal + slash-icon disabled).
+    C. Metatube — same pill design rendered across three connection states
+       (未啟用 / 已啟用未連線 / 已連線), switched via a POC mock control.
 
-  Not linked from sidebar. Not registered in capabilities. POC only.
-  All CSS inlined into extra_css below — `settings.css` stays untouched.
+  Not linked from sidebar. Not in capabilities. POC only.
 #}
 
 {% block title %}{{ t('settings.mock.page_title') }} — OpenAver{% endblock %}
 
 {% block extra_css %}
 <style>
-    /* ─── x-cloak guard (motion_lab pattern) ──────────────────────────── */
     .smock [x-cloak] { display: none !important; }
 
     /* ─── Page wrapper ────────────────────────────────────────────────── */
@@ -28,9 +27,7 @@
         color: var(--text-primary);
         font-family: var(--font-body, "Plus Jakarta Sans", sans-serif);
     }
-    @media (min-width: 1024px) {
-        .smock { padding-inline: 2.5rem; }
-    }
+    @media (min-width: 1024px) { .smock { padding-inline: 2.5rem; } }
 
     /* ─── Hero banner ─────────────────────────────────────────────────── */
     .smock-hero {
@@ -72,28 +69,17 @@
     .smock-hero-title {
         font-family: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif;
         font-size: clamp(1.85rem, 3.2vw, 2.4rem);
-        font-weight: 700;
-        letter-spacing: -0.015em;
-        line-height: 1.1;
+        font-weight: 700; letter-spacing: -0.015em; line-height: 1.1;
         margin: 0.65rem 0 0.5rem;
     }
     .smock-hero-title em {
         font-style: normal;
         background: linear-gradient(90deg, var(--accent), color-mix(in oklch, var(--accent) 60%, var(--color-warning, #f59e0b)));
-        -webkit-background-clip: text;
-        background-clip: text;
+        -webkit-background-clip: text; background-clip: text;
         color: transparent;
     }
-    .smock-hero-sub {
-        max-width: 60ch;
-        color: var(--text-secondary);
-        font-size: 0.92rem; line-height: 1.55;
-        margin: 0;
-    }
-    .smock-hero-meta {
-        display: flex; flex-wrap: wrap; gap: 0.5rem;
-        margin-top: 1.1rem;
-    }
+    .smock-hero-sub { max-width: 64ch; color: var(--text-secondary); font-size: 0.92rem; line-height: 1.55; margin: 0; }
+    .smock-hero-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.1rem; }
     .smock-tag {
         display: inline-flex; align-items: center; gap: 0.35rem;
         padding: 0.28rem 0.65rem;
@@ -109,10 +95,9 @@
         border-color: color-mix(in oklch, var(--color-warning) 35%, transparent);
     }
 
-    /* ─── Sticky in-page anchor nav ───────────────────────────────────── */
+    /* ─── Sticky anchor nav ───────────────────────────────────────────── */
     .smock-anchor {
-        position: sticky; top: 0;
-        z-index: 30;
+        position: sticky; top: 0; z-index: 30;
         margin: 1.5rem 0 2rem;
         padding: 0.5rem;
         background: color-mix(in oklch, var(--surface-0) 80%, transparent);
@@ -124,13 +109,11 @@
         display: flex; flex-wrap: wrap; gap: 0.35rem;
     }
     .smock-anchor a {
-        flex: 1 1 0;
-        min-width: 11rem;
+        flex: 1 1 0; min-width: 11rem;
         display: flex; align-items: center; gap: 0.55rem;
         padding: 0.55rem 0.85rem;
         font-size: 0.85rem; font-weight: 500;
-        color: var(--text-secondary);
-        text-decoration: none;
+        color: var(--text-secondary); text-decoration: none;
         border-radius: var(--fluent-radius-lg);
         border: 1px solid transparent;
         transition: all var(--fluent-duration-fast) var(--fluent-ease-standard);
@@ -141,8 +124,7 @@
         border-color: color-mix(in oklch, var(--accent) 22%, transparent);
     }
     .smock-anchor .num {
-        font-family: 'Space Grotesk', monospace;
-        font-weight: 700;
+        font-family: 'Space Grotesk', monospace; font-weight: 700;
         font-size: 0.78rem;
         width: 1.5rem; height: 1.5rem;
         display: inline-grid; place-items: center;
@@ -152,21 +134,14 @@
     }
 
     /* ─── Viewpoint section frame ─────────────────────────────────────── */
-    .smock-view {
-        margin-bottom: 2.75rem;
-        scroll-margin-top: 5.5rem;
-    }
-    .smock-view-head {
-        display: flex; align-items: flex-start; gap: 1rem;
-        margin-bottom: 1.2rem;
-    }
+    .smock-view { margin-bottom: 2.75rem; scroll-margin-top: 5.5rem; }
+    .smock-view-head { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.2rem; }
     .smock-view-head .marker {
         flex: 0 0 auto;
         width: 2.5rem; height: 2.5rem;
         border-radius: var(--fluent-radius-lg);
         display: grid; place-items: center;
-        font-family: 'Space Grotesk', monospace;
-        font-weight: 700;
+        font-family: 'Space Grotesk', monospace; font-weight: 700;
         background: linear-gradient(135deg, var(--accent), color-mix(in oklch, var(--accent) 55%, #000));
         color: oklch(100% 0 0);
         box-shadow: var(--fluent-shadow-4);
@@ -176,12 +151,9 @@
         font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em;
         margin: 0;
     }
-    .smock-view-goal {
-        margin: 0.2rem 0 0;
-        font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5;
-    }
+    .smock-view-goal { margin: 0.2rem 0 0; font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; max-width: 70ch; }
 
-    /* ─── Mock card (each variant container) ──────────────────────────── */
+    /* ─── Canonical card ──────────────────────────────────────────────── */
     .smock-card {
         background: var(--surface-0);
         border: 1px solid var(--stroke-subtle);
@@ -198,15 +170,10 @@
         border-bottom: 1px solid var(--stroke-subtle);
         background: color-mix(in oklch, var(--surface-1) 50%, transparent);
     }
-    .smock-card-head h4 {
-        margin: 0;
-        font-family: 'Space Grotesk', sans-serif;
-        font-size: 0.92rem; font-weight: 600; letter-spacing: 0.01em;
-    }
+    .smock-card-head h4 { margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 0.92rem; font-weight: 600; letter-spacing: 0.01em; }
     .smock-card-head .label {
         font-family: 'Space Grotesk', monospace;
-        font-size: 0.68rem; letter-spacing: 0.15em;
-        text-transform: uppercase;
+        font-size: 0.68rem; letter-spacing: 0.15em; text-transform: uppercase;
         color: var(--text-muted, var(--text-secondary));
         padding: 0.18rem 0.5rem;
         border-radius: var(--fluent-radius-sm);
@@ -214,7 +181,7 @@
     }
     .smock-card-body { padding: 1.1rem 1.15rem 1.25rem; }
 
-    /* ─── Viewpoint A: Tab IA preview ─────────────────────────────────── */
+    /* ─── Tab bar (motion_lab pattern, slightly heavier for settings) ─── */
     .smock-tabbar {
         display: flex; flex-wrap: wrap; gap: 0.3rem;
         padding: 0.4rem;
@@ -224,8 +191,7 @@
         margin-bottom: 1.25rem;
     }
     .smock-tab {
-        flex: 1 1 auto;
-        min-width: 7.5rem;
+        flex: 1 1 auto; min-width: 7.5rem;
         display: inline-flex; align-items: center; justify-content: center;
         gap: 0.45rem;
         padding: 0.55rem 0.85rem;
@@ -238,10 +204,7 @@
         transition: all var(--fluent-duration-fast) var(--fluent-ease-standard);
     }
     .smock-tab i { font-size: 0.95rem; opacity: 0.7; }
-    .smock-tab:hover:not(.active) {
-        color: var(--text-primary);
-        background: color-mix(in oklch, var(--surface-2) 70%, transparent);
-    }
+    .smock-tab:hover:not(.active) { color: var(--text-primary); background: color-mix(in oklch, var(--surface-2) 70%, transparent); }
     .smock-tab.active {
         background: var(--surface-0);
         color: var(--text-primary);
@@ -250,17 +213,13 @@
     }
     .smock-tab.active i { opacity: 1; color: var(--accent); }
 
-    .smock-tabpanel {
-        padding: 0.25rem 0.1rem;
-        animation: smock-fade var(--fluent-duration-medium) var(--fluent-ease-decel);
-    }
+    .smock-tabpanel { padding: 0.25rem 0.1rem; animation: smock-fade var(--fluent-duration-medium) var(--fluent-ease-decel); }
     @keyframes smock-fade {
         from { opacity: 0; transform: translateY(4px); }
         to   { opacity: 1; transform: translateY(0); }
     }
     .smock-tabpanel-empty {
-        padding: 2.5rem 1rem;
-        text-align: center;
+        padding: 2.5rem 1rem; text-align: center;
         color: var(--text-secondary);
         background: color-mix(in oklch, var(--surface-1) 40%, transparent);
         border: 1px dashed var(--stroke-subtle);
@@ -269,66 +228,86 @@
     }
     .smock-tabpanel-empty i { font-size: 1.6rem; opacity: 0.5; display: block; margin-bottom: 0.4rem; }
 
-    /* ─── Batch operations bar (top of sources tab) ───────────────────── */
+    /* ─── Batch operations bar ────────────────────────────────────────── */
     .smock-batchbar {
-        display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
-        padding: 0.7rem 0.9rem;
+        display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+        padding: 0.75rem 0.95rem;
         background: color-mix(in oklch, var(--surface-1) 55%, transparent);
         border: 1px solid var(--stroke-subtle);
         border-radius: var(--fluent-radius-lg);
         margin-bottom: 1rem;
+        flex-wrap: wrap;
     }
-    .smock-batchbar-left { display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap; }
-    .smock-batchbar-right { display: flex; gap: 0.4rem; }
-    .smock-mode-btn {
-        display: inline-flex; align-items: center; gap: 0.5rem;
-        padding: 0.45rem 0.9rem;
-        font-size: 0.82rem; font-weight: 600;
+    .smock-batchbar-left { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .smock-batchbar-right { display: flex; align-items: center; gap: 0.5rem; }
+    .smock-counter { font-family: 'Space Grotesk', monospace; font-size: 0.82rem; color: var(--text-secondary); }
+    .smock-counter strong { color: var(--text-primary); font-weight: 700; }
+
+    /* Fluent-style switch toggle (uncensored mode) */
+    .smock-switch {
+        display: inline-flex; align-items: center; gap: 0.6rem;
+        cursor: pointer; user-select: none;
+        padding: 0.25rem 0.45rem 0.25rem 0.3rem;
         border-radius: 999px;
-        border: 1px solid var(--stroke-default, var(--stroke-subtle));
-        background: var(--surface-0);
-        color: var(--text-primary);
-        cursor: pointer;
-        transition: all var(--fluent-duration-fast) var(--fluent-ease-standard);
-    }
-    .smock-mode-btn:hover { box-shadow: var(--fluent-shadow-2); }
-    .smock-mode-btn.on {
-        background: color-mix(in oklch, var(--accent) 15%, transparent);
-        border-color: color-mix(in oklch, var(--accent) 45%, transparent);
-        color: var(--accent);
-    }
-    .smock-mode-btn .dot {
-        width: 8px; height: 8px; border-radius: 999px;
-        background: color-mix(in oklch, var(--text-secondary) 30%, transparent);
         transition: background var(--fluent-duration-fast) var(--fluent-ease-standard);
     }
-    .smock-mode-btn.on .dot { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 22%, transparent); }
+    .smock-switch:hover { background: color-mix(in oklch, var(--surface-2) 60%, transparent); }
+    .smock-switch input { position: absolute; opacity: 0; pointer-events: none; }
+    .smock-switch .track {
+        position: relative;
+        width: 38px; height: 22px;
+        border-radius: 999px;
+        background: color-mix(in oklch, var(--text-secondary) 22%, transparent);
+        border: 1px solid var(--stroke-subtle);
+        transition: background var(--fluent-duration-fast) var(--fluent-ease-standard), border-color var(--fluent-duration-fast) var(--fluent-ease-standard);
+        flex: 0 0 auto;
+    }
+    .smock-switch .thumb {
+        position: absolute; top: 2px; left: 2px;
+        width: 16px; height: 16px;
+        border-radius: 999px;
+        background: var(--surface-0);
+        box-shadow: var(--fluent-shadow-2);
+        transition: transform var(--fluent-duration-fast) var(--fluent-ease-decel), background var(--fluent-duration-fast) var(--fluent-ease-standard);
+    }
+    .smock-switch input:checked + .track {
+        background: var(--accent);
+        border-color: var(--accent);
+    }
+    .smock-switch input:checked + .track .thumb { transform: translateX(16px); background: oklch(100% 0 0); }
+    .smock-switch input:focus-visible + .track { box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 35%, transparent); }
+    .smock-switch .lbl { font-size: 0.88rem; font-weight: 600; color: var(--text-primary); }
+    .smock-switch .lbl small {
+        display: block; font-size: 0.7rem; font-weight: 400;
+        color: var(--text-secondary); line-height: 1.2; margin-top: 1px;
+    }
+
     .smock-mini-btn {
         font-size: 0.78rem;
-        padding: 0.35rem 0.65rem;
+        padding: 0.35rem 0.7rem;
         border-radius: var(--fluent-radius-md);
         border: 1px solid var(--stroke-subtle);
-        background: transparent;
+        background: var(--surface-0);
         color: var(--text-secondary);
         cursor: pointer;
         transition: all var(--fluent-duration-fast) var(--fluent-ease-standard);
+        display: inline-flex; align-items: center; gap: 0.35rem;
     }
     .smock-mini-btn:hover { background: color-mix(in oklch, var(--surface-2) 70%, transparent); color: var(--text-primary); }
-    .smock-counter {
-        font-family: 'Space Grotesk', monospace;
-        font-size: 0.78rem;
-        color: var(--text-secondary);
+    .smock-mini-btn.ghost {
+        background: transparent;
+        border-style: dashed;
+        opacity: 0.7;
+        font-size: 0.72rem;
     }
-    .smock-counter strong { color: var(--text-primary); font-weight: 700; }
+    .smock-mini-btn.ghost:hover { opacity: 1; }
 
     /* ─── Group header ────────────────────────────────────────────────── */
     .smock-group-head {
         display: flex; align-items: center; gap: 0.55rem;
         margin: 0.5rem 0 0.65rem;
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-        font-weight: 600;
-        letter-spacing: 0.01em;
+        font-size: 0.85rem; color: var(--text-secondary);
+        font-weight: 600; letter-spacing: 0.01em;
     }
     .smock-group-head .chev { transition: transform var(--fluent-duration-fast) var(--fluent-ease-standard); }
     .smock-group-count {
@@ -341,7 +320,7 @@
         background: color-mix(in oklch, var(--surface-2) 60%, transparent);
     }
 
-    /* ─── Source pills — shared structure ─────────────────────────────── */
+    /* ─── Canonical source pill (Minimal + slash-icon disabled) ────────── */
     .smock-pills {
         display: flex; flex-wrap: wrap;
         gap: 0.5rem;
@@ -353,8 +332,7 @@
         display: inline-flex; align-items: center;
         gap: 0.45rem;
         padding: 0.4rem 0.85rem;
-        font-size: 0.85rem; font-weight: 500;
-        letter-spacing: 0.01em;
+        font-size: 0.85rem; font-weight: 500; letter-spacing: 0.01em;
         border-radius: 999px;
         border: 1px solid color-mix(in oklch, var(--color-base-content) 18%, transparent);
         background: color-mix(in oklch, var(--surface-2) 55%, transparent);
@@ -362,7 +340,7 @@
         cursor: grab;
         user-select: none;
         transition:
-            opacity   var(--fluent-duration-fast) var(--fluent-ease-standard),
+            color var(--fluent-duration-fast) var(--fluent-ease-standard),
             background var(--fluent-duration-fast) var(--fluent-ease-standard),
             border-color var(--fluent-duration-fast) var(--fluent-ease-standard),
             transform var(--fluent-duration-fast) var(--fluent-ease-decel),
@@ -370,82 +348,53 @@
     }
     .smock-pill:hover { box-shadow: var(--fluent-shadow-2); transform: translateY(-1px); }
     .smock-pill:active { cursor: grabbing; }
+    .smock-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .smock-pill.dragging { opacity: 0.4; transform: scale(0.96); }
-    .smock-pill.drop-target {
-        box-shadow: 0 0 0 2px var(--accent);
-    }
+    .smock-pill.drop-target { box-shadow: 0 0 0 2px var(--accent); }
 
-    /* enabled vs disabled */
-    .smock-pill[data-enabled="false"] {
-        opacity: 0.35;
-        filter: grayscale(0.6);
-    }
+    /* ENABLED — canonical look */
     .smock-pill[data-enabled="true"] {
         background: color-mix(in oklch, var(--pill-accent) 10%, var(--surface-0));
         border-color: color-mix(in oklch, var(--pill-accent) 45%, transparent);
         color: var(--text-primary);
     }
-
-    /* Uncensored differentiation — variant 1: subtle dotted underline */
+    /* Uncensored category accent */
     .smock-pill[data-cat="uncensored"][data-enabled="true"] {
         --pill-accent: var(--color-success, #34c759);
     }
-    /* Default (variant 1) layout — minimal */
-    .smock-pills.v-minimal .smock-pill { padding: 0.35rem 0.85rem; }
 
-    /* Variant 2: bigger pill with category dot prefix */
-    .smock-pills.v-dot .smock-pill {
-        padding: 0.5rem 0.95rem 0.5rem 0.65rem;
-        font-size: 0.88rem;
+    /* DISABLED — slash icon + muted text + dashed border (light supplement) */
+    .smock-pill[data-enabled="false"] {
+        background: color-mix(in oklch, var(--surface-1) 60%, transparent);
+        border-color: color-mix(in oklch, var(--color-base-content) 22%, transparent);
+        border-style: dashed;
+        color: color-mix(in oklch, var(--text-primary) 55%, transparent);
+        /* opacity stays at 1; the slash icon + muted color + dashed border carry the signal */
     }
-    .smock-pills.v-dot .cat-dot {
-        width: 8px; height: 8px; border-radius: 999px;
-        background: color-mix(in oklch, var(--accent) 70%, transparent);
-        flex: 0 0 auto;
+    .smock-pill[data-enabled="false"]:hover {
+        background: color-mix(in oklch, var(--surface-2) 70%, transparent);
+        color: color-mix(in oklch, var(--text-primary) 80%, transparent);
     }
-    .smock-pills.v-dot .smock-pill[data-cat="uncensored"] .cat-dot {
-        background: color-mix(in oklch, var(--color-success, #34c759) 80%, transparent);
-    }
-    .smock-pills.v-dot .smock-pill[data-enabled="false"] .cat-dot { background: var(--text-muted, var(--text-secondary)); }
-    .smock-pills.v-dot .grab {
-        cursor: grab; opacity: 0.4; margin-right: 0.1rem;
-        transition: opacity var(--fluent-duration-fast) var(--fluent-ease-standard);
-    }
-    .smock-pills.v-dot .smock-pill:hover .grab { opacity: 0.9; }
-
-    /* Variant 3: tile/card with metadata */
-    .smock-pills.v-tile {
-        gap: 0.6rem;
-    }
-    .smock-pills.v-tile .smock-pill {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.1rem;
-        padding: 0.6rem 0.85rem;
-        min-width: 7rem;
-        border-radius: var(--fluent-radius-lg);
-    }
-    .smock-pills.v-tile .smock-pill .name {
-        font-family: 'Space Grotesk', sans-serif;
-        font-weight: 700; font-size: 0.92rem;
-    }
-    .smock-pills.v-tile .smock-pill .meta {
-        font-size: 0.7rem; letter-spacing: 0.05em;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-    }
-    .smock-pills.v-tile .smock-pill[data-cat="uncensored"] .meta { color: var(--color-success, #34c759); }
-    .smock-pills.v-tile .smock-pill[data-enabled="false"] .meta { color: var(--text-muted, var(--text-secondary)); }
-    .smock-pills.v-tile .smock-pill .grab-bar {
-        position: absolute; left: 0.35rem; top: 50%; transform: translateY(-50%);
-        font-size: 0.7rem; opacity: 0.3;
+    .smock-pill .slash-icn { display: none; font-size: 0.95rem; }
+    .smock-pill[data-enabled="false"] .slash-icn { display: inline-block; color: color-mix(in oklch, var(--text-muted, var(--text-secondary)) 80%, transparent); }
+    .smock-pill[data-enabled="false"] .pill-name {
+        text-decoration: line-through;
+        text-decoration-color: color-mix(in oklch, var(--text-muted, var(--text-secondary)) 35%, transparent);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
     }
 
-    /* metatube indicator — small `m` corner badge */
+    /* Metatube provider differentiation (corner `m` + dashed border) */
+    .smock-pill.is-mt {
+        --pill-accent: color-mix(in oklch, var(--accent) 70%, var(--color-warning, #f59e0b));
+    }
+    .smock-pill.is-mt[data-enabled="true"] {
+        border-style: dashed;
+        border-color: color-mix(in oklch, var(--accent) 50%, transparent);
+    }
     .smock-pill.is-mt::after {
         content: "m";
-        position: absolute;
-        right: -3px; bottom: -3px;
+        position: absolute; right: -3px; bottom: -3px;
         width: 14px; height: 14px;
         display: grid; place-items: center;
         font-family: 'Space Grotesk', monospace;
@@ -457,40 +406,83 @@
         line-height: 1;
     }
 
-    /* ─── Warning banner (full-disabled) ──────────────────────────────── */
+    /* ─── Warning banner (full-disabled state, US3 boundary) ──────────── */
     .smock-warn {
         display: flex; align-items: center; gap: 0.6rem;
-        padding: 0.6rem 0.85rem;
+        padding: 0.65rem 0.9rem;
         margin-top: 0.9rem;
         background: color-mix(in oklch, var(--color-warning, #f59e0b) 12%, transparent);
         border: 1px solid color-mix(in oklch, var(--color-warning, #f59e0b) 35%, transparent);
         border-radius: var(--fluent-radius-md);
         color: var(--color-warning, #f59e0b);
         font-size: 0.82rem;
+        line-height: 1.4;
+    }
+    .smock-warn i { font-size: 1rem; flex: 0 0 auto; }
+
+    /* ─── Metatube state switcher (POC mock) ──────────────────────────── */
+    .smock-state-switch {
+        display: flex; align-items: center; gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+        padding: 0.6rem 0.85rem;
+        background: repeating-linear-gradient(
+            -45deg,
+            color-mix(in oklch, var(--accent) 5%, transparent) 0 12px,
+            transparent 12px 24px
+        );
+        border: 1px dashed color-mix(in oklch, var(--accent) 30%, transparent);
+        border-radius: var(--fluent-radius-lg);
+    }
+    .smock-state-switch .label {
+        font-family: 'Space Grotesk', monospace;
+        font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase;
+        color: var(--text-muted, var(--text-secondary));
+        flex: 0 0 auto;
+    }
+    .smock-state-switch .opts { display: inline-flex; gap: 0.25rem; flex-wrap: wrap; }
+    .smock-state-btn {
+        font-size: 0.78rem;
+        padding: 0.32rem 0.7rem;
+        border-radius: 999px;
+        border: 1px solid var(--stroke-subtle);
+        background: var(--surface-0);
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all var(--fluent-duration-fast) var(--fluent-ease-standard);
+    }
+    .smock-state-btn:hover { color: var(--text-primary); border-color: var(--stroke-default, var(--stroke-subtle)); }
+    .smock-state-btn.active {
+        background: var(--accent);
+        color: oklch(100% 0 0);
+        border-color: var(--accent);
+        box-shadow: var(--fluent-shadow-2);
     }
 
-    /* ─── Metatube greyed area (viewpoint C) ──────────────────────────── */
-    /* C1: Inline collapsed */
-    .smock-mt-c1 {
+    /* ─── Metatube state renders ──────────────────────────────────────── */
+    /* State 1 (disabled): not shown — handled by x-show, no styles */
+    /* State 2 (idle): inline CTA */
+    .smock-mt-idle {
         display: flex; align-items: center; gap: 0.85rem;
-        padding: 0.95rem 1.1rem;
+        padding: 0.85rem 1.05rem;
         background: color-mix(in oklch, var(--surface-1) 50%, transparent);
         border: 1px dashed var(--stroke-subtle);
         border-radius: var(--fluent-radius-lg);
         color: var(--text-secondary);
         font-size: 0.88rem;
     }
-    .smock-mt-c1 .icn {
+    .smock-mt-idle .icn {
         width: 2rem; height: 2rem;
         display: grid; place-items: center;
         background: color-mix(in oklch, var(--accent) 12%, transparent);
         color: var(--accent);
         border-radius: var(--fluent-radius-md);
+        flex: 0 0 auto;
     }
-    .smock-mt-c1 a[aria-disabled="true"] {
+    .smock-mt-idle a[aria-disabled="true"] {
         margin-left: auto;
         color: var(--accent);
-        opacity: 0.55;
+        opacity: 0.65;
         cursor: not-allowed;
         text-decoration: none;
         font-weight: 600;
@@ -498,37 +490,20 @@
         padding: 0.4rem 0.85rem;
         border: 1px solid color-mix(in oklch, var(--accent) 30%, transparent);
         border-radius: 999px;
+        white-space: nowrap;
     }
-
-    /* C2: Dimmed placeholder pills */
-    .smock-mt-c2 .smock-pills .placeholder-pill {
-        padding: 0.5rem 1.35rem;
-        height: 1.95rem; width: 5.5rem;
-        background: repeating-linear-gradient(
-            45deg,
-            color-mix(in oklch, var(--surface-2) 70%, transparent) 0 6px,
-            color-mix(in oklch, var(--surface-1) 70%, transparent) 6px 12px
-        );
-        border-radius: 999px;
-        border: 1px dashed color-mix(in oklch, var(--stroke-subtle) 90%, transparent);
-        opacity: 0.55;
+    /* State 1 explainer (visible inside builtin card so reviewer knows the rule) */
+    .smock-mt-hidden-note {
+        display: flex; align-items: flex-start; gap: 0.7rem;
+        padding: 0.75rem 0.95rem;
+        background: color-mix(in oklch, var(--surface-1) 40%, transparent);
+        border-left: 3px solid color-mix(in oklch, var(--text-muted, var(--text-secondary)) 40%, transparent);
+        color: var(--text-secondary);
+        font-size: 0.82rem;
+        line-height: 1.5;
+        border-radius: var(--fluent-radius-md);
     }
-    .smock-mt-c2 .hint {
-        margin-top: 0.6rem;
-        font-size: 0.8rem;
-        color: var(--text-muted, var(--text-secondary));
-        font-style: italic;
-    }
-
-    /* C3: Connected preview */
-    .smock-mt-c3 .smock-pill {
-        --pill-accent: color-mix(in oklch, var(--accent) 70%, #f59e0b);
-    }
-    .smock-mt-c3 .smock-pill[data-enabled="true"] {
-        background: color-mix(in oklch, var(--accent) 8%, var(--surface-0));
-        border-style: dashed;
-        border-color: color-mix(in oklch, var(--accent) 50%, transparent);
-    }
+    .smock-mt-hidden-note i { font-size: 1rem; opacity: 0.6; margin-top: 1px; }
 
     /* ─── Footer note ─────────────────────────────────────────────────── */
     .smock-foot {
@@ -569,13 +544,10 @@
             <span class="pulse"></span>
             <span>{{ t('settings.mock.eyebrow') }}</span>
         </div>
-
         <h1 class="smock-hero-title">
             {{ t('settings.mock.title_prefix') }} <em>{{ t('settings.mock.title_emphasis') }}</em>
         </h1>
-
         <p class="smock-hero-sub">{{ t('settings.mock.subtitle') }}</p>
-
         <div class="smock-hero-meta">
             <span class="smock-tag"><i class="bi bi-git"></i> feature/61-settings-ia-sources</span>
             <span class="smock-tag"><i class="bi bi-bookmark"></i> task 61b-1 · phase P1 (POC)</span>
@@ -584,22 +556,20 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════
-         Sticky in-page anchor nav
+         Anchor nav
     ═══════════════════════════════════════════════════════════════ -->
-    <nav class="smock-anchor" aria-label="POC viewpoints">
-        <a href="#view-a"><span class="num">A</span>{{ t('settings.mock.anchor_a') }}</a>
-        <a href="#view-b"><span class="num">B</span>{{ t('settings.mock.anchor_b') }}</a>
-        <a href="#view-c"><span class="num">C</span>{{ t('settings.mock.anchor_c') }}</a>
+    <nav class="smock-anchor" aria-label="POC sections">
+        <a href="#view-a"><span class="num">1</span>{{ t('settings.mock.anchor_a') }}</a>
+        <a href="#view-b"><span class="num">2</span>{{ t('settings.mock.anchor_b') }}</a>
+        <a href="#view-c"><span class="num">3</span>{{ t('settings.mock.anchor_c') }}</a>
     </nav>
 
     <!-- ═══════════════════════════════════════════════════════════════
-         VIEW A — Tab IA prototype
-         Demonstrates the 6-tab top nav (CD-61-1) with the new "Sources"
-         tab as the live demo target.
+         SECTION 1 — Tab IA preview
     ═══════════════════════════════════════════════════════════════ -->
     <section id="view-a" class="smock-view">
         <header class="smock-view-head">
-            <div class="marker">A</div>
+            <div class="marker">1</div>
             <div>
                 <h2 class="smock-view-title">{{ t('settings.mock.view_a_title') }}</h2>
                 <p class="smock-view-goal">{{ t('settings.mock.view_a_goal') }}</p>
@@ -612,8 +582,6 @@
                 <span class="label">{{ t('settings.mock.live_demo_label') }}</span>
             </div>
             <div class="smock-card-body">
-
-                <!-- Top tab bar -->
                 <div class="smock-tabbar" role="tablist" aria-label="Settings sections">
                     {% for tab in mock_tabs %}
                     <button class="smock-tab"
@@ -627,82 +595,20 @@
                     {% endfor %}
                 </div>
 
-                <!-- Tab panels -->
                 {% for tab in mock_tabs %}
                     {% if tab.id == 'sources' %}
-                    <div class="smock-tabpanel" x-show="viewATab === 'sources'" :key="viewATab">
-                        {# Embed viewpoint-B variant 2 (dot) as the "active" sources tab content #}
-                        <div x-data="sourcesBlock('a-sources', 'v-dot')">
-                            <div class="smock-batchbar">
-                                <div class="smock-batchbar-left">
-                                    <button class="smock-mode-btn"
-                                            :class="{ on: uncensoredMode }"
-                                            @click="toggleUncensoredMode()">
-                                        <span class="dot"></span>
-                                        <span x-text="uncensoredMode
-                                            ? '{{ t('settings.mock.uncensored_mode_on') }}'
-                                            : '{{ t('settings.mock.uncensored_mode_off') }}'"></span>
-                                    </button>
-                                    <span class="smock-counter">
-                                        <strong x-text="enabledCount"></strong> / <span x-text="sources.length"></span>
-                                        {{ t('settings.mock.counter_suffix') }}
-                                    </span>
-                                </div>
-                                <div class="smock-batchbar-right">
-                                    <button class="smock-mini-btn" @click="enableAll()">{{ t('settings.mock.enable_all') }}</button>
-                                    <button class="smock-mini-btn" @click="disableAll()">{{ t('settings.mock.disable_all') }}</button>
-                                </div>
+                    <div class="smock-tabpanel" x-show="viewATab === 'sources'">
+                        <div class="smock-tabpanel-empty" style="text-align:left;">
+                            <i class="bi bi-arrow-down-circle"></i>
+                            <div><strong>{{ t('settings.mock.tab.sources') }}</strong></div>
+                            <div style="margin-top:0.3rem; font-size:0.82rem;">
+                                {{ t('settings.mock.section_a_pointer') }}
                             </div>
-
-                            <div class="smock-group-head">
-                                <i class="bi bi-chevron-down chev"></i>
-                                <span>{{ t('settings.mock.group_builtin') }}</span>
-                                <span class="smock-group-count" x-text="`${enabledCount}/${sources.length}`"></span>
-                            </div>
-
-                            <div class="smock-pills v-dot" role="listbox" aria-label="Builtin sources">
-                                <template x-for="src in sources" :key="src.id">
-                                    <div class="smock-pill"
-                                         :data-enabled="src.enabled"
-                                         :data-cat="src.is_censored ? 'censored' : 'uncensored'"
-                                         :class="{ dragging: draggingId === src.id, 'drop-target': dropTargetId === src.id }"
-                                         draggable="true"
-                                         role="option"
-                                         :aria-selected="src.enabled"
-                                         tabindex="0"
-                                         @click="toggle(src.id)"
-                                         @keydown.enter.prevent="toggle(src.id)"
-                                         @keydown.space.prevent="toggle(src.id)"
-                                         @dragstart="onDragStart($event, src.id)"
-                                         @dragend="onDragEnd()"
-                                         @dragover.prevent="onDragOver($event, src.id)"
-                                         @dragleave="dropTargetId = null"
-                                         @drop.prevent="onDrop($event, src.id)">
-                                        <span class="grab" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
-                                        <span class="cat-dot" aria-hidden="true"></span>
-                                        <span x-text="src.name"></span>
-                                    </div>
-                                </template>
-                            </div>
-
-                            <div class="smock-warn" x-show="enabledCount === 0" x-transition>
-                                <i class="bi bi-exclamation-triangle-fill"></i>
-                                <span>{{ t('settings.mock.warn_all_disabled') }}</span>
-                            </div>
-
-                            <!-- Metatube greyed sub-area inside the same tab -->
-                            <div class="smock-group-head" style="margin-top: 1.5rem;">
-                                <i class="bi bi-chevron-right chev"></i>
-                                <span>{{ t('settings.mock.group_metatube') }}</span>
-                                <span class="smock-group-count">{{ t('settings.mock.not_connected_short') }}</span>
-                            </div>
-                            <div class="smock-mt-c1" role="status">
-                                <div class="icn"><i class="bi bi-plug"></i></div>
-                                <span>{{ t('settings.mock.metatube_idle_hint') }}</span>
-                                <a href="#"
-                                   aria-disabled="true"
-                                   tabindex="-1"
-                                   @click.prevent>{{ t('settings.mock.go_to_metatube') }}</a>
+                            <div style="margin-top:0.7rem;">
+                                <a href="#view-b"
+                                   style="font-size:0.85rem; font-weight:600; color:var(--accent); text-decoration:none;">
+                                    {{ t('settings.mock.anchor_b') }} ↓
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -721,226 +627,173 @@
     </section>
 
     <!-- ═══════════════════════════════════════════════════════════════
-         VIEW B — Source pill density variations
-         Three concrete candidates, identical functionality, different
-         density / visual weight. Pick one.
+         SECTION 2 — 掃描來源 canonical pill design
+         (Reuses the exact same sourcesBlock component as Section 1's
+          sources tab — fresh instance, independent state.)
     ═══════════════════════════════════════════════════════════════ -->
     <section id="view-b" class="smock-view">
         <header class="smock-view-head">
-            <div class="marker">B</div>
+            <div class="marker">2</div>
             <div>
                 <h2 class="smock-view-title">{{ t('settings.mock.view_b_title') }}</h2>
                 <p class="smock-view-goal">{{ t('settings.mock.view_b_goal') }}</p>
             </div>
         </header>
 
-        <!-- B1: Minimal pill -->
-        <div class="smock-card" x-data="sourcesBlock('b1', 'v-minimal')">
+        <div class="smock-card" x-data="sourcesBlock('b-canonical')">
             <div class="smock-card-head">
-                <h4>B1 · {{ t('settings.mock.variant_minimal') }}</h4>
-                <span class="label">density · compact</span>
+                <h4>{{ t('settings.mock.tab.sources') }}</h4>
+                <span class="label">canonical</span>
             </div>
             <div class="smock-card-body">
-                <div class="smock-batchbar">
-                    <div class="smock-batchbar-left">
-                        <button class="smock-mode-btn" :class="{ on: uncensoredMode }" @click="toggleUncensoredMode()">
-                            <span class="dot"></span>
-                            <span x-text="uncensoredMode ? '{{ t('settings.mock.uncensored_mode_on') }}' : '{{ t('settings.mock.uncensored_mode_off') }}'"></span>
-                        </button>
-                        <span class="smock-counter"><strong x-text="enabledCount"></strong> / <span x-text="sources.length"></span> {{ t('settings.mock.counter_suffix') }}</span>
-                    </div>
-                    <div class="smock-batchbar-right">
-                        <button class="smock-mini-btn" @click="enableAll()">{{ t('settings.mock.enable_all') }}</button>
-                        <button class="smock-mini-btn" @click="disableAll()">{{ t('settings.mock.disable_all') }}</button>
-                    </div>
-                </div>
-                <div class="smock-pills v-minimal" role="listbox">
-                    <template x-for="src in sources" :key="src.id">
-                        <div class="smock-pill"
-                             :data-enabled="src.enabled"
-                             :data-cat="src.is_censored ? 'censored' : 'uncensored'"
-                             :class="{ dragging: draggingId === src.id, 'drop-target': dropTargetId === src.id }"
-                             draggable="true" tabindex="0"
-                             @click="toggle(src.id)"
-                             @keydown.enter.prevent="toggle(src.id)" @keydown.space.prevent="toggle(src.id)"
-                             @dragstart="onDragStart($event, src.id)" @dragend="onDragEnd()"
-                             @dragover.prevent="onDragOver($event, src.id)" @dragleave="dropTargetId = null"
-                             @drop.prevent="onDrop($event, src.id)">
-                            <span x-text="src.name"></span>
-                        </div>
-                    </template>
-                </div>
-                <p style="font-size:0.78rem;color:var(--text-secondary);margin:0.85rem 0 0;">
-                    {{ t('settings.mock.b1_note') }}
-                </p>
-            </div>
-        </div>
 
-        <!-- B2: Category dot -->
-        <div class="smock-card" x-data="sourcesBlock('b2', 'v-dot')">
-            <div class="smock-card-head">
-                <h4>B2 · {{ t('settings.mock.variant_dot') }}</h4>
-                <span class="label">density · balanced</span>
-            </div>
-            <div class="smock-card-body">
+                <!-- Batch operations bar: switch is primary, 全開 secondary, 全停用 dropped to ghost -->
                 <div class="smock-batchbar">
                     <div class="smock-batchbar-left">
-                        <button class="smock-mode-btn" :class="{ on: uncensoredMode }" @click="toggleUncensoredMode()">
-                            <span class="dot"></span>
-                            <span x-text="uncensoredMode ? '{{ t('settings.mock.uncensored_mode_on') }}' : '{{ t('settings.mock.uncensored_mode_off') }}'"></span>
-                        </button>
-                        <span class="smock-counter"><strong x-text="enabledCount"></strong> / <span x-text="sources.length"></span> {{ t('settings.mock.counter_suffix') }}</span>
-                    </div>
-                    <div class="smock-batchbar-right">
-                        <button class="smock-mini-btn" @click="enableAll()">{{ t('settings.mock.enable_all') }}</button>
-                        <button class="smock-mini-btn" @click="disableAll()">{{ t('settings.mock.disable_all') }}</button>
-                    </div>
-                </div>
-                <div class="smock-pills v-dot" role="listbox">
-                    <template x-for="src in sources" :key="src.id">
-                        <div class="smock-pill"
-                             :data-enabled="src.enabled"
-                             :data-cat="src.is_censored ? 'censored' : 'uncensored'"
-                             :class="{ dragging: draggingId === src.id, 'drop-target': dropTargetId === src.id }"
-                             draggable="true" tabindex="0"
-                             @click="toggle(src.id)"
-                             @keydown.enter.prevent="toggle(src.id)" @keydown.space.prevent="toggle(src.id)"
-                             @dragstart="onDragStart($event, src.id)" @dragend="onDragEnd()"
-                             @dragover.prevent="onDragOver($event, src.id)" @dragleave="dropTargetId = null"
-                             @drop.prevent="onDrop($event, src.id)">
-                            <span class="grab" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
-                            <span class="cat-dot" aria-hidden="true"></span>
-                            <span x-text="src.name"></span>
-                        </div>
-                    </template>
-                </div>
-                <p style="font-size:0.78rem;color:var(--text-secondary);margin:0.85rem 0 0;">
-                    {{ t('settings.mock.b2_note') }}
-                </p>
-            </div>
-        </div>
-
-        <!-- B3: Tile with metadata -->
-        <div class="smock-card" x-data="sourcesBlock('b3', 'v-tile')">
-            <div class="smock-card-head">
-                <h4>B3 · {{ t('settings.mock.variant_tile') }}</h4>
-                <span class="label">density · roomy</span>
-            </div>
-            <div class="smock-card-body">
-                <div class="smock-batchbar">
-                    <div class="smock-batchbar-left">
-                        <button class="smock-mode-btn" :class="{ on: uncensoredMode }" @click="toggleUncensoredMode()">
-                            <span class="dot"></span>
-                            <span x-text="uncensoredMode ? '{{ t('settings.mock.uncensored_mode_on') }}' : '{{ t('settings.mock.uncensored_mode_off') }}'"></span>
-                        </button>
-                        <span class="smock-counter"><strong x-text="enabledCount"></strong> / <span x-text="sources.length"></span> {{ t('settings.mock.counter_suffix') }}</span>
-                    </div>
-                    <div class="smock-batchbar-right">
-                        <button class="smock-mini-btn" @click="enableAll()">{{ t('settings.mock.enable_all') }}</button>
-                        <button class="smock-mini-btn" @click="disableAll()">{{ t('settings.mock.disable_all') }}</button>
-                    </div>
-                </div>
-                <div class="smock-pills v-tile" role="listbox">
-                    <template x-for="src in sources" :key="src.id">
-                        <div class="smock-pill"
-                             :data-enabled="src.enabled"
-                             :data-cat="src.is_censored ? 'censored' : 'uncensored'"
-                             :class="{ dragging: draggingId === src.id, 'drop-target': dropTargetId === src.id }"
-                             draggable="true" tabindex="0"
-                             @click="toggle(src.id)"
-                             @keydown.enter.prevent="toggle(src.id)" @keydown.space.prevent="toggle(src.id)"
-                             @dragstart="onDragStart($event, src.id)" @dragend="onDragEnd()"
-                             @dragover.prevent="onDragOver($event, src.id)" @dragleave="dropTargetId = null"
-                             @drop.prevent="onDrop($event, src.id)">
-                            <span class="grab-bar" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
-                            <span class="name" x-text="src.name"></span>
-                            <span class="meta">
-                                <span x-text="src.is_censored ? '{{ t('settings.mock.cat_censored') }}' : '{{ t('settings.mock.cat_uncensored') }}'"></span>
-                                · <span x-text="src.enabled ? '{{ t('settings.mock.status_on') }}' : '{{ t('settings.mock.status_off') }}'"></span>
+                        <label class="smock-switch" :title="$el.querySelector('.lbl small')?.textContent || ''">
+                            <input type="checkbox"
+                                   :checked="uncensoredMode"
+                                   @change="toggleUncensoredMode()"
+                                   :aria-label="uncensoredMode ? '{{ t('settings.mock.uncensored_mode_label') }} on' : '{{ t('settings.mock.uncensored_mode_label') }} off'">
+                            <span class="track"><span class="thumb"></span></span>
+                            <span class="lbl">
+                                {{ t('settings.mock.uncensored_mode_label') }}
+                                <small>{{ t('settings.mock.uncensored_mode_help') }}</small>
                             </span>
+                        </label>
+                        <span class="smock-counter">
+                            <strong x-text="enabledCount"></strong> / <span x-text="sources.length"></span>
+                            {{ t('settings.mock.counter_suffix') }}
+                        </span>
+                    </div>
+                    <div class="smock-batchbar-right">
+                        <button class="smock-mini-btn" @click="enableAll()">
+                            <i class="bi bi-arrow-counterclockwise"></i> {{ t('settings.mock.enable_all') }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Builtin group -->
+                <div class="smock-group-head">
+                    <i class="bi bi-chevron-down chev"></i>
+                    <span>{{ t('settings.mock.group_builtin') }}</span>
+                    <span class="smock-group-count" x-text="`${enabledCount}/${sources.length}`"></span>
+                </div>
+
+                <div class="smock-pills" role="listbox" aria-label="{{ t('settings.mock.group_builtin') }}">
+                    <template x-for="src in sources" :key="src.id">
+                        <div class="smock-pill"
+                             :data-enabled="src.enabled ? 'true' : 'false'"
+                             :data-cat="src.is_censored ? 'censored' : 'uncensored'"
+                             :class="{ dragging: draggingId === src.id, 'drop-target': dropTargetId === src.id }"
+                             draggable="true"
+                             role="option"
+                             :aria-selected="src.enabled"
+                             :aria-label="src.enabled ? `${src.name} — {{ t('settings.mock.pill_enabled_aria') }}` : `${src.name} — {{ t('settings.mock.pill_disabled_aria') }}`"
+                             tabindex="0"
+                             @click="toggle(src.id)"
+                             @keydown.enter.prevent="toggle(src.id)"
+                             @keydown.space.prevent="toggle(src.id)"
+                             @dragstart="onDragStart($event, src.id)"
+                             @dragend="onDragEnd()"
+                             @dragover.prevent="onDragOver($event, src.id)"
+                             @dragleave="dropTargetId = null"
+                             @drop.prevent="onDrop($event, src.id)">
+                            <i class="bi bi-slash-circle slash-icn" aria-hidden="true"></i>
+                            <span class="pill-name" x-text="src.name"></span>
                         </div>
                     </template>
                 </div>
-                <p style="font-size:0.78rem;color:var(--text-secondary);margin:0.85rem 0 0;">
-                    {{ t('settings.mock.b3_note') }}
-                </p>
+
+                <!-- Full-disabled warning (canonical, always present, x-show toggles) -->
+                <div class="smock-warn" x-show="enabledCount === 0" x-transition>
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <span>{{ t('settings.mock.warn_all_disabled') }}</span>
+                </div>
+
+                <!-- Secondary / debug control: 全停用 (de-emphasized) -->
+                <div style="margin-top: 1rem; display: flex; justify-content: flex-end;">
+                    <button class="smock-mini-btn ghost"
+                            @click="disableAll()"
+                            title="POC debug — verify warning state">
+                        <i class="bi bi-bug"></i> {{ t('settings.mock.disable_all_debug') }}
+                    </button>
+                </div>
             </div>
         </div>
     </section>
 
     <!-- ═══════════════════════════════════════════════════════════════
-         VIEW C — Metatube greyed-area drafts
-         Three handling styles, plus a "connected preview" showing what
-         30 metatube providers wrap to look like.
+         SECTION 3 — Metatube canonical (three states via mock switcher)
     ═══════════════════════════════════════════════════════════════ -->
-    <section id="view-c" class="smock-view">
+    <section id="view-c" class="smock-view" x-data="metatubeBlock()">
         <header class="smock-view-head">
-            <div class="marker">C</div>
+            <div class="marker">3</div>
             <div>
                 <h2 class="smock-view-title">{{ t('settings.mock.view_c_title') }}</h2>
                 <p class="smock-view-goal">{{ t('settings.mock.view_c_goal') }}</p>
             </div>
         </header>
 
-        <!-- C1: Inline collapsed prompt -->
+        <!-- POC mock state switcher (development-only affordance) -->
+        <div class="smock-state-switch" role="group" :aria-label="'{{ t('settings.mock.mt_state_label') }}'">
+            <span class="label">{{ t('settings.mock.mt_state_label') }}</span>
+            <div class="opts">
+                <button class="smock-state-btn" :class="{ active: state === 'disabled'  }" @click="state = 'disabled'">{{ t('settings.mock.mt_state_disabled') }}</button>
+                <button class="smock-state-btn" :class="{ active: state === 'idle'      }" @click="state = 'idle'">{{ t('settings.mock.mt_state_idle') }}</button>
+                <button class="smock-state-btn" :class="{ active: state === 'connected' }" @click="state = 'connected'">{{ t('settings.mock.mt_state_connected') }}</button>
+            </div>
+        </div>
+
         <div class="smock-card">
             <div class="smock-card-head">
-                <h4>C1 · {{ t('settings.mock.variant_c1') }}</h4>
-                <span class="label">style · minimal</span>
+                <h4>{{ t('settings.mock.group_metatube') }} —
+                    <span x-show="state === 'disabled'">{{ t('settings.mock.mt_state_disabled') }}</span>
+                    <span x-show="state === 'idle'">{{ t('settings.mock.mt_state_idle') }}</span>
+                    <span x-show="state === 'connected'">{{ t('settings.mock.mt_state_connected') }}</span>
+                </h4>
+                <span class="label" x-text="state"></span>
             </div>
             <div class="smock-card-body">
-                <div class="smock-mt-c1">
+
+                <!-- STATE 1: disabled — section is NOT rendered.
+                     Behind the card-head, we show a developer-only explainer
+                     so the reviewer knows why nothing is visible. -->
+                <div class="smock-mt-hidden-note" x-show="state === 'disabled'" x-transition>
+                    <i class="bi bi-info-circle"></i>
+                    <span>{{ t('settings.mock.mt_state_disabled_help') }}</span>
+                </div>
+
+                <!-- STATE 2: idle — inline CTA -->
+                <div class="smock-mt-idle" x-show="state === 'idle'" x-transition role="status">
                     <div class="icn"><i class="bi bi-plug"></i></div>
                     <span>{{ t('settings.mock.metatube_idle_hint') }}</span>
-                    <a href="#" aria-disabled="true" tabindex="-1" @click.prevent>{{ t('settings.mock.go_to_metatube') }}</a>
+                    <a href="#" aria-disabled="true" tabindex="-1" @click.prevent>{{ t('settings.mock.go_to_metatube') }} →</a>
                 </div>
-                <p style="font-size:0.78rem;color:var(--text-secondary);margin:0.85rem 0 0;">{{ t('settings.mock.c1_note') }}</p>
-            </div>
-        </div>
 
-        <!-- C2: Dimmed placeholder pills -->
-        <div class="smock-card smock-mt-c2">
-            <div class="smock-card-head">
-                <h4>C2 · {{ t('settings.mock.variant_c2') }}</h4>
-                <span class="label">style · skeleton</span>
-            </div>
-            <div class="smock-card-body">
-                <div class="smock-group-head">
-                    <i class="bi bi-chevron-right chev"></i>
-                    <span>{{ t('settings.mock.group_metatube') }} <span style="opacity:0.55">({{ t('settings.mock.not_connected_short') }})</span></span>
+                <!-- STATE 3: connected — provider pills (B3 ship preview) -->
+                <div x-show="state === 'connected'" x-transition>
+                    <div class="smock-group-head">
+                        <i class="bi bi-chevron-down chev"></i>
+                        <span>{{ t('settings.mock.group_metatube') }}</span>
+                        <span class="smock-group-count" x-text="`${enabledCount}/${sources.length}`"></span>
+                    </div>
+                    <div class="smock-pills" role="listbox" aria-label="{{ t('settings.mock.group_metatube') }}">
+                        <template x-for="src in sources" :key="src.id">
+                            <div class="smock-pill is-mt"
+                                 :data-enabled="src.enabled ? 'true' : 'false'"
+                                 tabindex="0"
+                                 role="option"
+                                 :aria-selected="src.enabled"
+                                 @click="toggle(src.id)"
+                                 @keydown.enter.prevent="toggle(src.id)"
+                                 @keydown.space.prevent="toggle(src.id)">
+                                <i class="bi bi-slash-circle slash-icn" aria-hidden="true"></i>
+                                <span class="pill-name" x-text="src.name"></span>
+                            </div>
+                        </template>
+                    </div>
                 </div>
-                <div class="smock-pills" aria-hidden="true">
-                    {% for i in range(6) %}<div class="placeholder-pill"></div>{% endfor %}
-                </div>
-                <p class="hint">{{ t('settings.mock.c2_hint') }}</p>
-                <p style="font-size:0.78rem;color:var(--text-secondary);margin:0.85rem 0 0;">{{ t('settings.mock.c2_note') }}</p>
-            </div>
-        </div>
-
-        <!-- C3: Connected preview (B3 ship state) -->
-        <div class="smock-card smock-mt-c3" x-data="metatubeBlock()">
-            <div class="smock-card-head">
-                <h4>C3 · {{ t('settings.mock.variant_c3') }}</h4>
-                <span class="label">style · b3 preview</span>
-            </div>
-            <div class="smock-card-body">
-                <div class="smock-group-head">
-                    <i class="bi bi-chevron-down chev"></i>
-                    <span>{{ t('settings.mock.group_metatube') }}</span>
-                    <span class="smock-group-count">{{ mock_metatube_sources|length }} providers</span>
-                </div>
-                <div class="smock-pills v-dot">
-                    <template x-for="src in sources" :key="src.id">
-                        <div class="smock-pill is-mt"
-                             :data-enabled="src.enabled"
-                             tabindex="0"
-                             @click="src.enabled = !src.enabled">
-                            <span class="cat-dot" aria-hidden="true"></span>
-                            <span x-text="src.name"></span>
-                        </div>
-                    </template>
-                </div>
-                <p style="font-size:0.78rem;color:var(--text-secondary);margin:0.85rem 0 0;">{{ t('settings.mock.c3_note') }}</p>
             </div>
         </div>
     </section>
@@ -952,21 +805,21 @@
         <p>
             {{ t('settings.mock.footer_hint') }}
             <kbd>click</kbd> {{ t('settings.mock.footer_toggle') }} ·
-            <kbd>drag</kbd> {{ t('settings.mock.footer_drag') }}
+            <kbd>drag</kbd> {{ t('settings.mock.footer_drag') }} ·
+            <kbd>state</kbd> {{ t('settings.mock.footer_state') }}
         </p>
     </footer>
 </div>
 
 <script>
 // ─────────────────────────────────────────────────────────────────────
-// Mock data injected from FastAPI context.
-// Bound via |tojson — safe on object/array shapes.
+// Mock data from FastAPI context
 // ─────────────────────────────────────────────────────────────────────
 const SMOCK_BUILTIN  = {{ mock_builtin_sources|tojson }};
 const SMOCK_METATUBE = {{ mock_metatube_sources|tojson }};
 
 // ─────────────────────────────────────────────────────────────────────
-// Alpine root — top-level page state (tab cursor, label dict).
+// Root state — current tab cursor and tab label lookup
 // ─────────────────────────────────────────────────────────────────────
 function settingsMockPage() {
     return {
@@ -983,25 +836,23 @@ function settingsMockPage() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// sourcesBlock — one instance per variant card.
-// Each gets its own copy of the source list so interactions don't bleed
-// between variants. POC: nothing persists.
+// sourcesBlock — canonical scanner-sources component.
+// One Alpine scope per usage; each gets its own copy of the source list.
 // ─────────────────────────────────────────────────────────────────────
-function sourcesBlock(scopeId, _variant) {
+function sourcesBlock(scopeId) {
     return {
         scopeId,
-        // deep-clone so each scope is independent
         sources: SMOCK_BUILTIN.map(s => ({ ...s, enabled: true })),
         draggingId: null,
         dropTargetId: null,
 
         get enabledCount() { return this.sources.filter(s => s.enabled).length; },
         get uncensoredMode() {
-            // Mode is "on" when ALL censored sources are disabled and at
-            // least one uncensored source is enabled (CD-61-7b logic).
             const censored = this.sources.filter(s => s.is_censored);
             const uncens   = this.sources.filter(s => !s.is_censored);
-            return censored.every(s => !s.enabled) && uncens.some(s => s.enabled);
+            return censored.length > 0
+                && censored.every(s => !s.enabled)
+                && uncens.some(s => s.enabled);
         },
 
         toggle(id) {
@@ -1009,26 +860,22 @@ function sourcesBlock(scopeId, _variant) {
             if (s) s.enabled = !s.enabled;
         },
         toggleUncensoredMode() {
+            // If currently on → re-enable censored. Otherwise → disable censored.
             if (this.uncensoredMode) {
-                // Turning off → re-enable censored sources
                 this.sources.forEach(s => { if (s.is_censored) s.enabled = true; });
             } else {
-                // Turning on → disable censored, leave uncensored as-is
                 this.sources.forEach(s => { if (s.is_censored) s.enabled = false; });
             }
         },
         enableAll()  { this.sources.forEach(s => s.enabled = true); },
         disableAll() { this.sources.forEach(s => s.enabled = false); },
 
-        // ─── HTML5 native drag-and-drop ──────────────────────────────
+        // HTML5 native drag-and-drop (CD-61-4)
         onDragStart(e, id) {
             this.draggingId = id;
             try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id); } catch (_) {}
         },
-        onDragEnd() {
-            this.draggingId = null;
-            this.dropTargetId = null;
-        },
+        onDragEnd() { this.draggingId = null; this.dropTargetId = null; },
         onDragOver(e, id) {
             if (!this.draggingId || this.draggingId === id) return;
             try { e.dataTransfer.dropEffect = 'move'; } catch (_) {}
@@ -1048,12 +895,20 @@ function sourcesBlock(scopeId, _variant) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// metatubeBlock — read-only-ish preview for C3
+// metatubeBlock — single canonical design with POC-only state switcher.
+// state: 'disabled' | 'idle' | 'connected'
 // ─────────────────────────────────────────────────────────────────────
 function metatubeBlock() {
     return {
-        // Default all enabled, hint of randomness for visual realism
+        state: 'idle',  // default to the more interesting state for first impression
         sources: SMOCK_METATUBE.map((s, i) => ({ ...s, enabled: i % 7 !== 5 })),
+
+        get enabledCount() { return this.sources.filter(s => s.enabled).length; },
+
+        toggle(id) {
+            const s = this.sources.find(x => x.id === id);
+            if (s) s.enabled = !s.enabled;
+        },
     };
 }
 </script>
