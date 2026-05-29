@@ -1165,6 +1165,31 @@ _TOOLS: list[dict] = [
         "retry_safe": True,
         "_example_template": "curl '{base}/api/tags/top?limit=50&min_count=2'",
     },
+    {
+        "name": "scraper_sources_list",
+        "description": (
+            "查詢使用者目前啟用、會用於自動搜尋（auto 模式實際 fan-out）的來源清單，"
+            "協助 AI 判斷目前哪些來源 active。total_enabled 為已揭露的來源數。"
+            "不揭露：停用（enabled=false）、Parts Bin（未 promote 的 metatube）、"
+            "Manual-Only、BETA 來源都不會出現；也不揭露 metatube URL / token。"
+            "不修改任何資料"
+        ),
+        "side_effect": False,
+        "confirmation_required": False,
+        "method": "GET",
+        "path": "/api/scraper-sources",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+        "output_schema": {
+            "sources": "array — 每筆 {id: string, display_name: string, type: string, enabled: boolean, order: integer, is_censored: boolean}，依 order 升冪",
+            "total_enabled": "integer — 已揭露（實際會 fan-out）的啟用來源數",
+        },
+        "retry_safe": True,
+        "_example_template": "curl '{base}/api/scraper-sources'",
+    },
 ]
 
 
