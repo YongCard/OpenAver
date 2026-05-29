@@ -743,3 +743,48 @@ class TestMigrationSources:
         second = load_config()
         assert len(second["sources"]) == 8
         assert second["sources_bak"] == "broken"  # 不被合法 sources 清掉
+
+
+# ============ config.default.json schema parity（Codex PR#45 P2 drift guard）============
+
+class TestConfigDefaultSchemaParity:
+    """config.default.json（fresh install 複製來源）必須與 AppConfig schema 對齊。
+
+    load_config() 對 fresh install 直接回傳複製來的 raw dict（不經 AppConfig 重建），
+    故 default 檔漏的欄位 / 來源漏的 is_censored 會直接出現在 /api/config，導致：
+      - 缺 top-level 欄位 → GET 契約不完整（如 advanced_search_enabled）
+      - sources 漏 is_censored → 前端 isUncensored() 把有碼來源誤判無碼（§2.4 配色）
+    此守衛防止 default 檔再次漂移出 AppConfig schema。
+    """
+
+    DEFAULT_PATH = Path(__file__).resolve().parents[2] / "web" / "config.default.json"
+    CENSORED = {"dmm", "javbus", "jav321", "javdb"}
+
+    def _default(self) -> dict:
+        return json.loads(self.DEFAULT_PATH.read_text(encoding="utf-8"))
+
+    def test_default_has_all_appconfig_toplevel_fields(self):
+        default = self._default()
+        schema = AppConfig().model_dump()
+        missing = set(schema) - set(default)
+        assert not missing, f"config.default.json 缺 top-level 欄位（fresh install /api/config 會漏）: {sorted(missing)}"
+
+    def test_default_advanced_search_enabled_present_and_false(self):
+        default = self._default()
+        assert default.get("advanced_search_enabled") is False
+
+    def test_default_sources_carry_is_censored(self):
+        default = self._default()
+        for s in default.get("sources", []):
+            assert "is_censored" in s, f"source {s.get('id')} 缺 is_censored（前端會誤判無碼）"
+
+    def test_default_sources_is_censored_values_correct(self):
+        default = self._default()
+        censored = {s["id"] for s in default["sources"] if s.get("is_censored")}
+        assert censored == self.CENSORED, f"config.default.json censored 集合錯誤: {sorted(censored)}"
+
+    def test_default_sources_match_appconfig_model_dump(self):
+        """default sources 與 get_builtin_sources() model_dump 完全一致（含 is_censored）。"""
+        default = self._default()
+        schema_sources = AppConfig().model_dump()["sources"]
+        assert default["sources"] == schema_sources

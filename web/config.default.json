@@ -86,7 +86,8 @@
       "order": 0,
       "config": {},
       "is_beta": false,
-      "manual_only": false
+      "manual_only": false,
+      "is_censored": true
     },
     {
       "id": "javbus",
@@ -97,7 +98,8 @@
       "order": 1,
       "config": {},
       "is_beta": false,
-      "manual_only": false
+      "manual_only": false,
+      "is_censored": true
     },
     {
       "id": "jav321",
@@ -108,7 +110,8 @@
       "order": 2,
       "config": {},
       "is_beta": false,
-      "manual_only": false
+      "manual_only": false,
+      "is_censored": true
     },
     {
       "id": "javdb",
@@ -119,7 +122,8 @@
       "order": 3,
       "config": {},
       "is_beta": false,
-      "manual_only": false
+      "manual_only": false,
+      "is_censored": true
     },
     {
       "id": "d2pass",
@@ -130,7 +134,8 @@
       "order": 4,
       "config": {},
       "is_beta": false,
-      "manual_only": false
+      "manual_only": false,
+      "is_censored": false
     },
     {
       "id": "heyzo",
@@ -141,7 +146,8 @@
       "order": 5,
       "config": {},
       "is_beta": false,
-      "manual_only": false
+      "manual_only": false,
+      "is_censored": false
     },
     {
       "id": "fc2",
@@ -152,7 +158,8 @@
       "order": 6,
       "config": {},
       "is_beta": false,
-      "manual_only": false
+      "manual_only": false,
+      "is_censored": false
     },
     {
       "id": "avsox",
@@ -163,7 +170,9 @@
       "order": 7,
       "config": {},
       "is_beta": false,
-      "manual_only": false
+      "manual_only": false,
+      "is_censored": false
     }
-  ]
+  ],
+  "advanced_search_enabled": false
 }
