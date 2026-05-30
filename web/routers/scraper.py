@@ -213,18 +213,18 @@ def enrich_single_endpoint(request: EnrichRequest) -> dict:
     # sidecar（NFO/cover）卻仍 _db_upsert，就是純分裂。一個 sidecar「會寫」需 write 旗標開 + 檔案缺
     # （此分支 overwrite 已為 false，既有檔不覆寫）。兩者皆不會寫 → 擋；任一會寫則放行（quick-enrich
     # 缺封面零回歸）。涵蓋 write_nfo/write_cover 皆 false 的純 DB-only 路徑（Codex P1）。
+    # write_extrafanart 刻意排除：_write_extrafanart 無 overwrite gate 且只在 scraper 回
+    # sample_images 才寫；若 scraper 無 samples → 零磁碟寫出但 _db_upsert 照跑 = 分裂，
+    # 故不得計入「保證會寫 sidecar」；補劇照請用 /api/scraper/fetch-samples（Codex PR#47 round-2 P2）。
     # 在 try 之前 raise，避免被下方 except Exception 吞成籠統 200。
     if request.mode == "refresh_full" and not request.overwrite_existing:
         nfo_path, cover_path = resolve_nfo_cover_paths(request.file_path)
         will_write_nfo = request.write_nfo and not os.path.exists(nfo_path)
         will_write_cover = request.write_cover and not os.path.exists(cover_path)
-        # Codex P2 / extrafanart guard fix：_write_extrafanart 無 overwrite gate，
-        # write_extrafanart=true 即為真寫磁碟（劇照 sidecar），應計入「會寫 sidecar」條件。
-        will_write_extrafanart = request.write_extrafanart
-        if not will_write_nfo and not will_write_cover and not will_write_extrafanart:
+        if not will_write_nfo and not will_write_cover:
             raise HTTPException(
                 status_code=400,
-                detail="refresh_full + overwrite_existing=false 在此設定下不會寫出任何 NFO/封面/劇照，只會更新 DB 造成與磁碟分裂；請開 overwrite_existing、補缺 NFO/封面，或啟用 write_extrafanart 劇照寫入",
+                detail="refresh_full + overwrite_existing=false 在此設定下不會寫出任何 NFO/封面，只會更新 DB 造成與磁碟分裂；請開 overwrite_existing、確保 NFO/封面有實際寫入，或補劇照請改用 /api/scraper/fetch-samples",
             )
 
     try:

@@ -506,10 +506,15 @@ class TestEnrichRefreshFullOverwriteGuard:
         assert response.status_code == 200
         mock_enrich.assert_called_once()
 
-    def test_refresh_full_overwrite_false_extrafanart_only_passes_guard(self, client, mocker):
+    def test_refresh_full_overwrite_false_extrafanart_only_returns_400(self, client, mocker):
         """write_nfo=false + write_cover=false + write_extrafanart=true，NFO/cover 皆存在
-        → 守衛應放行（200），enrich_single 被呼叫。write_extrafanart 是真寫磁碟的 sidecar，
-        不應被誤擋成純 DB-only 分裂（Codex P2 / extrafanart guard fix）。"""
+        → 守衛應擋回 400，enrich_single 未被呼叫。
+
+        extrafanart intent alone 不計入「保證會寫 sidecar」，因為 _write_extrafanart 無 overwrite gate
+        且只在 scraper 回 sample_images 才寫；若 scraper 無 samples → 零磁碟寫出但 _db_upsert 照跑
+        = DB/磁碟分裂（守衛本要防的）。
+        補劇照請改用 /api/scraper/fetch-samples（Codex PR#47 round-2 P2-A revert）。
+        """
         self._patch_paths(mocker, nfo_exists=True, cover_exists=True)
         mock_enrich = mocker.patch(
             "web.routers.scraper.enrich_single", return_value=_ok_result(extrafanart_written=3)
@@ -525,7 +530,11 @@ class TestEnrichRefreshFullOverwriteGuard:
             "write_extrafanart": True,
         })
 
-        assert response.status_code == 200, (
-            f"extrafanart-only 重抓不應被守衛擋 400，實際 status={response.status_code}"
+        assert response.status_code == 400, (
+            f"extrafanart-only refresh_full 應被守衛擋 400（分裂洞），實際 status={response.status_code}"
         )
-        mock_enrich.assert_called_once()
+        detail = response.json().get("detail", "")
+        assert "overwrite" in detail or "分裂" in detail or "fetch-samples" in detail, (
+            f"400 detail 應說明分裂風險並指向 fetch-samples，實際: {detail!r}"
+        )
+        mock_enrich.assert_not_called()
