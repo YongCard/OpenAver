@@ -7789,6 +7789,17 @@ class TestRescrapeStateGuard:
         assert "rescrapeState.call(this)" in src, \
             "main.js mergeState chain missing: rescrapeState.call(this)"
 
+    def test_open_rescrape_reads_video_number(self):
+        """62b-2 #1：openRescrape 內 rescrapeNumber 預填來源必須 = video.number（前端 prefill 持久化連結）。
+
+        鎖住「commit 修正 number → refreshVideoData 突變 video.number → 再開彈窗預填新值」鏈的前端端點。
+        若 refactor 把預填改成讀別處（如固定 '' 或 video.code），此守衛 RED。
+        """
+        src = self._src()
+        # 寬鬆匹配：rescrapeNumber = (... video.number ...) ；允許 =、&&、() 周圍空白變動
+        assert re.search(r"rescrapeNumber\s*=.*video\s*&&\s*video\.number", src), \
+            "openRescrape 必須將 rescrapeNumber 預填自 video.number（前端 prefill 連結，62b-2 #6）"
+
 
 class TestRescrapeEntryGuard:
     """62b-1: 守衛三個 Showcase 進階重刮入口接線 contract（lightbox ⚙ + grid 長壓 + lightbox 🔍 長壓）。
