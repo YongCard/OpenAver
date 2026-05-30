@@ -8275,6 +8275,158 @@ class TestSearchRescrapeEntryGuard:
             "62a-0 回歸：search.html 必須保留 _advanced_search_bootstrap.html include"
 
 
+class TestSwitchSourcePickGuard:
+    """62c-3 US7：守衛結果面板 🔄（#switchSourceBtn）長壓挑來源 wiring + entryPoint 分支 + 番號唯讀 + seeding helper export。
+
+    tap=維持現有循環切換（switchSource）；長壓 700ms=開來源 picker（openSwitchSourcePicker，entryPoint
+    'switch-source'，番號預填當前那一筆且唯讀）→ 點 pill → preview 重抓→ 只替換捕捉的當前卡 slot
+    + seed cycle state（window.SearchUI.seedSwitchState）。race 安全 + cycle 同步走手動 checklist
+    （async 時序無法靜態斷言）；負向「switch-source 分支禁 advancedSearch/fallbackSearch/searchResults =」
+    走 eslint Group 7。本 class 只靜態斷言 wiring / 分支字串 / 番號唯讀 / export contract。
+    對齊 TestSearchRescrapeEntryGuard pattern（element-bound regex，避免假測試）。
+    """
+
+    SHARED_DIR = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "shared"
+    SEARCH_DIR = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "search"
+    STATE_RESCRAPE_JS = SHARED_DIR / "state-rescrape.js"
+    UI_JS = SEARCH_DIR / "ui.js"
+
+    def _html(self):
+        return SEARCH_HTML.read_text(encoding="utf-8")
+
+    def _modal(self):
+        return RESCRAPE_MODAL_HTML.read_text(encoding="utf-8")
+
+    def _rescrape(self):
+        return self.STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+
+    def _ui(self):
+        return self.UI_JS.read_text(encoding="utf-8")
+
+    def _switch_btn(self, html):
+        """擷取結果面板 🔄 鈕 #switchSourceBtn 的完整 <button>...</button> 區塊。"""
+        m = re.search(
+            r'<button\b(?:(?!</button>).)*?\bid="switchSourceBtn"(?:(?!</button>).)*?</button>',
+            html, re.DOTALL,
+        )
+        assert m, "search.html #switchSourceBtn button 區塊不存在"
+        return m.group(0)
+
+    # ── (a) #switchSourceBtn 長壓六事件 + click 分流（tap 維持循環）──
+
+    def test_switch_btn_longpress_opens_picker(self):
+        """#switchSourceBtn @mousedown 長壓接共用 longPressStart，fire callback 開 openSwitchSourcePicker()。"""
+        tag = self._switch_btn(self._html())
+        m = re.search(r'@mousedown="([^"]*)"', tag)
+        assert m, "#switchSourceBtn 缺 @mousedown 長壓 wiring"
+        wiring = m.group(1)
+        assert "longPressStart(" in wiring, \
+            f"#switchSourceBtn @mousedown 必須接共用 longPressStart(...)，實際: {wiring!r}"
+        assert "openSwitchSourcePicker()" in wiring, \
+            f"#switchSourceBtn @mousedown fire callback 必須開 openSwitchSourcePicker()，實際: {wiring!r}"
+        assert "rescrapeEnabled()" in wiring, \
+            f"#switchSourceBtn @mousedown enabledFn 必須是 rescrapeEnabled()（toggle OFF gate），實際: {wiring!r}"
+
+    def test_switch_btn_six_events_wired(self):
+        """#switchSourceBtn 六事件齊全且接共用 longPress*（mousedown/up/leave + touchstart.passive/end/cancel）。"""
+        tag = self._switch_btn(self._html())
+        assert re.search(r'@mousedown="longPressStart\(', tag), "#switchSourceBtn 缺 @mousedown longPressStart"
+        assert re.search(r'@mouseup="longPressEnd\(\)"', tag), "#switchSourceBtn 缺 @mouseup longPressEnd()"
+        assert re.search(r'@mouseleave="longPressCancel\(\)"', tag), "#switchSourceBtn 缺 @mouseleave longPressCancel()"
+        assert re.search(r'@touchstart\.passive="longPressStart\(', tag), "#switchSourceBtn 缺 @touchstart.passive longPressStart"
+        assert re.search(r'@touchend="longPressEnd\(\)"', tag), "#switchSourceBtn 缺 @touchend longPressEnd()"
+        assert re.search(r'@touchcancel="longPressCancel\(\)"', tag), "#switchSourceBtn 缺 @touchcancel longPressCancel()"
+
+    def test_switch_btn_touchstart_opens_picker(self):
+        """#switchSourceBtn @touchstart.passive fire callback 同樣開 openSwitchSourcePicker()（mousedown/touchstart 一致）。"""
+        tag = self._switch_btn(self._html())
+        m = re.search(r'@touchstart\.passive="([^"]*)"', tag)
+        assert m, "#switchSourceBtn 缺 @touchstart.passive 長壓 wiring"
+        assert "openSwitchSourcePicker()" in m.group(1), \
+            f"#switchSourceBtn @touchstart.passive fire callback 必須開 openSwitchSourcePicker()，實際: {m.group(1)!r}"
+
+    def test_switch_btn_click_guard_preserves_switch_source(self):
+        """#switchSourceBtn @click 走 longPressClickGuard($event) || switchSource()（tap 維持循環，長壓 fire 後短路）。"""
+        tag = self._switch_btn(self._html())
+        m = re.search(r'@click="([^"]*)"', tag)
+        assert m, "#switchSourceBtn 缺 @click 分流"
+        guard = m.group(1)
+        assert "longPressClickGuard($event)" in guard, \
+            f"#switchSourceBtn @click 必須 longPressClickGuard($event)（長壓短路），實際: {guard!r}"
+        assert "switchSource()" in guard, \
+            f"#switchSourceBtn @click 必須保留 switchSource()（tap 循環不回歸），實際: {guard!r}"
+
+    def test_open_source_url_btn_not_touched(self):
+        """負向（§1.6 D）：長壓只疊 #switchSourceBtn，旁邊 ↗ openSourceUrl 鈕不得沾長壓 wiring。"""
+        html = self._html()
+        m = re.search(r'@click="openSourceUrl\([^"]*\)"\s*[^>]*?</button>', html, re.DOTALL)
+        # 直接擷取 openSourceUrl 鈕區塊比對：不含 longPress* / openSwitchSourcePicker
+        m2 = re.search(
+            r'<button\b(?:(?!</button>).)*?openSourceUrl(?:(?!</button>).)*?</button>',
+            html, re.DOTALL,
+        )
+        assert m2, "search.html openSourceUrl ↗ 鈕區塊不存在"
+        url_btn = m2.group(0)
+        for forbidden in ("longPressStart", "longPressEnd", "longPressCancel",
+                          "longPressClickGuard", "openSwitchSourcePicker"):
+            assert forbidden not in url_btn, \
+                f"§1.6 D 違規：↗ openSourceUrl 鈕誤接 {forbidden}（長壓只疊 #switchSourceBtn）"
+
+    # ── (b) _rescrape_modal.html 番號 input switch-source 唯讀 ──
+
+    def test_number_input_readonly_for_switch_source(self):
+        """_rescrape_modal.html 番號 input 含 :readonly="rescrapeEntryPoint === 'switch-source'"（鎖定#1，不 fork 元件）。"""
+        modal = self._modal()
+        m = re.search(
+            r'<input\b(?:(?!>).)*?\bclass="rescrape-num-input"(?:(?!>).)*?>',
+            modal, re.DOTALL,
+        )
+        assert m, "_rescrape_modal.html 番號 input（.rescrape-num-input）不存在"
+        inp = m.group(0)
+        assert re.search(r":readonly=\"rescrapeEntryPoint === 'switch-source'\"", inp), \
+            f"番號 input 必須含 :readonly=\"rescrapeEntryPoint === 'switch-source'\"（switch-source 入口唯讀），實際: {inp!r}"
+
+    # ── (c) state-rescrape.js openSwitchSourcePicker + switch-source 分支 + 註解 ──
+
+    def test_open_switch_source_picker_method_present(self):
+        """state-rescrape.js 必須有 openSwitchSourcePicker method（開窗 + 捕捉 _switchTarget）。"""
+        src = self._rescrape()
+        assert re.search(r"openSwitchSourcePicker\s*\(\s*\)\s*\{", src), \
+            "state-rescrape.js 缺 openSwitchSourcePicker() method"
+        assert re.search(r"openRescrape\(\s*null\s*,\s*'switch-source'\s*\)", src), \
+            "openSwitchSourcePicker 必須 openRescrape(null,'switch-source')"
+        assert "_switchTarget" in src, \
+            "state-rescrape.js 必須捕捉 _switchTarget（race 防覆蓋錯卡）"
+
+    def test_switch_source_branch_present(self):
+        """state-rescrape.js rescrapeWithSource 含 'switch-source' 分支（preview 成功 → 替 slot + seed + close）。"""
+        src = self._rescrape()
+        assert re.search(r"rescrapeEntryPoint\s*===\s*'switch-source'", src), \
+            "state-rescrape.js 必須以 rescrapeEntryPoint === 'switch-source' 分流"
+        assert "seedSwitchState" in src, \
+            "switch-source 分支必須呼叫 window.SearchUI.seedSwitchState（鎖定#4 cycle 同步）"
+
+    def test_entry_point_comment_lists_switch_source(self):
+        """rescrapeEntryPoint 宣告註解必須列出 'switch-source'（與 'lightbox'/'enrich'/'search' 並列）。"""
+        src = self._rescrape()
+        m = re.search(r"rescrapeEntryPoint\s*:\s*'lightbox'\s*,\s*//([^\n]*)", src)
+        assert m, "state-rescrape.js rescrapeEntryPoint 宣告（含行末註解）不存在"
+        assert "switch-source" in m.group(1), \
+            f"rescrapeEntryPoint 註解必須列出 'switch-source'，實際: {m.group(1)!r}"
+
+    # ── (d) ui.js seedSwitchState export（window.SearchUI）──
+
+    def test_ui_exports_seed_switch_state(self):
+        """ui.js 必須 export seedSwitchState 於 window.SearchUI（picker 經此 seed，不直接戳 switchStateMap）。"""
+        src = self._ui()
+        assert re.search(r"function\s+seedSwitchState\s*\(", src), \
+            "ui.js 缺 seedSwitchState 函式定義（鎖定#4 seeding helper）"
+        m = re.search(r"window\.SearchUI\s*=\s*\{([^}]*)\}", src, re.DOTALL)
+        assert m, "ui.js window.SearchUI export 物件不存在"
+        assert "seedSwitchState" in m.group(1), \
+            f"window.SearchUI 必須 export seedSwitchState，實際 export: {m.group(1)!r}"
+
+
 class TestDesignSystemLongPressCard:
     """62c-2 (b)：/design-system 登記 long-press 互動 pattern demo card（D.14）。
 

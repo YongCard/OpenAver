@@ -27,7 +27,7 @@ export function rescrapeState() {
         // ── 彈窗狀態（平鋪，對齊 partial 綁定 + mockup） ──
         rescrapeOpen: false,
         rescrapeStep: 'pick',              // 'pick' | 'preview'
-        rescrapeEntryPoint: 'lightbox',    // 'lightbox' | 'enrich' | 'search'
+        rescrapeEntryPoint: 'lightbox',    // 'lightbox' | 'enrich' | 'search' | 'switch-source'
         rescrapeNumber: '',
         rescrapeOriginalFilename: '',
         rescrapeSources: [],
@@ -39,6 +39,7 @@ export function rescrapeState() {
         _rescraping: false,                // commit 連點 guard（鏡像 _enriching）
         _rescrapeVideo: null,              // commit 時 refreshVideoData 對象（私有，非 lightbox 當前 state）
         _rescrapeCommitSource: null,       // 進 preview 用的 source（commit 沿用，auto→null 映射前原值）
+        _switchTarget: null,               // 62c-3：switch-source 入口長壓開窗當下捕捉的 target slot（{listMode,fileIndex,arr,idx,number}），async race 防覆蓋錯卡
 
         /**
          * 進階重刮入口 gate（62b-1，決策 #1）。各入口（⚙ / grid 長壓 / lightbox 🔍 長壓 / search 送出鈕長壓）共用，
@@ -65,6 +66,36 @@ export function rescrapeState() {
             this.rescrapeLoadingSource = null;
             this.rescrapeNotFound = false;
             this._rescrapeVideo = video;
+            this._switchTarget = null;     // 62c-3：每次開窗先清；switch-source 入口由 openSwitchSourcePicker 隨後捕捉
+        },
+
+        /**
+         * 62c-3 US7：結果面板 🔄 長壓開來源 picker（entryPoint 'switch-source'）。
+         *
+         * 在開窗的同一同步 tick 捕捉 target slot 的「容器 + 定位資訊」到 _switchTarget，
+         * 供 rescrapeWithSource 的 switch-source 分支 await 回來後判 stale + 寫回（race 防覆蓋錯卡）。
+         * 捕「陣列 object reference + index + 番號」而非單一元素 ref —— switchSource 是整顆替換 slot
+         * （t.arr[t.idx] = variant），必須寫回該元素所在位置（差異於 result-card.js:168 captured-ref 範本的「改屬性」）。
+         *
+         * current() / listMode / fileList / currentFileIndex / currentIndex 為 search 元件 state，
+         * 經 mergeState 後綁元件 this（result-card.js current() / navigation 既有）。
+         * 番號預填當前那一筆且唯讀（partial :readonly="rescrapeEntryPoint === 'switch-source'"）。
+         */
+        openSwitchSourcePicker() {
+            this.openRescrape(null, 'switch-source');
+            this.rescrapeNumber = (this.current()?.number || '');
+            // 捕捉 target slot：file / 非-file 兩 listMode 都捕（鏡射 current() 二分支）。
+            // 強化 1（Opus 審核）：連 listMode + fileIndex 一起捕，await 回來 re-resolve live array 顯式 identity 比對（情境 B）。
+            const arr = (this.listMode === 'file' && this.fileList[this.currentFileIndex])
+                ? this.fileList[this.currentFileIndex].searchResults
+                : this.searchResults;
+            this._switchTarget = {
+                listMode: this.listMode,
+                fileIndex: this.currentFileIndex,
+                arr,
+                idx: this.currentIndex,
+                number: this.current()?.number,
+            };
         },
 
         /**
@@ -113,6 +144,34 @@ export function rescrapeState() {
                     }),
                 });
                 const data = await resp.json();
+                // 62c-3 US7：switch-source 入口（在 showcase 分支之前判斷）。找到 → 只替換捕捉的當前卡 slot
+                // （不重設結果列、currentIndex 不歸零、無 ✓/✗ commit）+ seed cycle state；找不到 → 沿用 not-found。
+                if (this.rescrapeEntryPoint === 'switch-source') {
+                    if (data && data.success) {
+                        // ── race 防覆蓋錯卡：await 回來判 slot 是否還在原位（強化 1：含 liveArr 顯式 identity 比對）──
+                        const t = this._switchTarget;
+                        const liveArr = (t && t.listMode === 'file' && this.fileList[t.fileIndex])
+                            ? this.fileList[t.fileIndex].searchResults
+                            : this.searchResults;
+                        const stale = !t
+                            || liveArr !== t.arr                                   // 情境 B：結果列被新搜尋整包換掉 → 顯式丟棄
+                            || !Array.isArray(t.arr)
+                            || t.idx < 0 || t.idx >= t.arr.length
+                            || (t.arr[t.idx] && t.arr[t.idx].number !== t.number);  // 番號比對：防同位置已被別筆佔據
+                        if (!stale) {
+                            // dict shape 已核對與 searchResults row 一致，僅需 strip success key
+                            const { success, ...variant } = data;
+                            t.arr[t.idx] = variant;                               // 整顆替換（對齊 ui.js:248）
+                            this._resetCoverState?.();                            // cover 可能變（對齊 ui.js:250）
+                            window.SearchUI?.seedSwitchState?.(t.number, sourceId, variant);  // 鎖定#4：下次 tap 從選定來源接續
+                        }
+                        // stale → 靜默丟棄（不寫 detached 陣列、不誤 seed）；非 stale → 已寫回。一律關窗。
+                        this.closeRescrape();
+                        return;
+                    }
+                    this.rescrapeNotFound = true;
+                    return;
+                }
                 // Showcase（lightbox / enrich）：找到 → 換頁 preview；找不到 → 留 pick
                 // （Search 入口已在函式開頭提早分流到 advancedSearch，不走到這裡）
                 if (data && data.success) {
@@ -184,6 +243,7 @@ export function rescrapeState() {
             this.rescrapePreview = null;
             this.rescrapeNotFound = false;
             this.rescrapeLoadingSource = null;
+            this._switchTarget = null;     // 62c-3：關窗清掉捕捉的 slot（switch-source 入口）
             // Codex 二輪 P3：清長壓殘留旗標，涵蓋鍵盤 / 輔助技術 click 啟用（無 mousedown 前導）
             // 繞過 longPressStart top reset 的情況。optional-chain：search 入口（62c）才合併 longPressState。
             this.longPressReset?.();

@@ -359,10 +359,17 @@ export default [
     },
   },
 
-  // Group 7 (62c-1): shared/state-rescrape.js — search 分支禁 fallbackSearch（CD-62-11 負向守衛）
+  // Group 7 (62c-1 / 62c-3): shared/state-rescrape.js — search 分支禁 fallbackSearch（CD-62-11 負向守衛）
+  // + switch-source 分支禁污染結果列（CD-62-11，62c-3）。
   // search 入口整包贏必須走 advancedSearch(source)（帶 source）；fallbackSearch（search-flow.js）
   // 簽名 (query, savedRequestId) 無 source，誤接會丟失「指定來源整包覆寫」語義（US5）。
-  // 此 group 最後 match state-rescrape.js（supersedes Group 6），故重述繼承的共用 selector。
+  // 此 group 最後 match state-rescrape.js（supersedes Group 6），故重述繼承的共用 selector
+  // （SEL_WINDOW_CONFIRM / SEL_BREATHING_MANAGER_NEW / SEL_STARSETTLE_LITERAL，勿靜默丟失上游守衛）。
+  //
+  // 62c-3 switch-source 分支負向：禁 advancedSearch( / fallbackSearch( / searchResults =。
+  // 注意 search 分支「合法」使用 advancedSearch( + this.searchQuery，故不能 file-wide ban；
+  // 改 AST-scope 到 IfStatement[test.right.value='switch-source']（switch-source 分支 if-block）的後代。
+  // switch-source 入口只替換捕捉的當前卡 slot（t.arr[t.idx] = variant），絕不走 US5 整包重設路徑。
   {
     files: ["web/static/js/shared/state-rescrape.js"],
     rules: {
@@ -376,6 +383,26 @@ export default [
           message:
             "62c-1：state-rescrape.js search 分支禁呼叫 fallbackSearch（無 source 參數）。" +
             "進階搜尋整包贏須走 this.advancedSearch(source)（帶 source 整包覆寫，spec US5）。",
+        },
+        {
+          selector:
+            "IfStatement[test.right.value='switch-source'] CallExpression[callee.property.name='advancedSearch']",
+          message:
+            "62c-3：switch-source 分支禁呼叫 advancedSearch（US5 整包重設路徑，會污染結果列）。" +
+            "switch-source 只替換捕捉的當前卡 slot（t.arr[t.idx] = variant），不重設 searchResults / currentIndex。",
+        },
+        {
+          selector:
+            "IfStatement[test.right.value='switch-source'] CallExpression[callee.property.name='fallbackSearch']",
+          message:
+            "62c-3：switch-source 分支禁呼叫 fallbackSearch（US5 整包重設路徑，會污染結果列）。",
+        },
+        {
+          selector:
+            "IfStatement[test.right.value='switch-source'] AssignmentExpression[left.property.name='searchResults']",
+          message:
+            "62c-3：switch-source 分支禁賦值 this.searchResults（US5 整包重設路徑，會污染結果列）。" +
+            "只替換捕捉的 slot（t.arr[t.idx] = variant），結果列陣列 identity / currentIndex 不變。",
         },
       ],
     },

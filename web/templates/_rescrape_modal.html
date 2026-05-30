@@ -21,8 +21,11 @@
 
       <div class="rescrape-section">
         <label class="rescrape-label">{{ t('showcase.rescrape.number_label') }}</label>
-        {# US2：番號永遠可編輯（無鉛筆、不因 loading 鎖）；改動即清掉上次 not-found 結果 #}
-        <input class="rescrape-num-input" type="text" x-model="rescrapeNumber" @input="rescrapeNotFound = false">
+        {# US2：番號永遠可編輯（無鉛筆、不因 loading 鎖）；改動即清掉上次 not-found 結果。
+           62c-3 US7：switch-source 入口番號鎖定為當前那一筆（唯讀，重抓「這一筆」語意，不可改字）。 #}
+        <input class="rescrape-num-input" type="text" x-model="rescrapeNumber"
+               :readonly="rescrapeEntryPoint === 'switch-source'"
+               @input="rescrapeNotFound = false">
         <div class="rescrape-hint">{{ t('showcase.rescrape.filename_hint') }}：<code x-text="rescrapeOriginalFilename"></code></div>
       </div>
 

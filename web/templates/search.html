@@ -451,8 +451,18 @@
                           x-show="hasLocalBadge()"
                           :title="localBadgeTitle()"
                           @click="openLocal(current()._localStatus?.paths?.[0])">📁</span>
+                    {# 62c-3 US7：tap=維持現有循環切換（switchSource）/ 長壓 700ms=開來源 picker（openSwitchSourcePicker）。
+                       longPressClickGuard 攔截長壓 fire 後的同一次 click，避免連帶觸發 switchSource。
+                       enabledFn=rescrapeEnabled()：toggle OFF → 不啟 timer，只剩 tap 循環（鎖定 gate）。
+                       ⚠️ 長壓只疊此鈕（🔄）；旁邊 ↗ openSourceUrl 鈕不碰。 #}
                     <button id="switchSourceBtn" class="info-icon-btn"
-                            @click="switchSource()"
+                            @click="longPressClickGuard($event) || switchSource()"
+                            @mousedown="longPressStart(() => openSwitchSourcePicker(), () => rescrapeEnabled())"
+                            @mouseup="longPressEnd()"
+                            @mouseleave="longPressCancel()"
+                            @touchstart.passive="longPressStart(() => openSwitchSourcePicker(), () => rescrapeEnabled())"
+                            @touchend="longPressEnd()"
+                            @touchcancel="longPressCancel()"
                             title="{{ t('search.action.switch_source') }}"
                             :disabled="isSwitchingSource"
                             :class="{ 'shake': switchSourceShake }">
