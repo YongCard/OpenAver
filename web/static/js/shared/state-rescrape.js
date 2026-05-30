@@ -110,10 +110,17 @@ export function rescrapeState() {
         /**
          * metatube pill 清單（method 非 getter；鏡射 rescrapeBuiltinSources，只改 filter）。
          * 62c-5：metatube 分組 data-driven（B3 註冊 metatube SourceConfig rows 後彈窗自動長出 pill）。
+         *
+         * routable gate（Codex PR#47 round-2 P2-B）：metatube sources 目前後端無路由
+         * （validate_source_id / search_jav dispatch 只認 auto + builtin SOURCE_ORDER）；
+         * 點下去只會 not-found。B3 接 metatube route/validator 時，於來源資料補 routable=true
+         * （或改用 backend-disclosed 可路由清單），pill 才長出；直到 B3 前全部 metatube 隱藏
+         * （empty note 照顯示，符合 spec §5 「分組預留但空」）。
+         * 不動 builtin pill 渲染（rescrapeBuiltinSources）。
          */
         rescrapeMetatubeSources() {
             return this.rescrapeSources
-                .filter(s => s.type === 'metatube')
+                .filter(s => s.type === 'metatube' && s.routable === true)
                 .sort((a, b) => (b.enabled - a.enabled) || (a.order - b.order));
         },
 

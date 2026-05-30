@@ -7921,6 +7921,27 @@ class TestRescrapeStateGuard:
         assert "longPressReset" in src, \
             "closeRescrape 必須呼叫 longPressReset()（清長壓旗標，鍵盤/AT 兜底，Codex 二輪 P3）"
 
+    def test_rescrape_metatube_sources_has_routable_gate(self):
+        """Codex PR#47 round-2 P2-B：rescrapeMetatubeSources() 必須同時 filter
+        type === 'metatube' AND routable === true（element-bound regex，防空字串假測試）。
+
+        metatube sources 目前後端無路由（validate_source_id 只認 auto + builtin SOURCE_ORDER）；
+        B3 才接 metatube route/validator，屆時後端揭露 routable=true 後 pill 才長出。
+        直到 B3 前，缺 routable gate 的 metatube pill 點下去 → not-found；本守衛確保回歸會 RED。
+        """
+        src = self._src()
+        # element-bound regex：匹配 rescrapeMetatubeSources 函式體，確認同時含兩個 filter 條件
+        m = re.search(
+            r"rescrapeMetatubeSources\s*\(\s*\)\s*\{[^}]*\.filter\s*\([^)]*"
+            r"s\.type\s*===\s*['\"]metatube['\"][^)]*&&[^)]*s\.routable\s*===\s*true[^)]*\)",
+            src,
+            re.DOTALL,
+        )
+        assert m, (
+            "rescrapeMetatubeSources() 必須 filter s.type === 'metatube' && s.routable === true "
+            "（缺 routable gate：metatube pill 在後端無路由前點下去 → not-found，Codex PR#47 round-2 P2-B）"
+        )
+
 
 class TestRescrapeEntryGuard:
     """62b-1: 守衛三個 Showcase 進階重刮入口接線 contract（lightbox ⚙ + grid 長壓 + lightbox 🔍 長壓）。
