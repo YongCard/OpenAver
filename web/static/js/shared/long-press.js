@@ -10,9 +10,11 @@
  * factory mixin，透過 longPressState.call(this) 接入 main.js mergeState（descriptor-preserving）。
  * method 非 getter（規避 Alpine reactivity 凍結；CD-62-14 #0）。
  *
- * 契約（鏡像 advanced-picker.js 長壓核心邏輯）：
- *   longPressStart(cb, enabledFn) — 設旗標 → gate（enabledFn 回 false 不啟 timer）→ 700ms 後 fire cb。
- *   longPressEnd() / longPressCancel() — 清 timer（mouseup/touchend vs mouseleave/touchcancel）。
+ * 契約（鏡像 advanced-picker.js 長壓核心邏輯；六事件 wiring 一律傳 $event，見下方 synthetic-mouse 抑制）：
+ *   longPressStart(cb, enabledFn, event) — 抑制窗內的 synthetic mousedown early-return（不碰旗標/timer）→
+ *       設旗標 → gate（enabledFn 回 false 不啟 timer）→ 700ms 後 fire cb。
+ *   longPressEnd(event) / longPressCancel(event) — 清 timer（mouseup/touchend vs mouseleave/touchcancel）；
+ *       touchend/touchcancel 時設抑制窗 _lpSuppressMouseUntil = performance.now() + 700ms。
  *   longPressClickGuard(ev) — 長壓 fire 過 → 吞掉同一次 click（preventDefault + stopPropagation）並重置旗標。
  *
  * cb / enabledFn 由 template 以 arrow closure 傳入（→ this / video 在元件作用域解析），

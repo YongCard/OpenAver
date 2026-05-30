@@ -907,6 +907,9 @@
         短按走原本 tap 行為（搜尋 / enrich），長壓 700ms 達標後 fire callback 開彈窗，
         <code>longPressClickGuard</code> 吞掉長壓後的同一次 click（避免連帶送出 / 連帶 enrich，US8）。
         <strong>刻意無長壓進度環、無提示氣泡 / 視覺 affordance</strong>（長壓為進階快捷，不對一般用戶強調）。
+        六事件 wiring 一律傳 <code>$event</code>：<code>longPressEnd($event)</code> / <code>longPressCancel($event)</code>
+        在 touchend / touchcancel 設 synthetic-mouse 抑制窗，<code>longPressStart(..., $event)</code> 讓抑制窗內 UA 補發的
+        synthetic mousedown early-return（不清長壓旗標），否則長壓開彈窗會被補發的 click 連帶觸發底層 tap（雙觸發，Codex PR#47 P2）。
     </p>
 
     <div class="ds-card-demo" style="max-width: 700px; margin: 0 auto; padding: 1.5rem; display: flex; gap: 12px; align-items: center; justify-content: center;">
@@ -924,13 +927,13 @@
 import { longPressState } from '@/shared/long-press.js';
 mergeState(..., longPressState());
 
-&lt;!-- template wiring（六事件 + click guard）--&gt;
+&lt;!-- template wiring（六事件 + click guard；全部傳 $event：touch synthetic-mouse 抑制契約）--&gt;
 &lt;button
-    @mousedown="longPressStart(() =&gt; openRescrape(video,'enrich'), () =&gt; rescrapeEnabled())"
-    @mouseup="longPressEnd()"
-    @mouseleave="longPressCancel()"
-    @touchstart.passive="longPressStart(cb, enabledFn)"
-    @touchend="longPressEnd()"
-    @touchcancel="longPressCancel()"
+    @mousedown="longPressStart(() =&gt; openRescrape(video,'enrich'), () =&gt; rescrapeEnabled(), $event)"
+    @mouseup="longPressEnd($event)"
+    @mouseleave="longPressCancel($event)"
+    @touchstart.passive="longPressStart(cb, enabledFn, $event)"
+    @touchend="longPressEnd($event)"
+    @touchcancel="longPressCancel($event)"
     @click="longPressClickGuard($event) || tapHandler()"&gt;...&lt;/button&gt;</code></pre>
 </div>
