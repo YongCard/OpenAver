@@ -12,6 +12,14 @@ from .models import Video, Actress
 from .utils import get_html, post_html, rate_limit
 
 
+def _force_https(url: str) -> str:
+    """DMM 圖片回傳 http://，但 /api/proxy-image SSRF 白名單強制 https。
+    這裡統一升 https，否則前端封面 / 劇照會被 proxy 403 擋掉顯示不出。"""
+    if url and url.startswith('http://'):
+        return 'https://' + url[len('http://'):]
+    return url
+
+
 def _find_next_a_before_next_b(b_tag):
     """找 <b> 後面、下一個 <b> 之前的第一個 <a>，避免跨欄位誤抓。"""
     for sib in b_tag.next_siblings:
@@ -93,6 +101,7 @@ class JAV321Scraper(BaseScraper):
             # DMM 圖片：ps.jpg → pl.jpg（小圖 → 大圖）
             if cover_url:
                 cover_url = str(cover_url).replace('ps.jpg', 'pl.jpg').replace('/pt/', '/pl/')
+                cover_url = _force_https(cover_url)
 
             # 女優（去重）
             actresses = []
@@ -149,7 +158,7 @@ class JAV321Scraper(BaseScraper):
                 if img:
                     src = img.get('src', '')
                     if src and src.startswith('http'):
-                        sample_images.append(src)
+                        sample_images.append(_force_https(src))
                     elif src:
                         sample_images.append(urljoin('https://www.jav321.com', src))
 

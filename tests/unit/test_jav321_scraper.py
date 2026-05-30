@@ -264,6 +264,26 @@ class TestMakerPlainText:
         assert video.series == "究極の爆乳密写シコシコサポート"
 
 
+class TestForceHttps:
+    """DMM 圖片回傳 http://，但 /api/proxy-image SSRF 白名單強制 https，
+    回歸守衛：cover_url + sample_images 一律 https，否則前端封面 / 劇照被 proxy 403 擋掉。"""
+
+    def test_cover_url_is_https(self, scraper):
+        # fixture 來源是 http://pics.dmm.co.jp/...ps.jpg
+        video = run_search(scraper, FULL_FIELDS_HTML)
+        assert video is not None
+        assert video.cover_url.startswith("https://")
+        assert "http://" not in video.cover_url
+
+    def test_sample_images_are_https(self, scraper):
+        video = run_search(scraper, FULL_FIELDS_HTML)
+        assert video is not None
+        assert len(video.sample_images) >= 1
+        for src in video.sample_images:
+            assert src.startswith("https://"), src
+            assert "http://" not in src
+
+
 class TestExistingFieldsUnchanged:
     """確認 actresses、tags、date、title、cover_url 行為不變"""
 
