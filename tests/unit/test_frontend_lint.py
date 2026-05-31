@@ -8655,3 +8655,49 @@ class TestLongPressTouchSuppression:
 
     def test_lightbox_enrich_btn_passes_event(self):
         self._assert_entry_passes_event(self._lightbox_enrich_btn(self._showcase_html()), "lightbox enrich-btn")
+
+
+class TestScannerXShowCssConflictGuard:
+    """
+    防止 .manual-input / .done-actions 改回裸 x-show。
+    這兩個元素的 CSS 有（命中 scanner 的）display:none，Alpine x-show 顯示時
+    只移除 inline style、無法覆蓋 CSS none → 面板永遠隱藏。必須用 :style binding
+    直接注入 display 值。參見 TASK-62-scanner-manual-input-xshow.md（根因 commit a3a4da4）。
+    """
+
+    SCANNER_HTML = Path("web/templates/scanner.html").read_text(encoding="utf-8")
+
+    @staticmethod
+    def _tag_with_class(html, class_name):
+        """抽出含指定 class 的 <div> 開標籤，斷言綁定綁到正確元素（Codex P2）。
+
+        class 邊界用 (?<![\\w-]) / (?![\\w-]) 而非 \\b：`-` 是 \\W，\\b 會讓
+        `manual-input` 誤命中 `manual-input-extra`（reviewer N1）。
+        """
+        m = re.search(
+            rf'<div\b(?=[^>]*class="[^"]*(?<![\w-]){re.escape(class_name)}(?![\w-])[^"]*")[^>]*>',
+            html,
+        )
+        assert m, f"missing .{class_name} div in scanner.html"
+        return m.group(0)
+
+    def test_manual_input_style_binding_on_element(self):
+        tag = self._tag_with_class(self.SCANNER_HTML, "manual-input")
+        # 負向：該 tag 不可有裸 x-show（會被 CSS display:none 蓋掉）
+        assert 'x-show=' not in tag, \
+            ".manual-input 不可用裸 x-show（會被 CSS display:none 覆蓋）→ 改 :style binding"
+        # 正向：該 tag 必須有完整 ternary :style 綁定
+        assert re.search(
+            r":style=\"\{\s*display:\s*manualInputVisible\s*\?\s*'flex'\s*:\s*'none'\s*\}\"",
+            tag,
+        ), ".manual-input 應為 :style=\"{ display: manualInputVisible ? 'flex' : 'none' }\""
+
+    def test_done_actions_style_binding_on_element(self):
+        tag = self._tag_with_class(self.SCANNER_HTML, "done-actions")
+        assert 'id="doneActions"' in tag, "確認命中同一個 done-actions tag"
+        assert 'x-show=' not in tag, \
+            ".done-actions 不可用裸 x-show（會被 CSS display:none 覆蓋）→ 改 :style binding"
+        assert re.search(
+            r":style=\"\{\s*display:\s*doneActionsVisible\s*\?\s*'flex'\s*:\s*'none'\s*\}\"",
+            tag,
+        ), ".done-actions 應為 :style=\"{ display: doneActionsVisible ? 'flex' : 'none' }\""

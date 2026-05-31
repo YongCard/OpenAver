@@ -48,7 +48,7 @@
 
         <div class="avlist-card-body">
             <!-- Manual Input (hidden by default) -->
-            <div class="manual-input" x-show="manualInputVisible">
+            <div class="manual-input" :style="{ display: manualInputVisible ? 'flex' : 'none' }">
                 <input type="text" class="input input-bordered input-sm" id="manualPath"
                        x-ref="manualPathInput"
                        x-model="manualPath" placeholder="{{ t('scanner.folder.placeholder') }}"
@@ -100,7 +100,7 @@
                     x-html="generateButtonText">
             </button>
             <!-- Done Actions (hidden until complete) -->
-            <div id="doneActions" class="done-actions" x-show="doneActionsVisible">
+            <div id="doneActions" class="done-actions" :style="{ display: doneActionsVisible ? 'flex' : 'none' }">
                 <button class="btn-hero btn-hero-secondary" id="btnCopyPath"
                         @click="copyOutputPath()" title="{{ t('scanner.folder.copy_path') }}">
                     <i class="bi bi-clipboard"></i> {{ t('scanner.folder.copy_path') }}
