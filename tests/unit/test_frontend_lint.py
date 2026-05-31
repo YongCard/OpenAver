@@ -8923,3 +8923,34 @@ class TestMetatubeB5RecommendedRemoved:
         assert "s.recommended" not in html and "rec-star" not in html and "smock-group-head" not in html, (
             "CD-63b-7 違規：settings_mock.html 仍含 recommended/rec-star/smock-group-head 殘留"
         )
+
+
+class TestMetatubeB6I18n:
+    """CD-63b-6 / CD-63b-8: 63b 新 UI 文字 key 存在於 zh_TW.json（其他 3 locale 待 milestone）。"""
+
+    ZH_TW = PROJECT_ROOT / "locales" / "zh_TW.json"
+
+    NEW_KEYS = [
+        "mt_enable_label", "mt_enable_help", "mt_lan_mode_label",
+        "mt_connecting_btn", "mt_connect_network_error", "mt_connect_success_toast",
+        "mt_probe_testing", "mt_retest_btn",
+        "mt_probe_hint_title", "mt_probe_hint_reason1",
+        "mt_probe_hint_reason2", "mt_probe_hint_reason3",
+        "mt_promote_unavailable_warning",
+    ]
+
+    def _sources(self) -> dict:
+        data = json.loads(self.ZH_TW.read_text(encoding="utf-8"))
+        return data.get("settings", {}).get("sources", {})
+
+    def test_all_new_keys_exist_and_nonempty(self):
+        sources = self._sources()
+        for key in self.NEW_KEYS:
+            assert sources.get(key), f"CD-63b-6 違規：zh_TW.json settings.sources 缺 {key!r} 或為空"
+
+    def test_tier_hint_no_recommended_mention(self):
+        """CD-63b-8: mt_connected_tier_hint 已移除 ⭐ / 建議起手 提及。"""
+        hint = self._sources().get("mt_connected_tier_hint", "")
+        assert "⭐" not in hint and "建議起手" not in hint, (
+            "CD-63b-8 違規：mt_connected_tier_hint 仍含 Recommended 星標 / 建議起手 文案"
+        )
