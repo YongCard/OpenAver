@@ -6,6 +6,7 @@
 """
 import platform
 import re
+import unicodedata
 from typing import Optional
 from urllib.parse import unquote
 
@@ -463,9 +464,10 @@ def is_path_under_dir(path: str, dir_uri: str) -> bool:
     """
     # 判斷是否為 Windows-style URI（任一方為 Windows-style 即採用不敏感比對）
     if _is_windows_style_uri(path) or _is_windows_style_uri(dir_uri):
-        # casefold 兩邊做大小寫不敏感比對
-        path_cf = path.casefold()
-        dir_cf = dir_uri.casefold()
+        # NFC first, then casefold（正確順序：NFC → casefold）
+        # NFC 先正規化，統一 NFC/NFD 混合形式；casefold 再做大小寫不敏感比對
+        path_cf = unicodedata.normalize('NFC', path).casefold()
+        dir_cf = unicodedata.normalize('NFC', dir_uri).casefold()
         if path_cf == dir_cf:
             return True
         prefix = dir_cf if dir_cf.endswith('/') else dir_cf + '/'

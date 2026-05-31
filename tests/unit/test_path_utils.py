@@ -1059,3 +1059,204 @@ class TestReversePathMapping:
         mappings = {"/local": "//NAS/share"}
         result = reverse_path_mapping("//NAS/share/", mappings)
         assert result == "/local/"
+
+
+# ============ TestIsPathUnderDirNFC ============
+
+class TestIsPathUnderDirNFC:
+    """
+    TASK-62-path-unicode-nfc：is_path_under_dir Windows-style 分支 NFC/NFD 正規化守衛。
+
+    所有 NFC/NFD 形式一律用 unicodedata.normalize() 程式化產生。
+    POSIX 安全負向 case（Codex P1）確保 POSIX 分支維持 byte-exact 不折疊。
+    """
+
+    # ------------------------------------------------------------------
+    # 邊界 1：UNC NFC dir + NFD path → True
+    # ------------------------------------------------------------------
+    def test_unc_nfc_dir_nfd_path(self):
+        """UNC：NFC 目錄 + NFD 子路徑 → True（Windows-style NFC 正規化）"""
+        import unicodedata
+        from core.path_utils import is_path_under_dir, to_file_uri
+
+        base = 'Répertoire'
+        dir_nfc = unicodedata.normalize('NFC', base)   # é = U+00E9
+        path_nfd = unicodedata.normalize('NFD', base)  # é = e + U+0301
+
+        dir_uri  = to_file_uri(rf'\\NAS\{dir_nfc}')
+        path_uri = to_file_uri(rf'\\NAS\{path_nfd}\video.jpg')
+
+        assert is_path_under_dir(path_uri, dir_uri) is True
+
+    # ------------------------------------------------------------------
+    # 邊界 2：UNC NFD dir + NFC path → True（反向）
+    # ------------------------------------------------------------------
+    def test_unc_nfd_dir_nfc_path(self):
+        """UNC：NFD 目錄 + NFC 子路徑 → True"""
+        import unicodedata
+        from core.path_utils import is_path_under_dir, to_file_uri
+
+        base = 'Répertoire'
+        dir_nfd  = unicodedata.normalize('NFD', base)
+        path_nfc = unicodedata.normalize('NFC', base)
+
+        dir_uri  = to_file_uri(rf'\\NAS\{dir_nfd}')
+        path_uri = to_file_uri(rf'\\NAS\{path_nfc}\video.jpg')
+
+        assert is_path_under_dir(path_uri, dir_uri) is True
+
+    # ------------------------------------------------------------------
+    # 邊界 3：UNC NFD + 大寫 → 命中 NFC + 小寫（驗 NFC→casefold 順序）
+    # ------------------------------------------------------------------
+    def test_unc_nfd_upper_vs_nfc_lower(self):
+        """UNC：NFD 大寫路徑 命中 NFC 小寫目錄（NFC → casefold 順序正確）"""
+        import unicodedata
+        from core.path_utils import is_path_under_dir, to_file_uri
+
+        base = 'Répertoire'
+        nfd_upper = unicodedata.normalize('NFD', base).upper()    # NFD + 大寫
+        nfc_lower = unicodedata.normalize('NFC', base).casefold() # NFC + 小寫
+
+        dir_uri  = to_file_uri(rf'\\nas\{nfc_lower}')
+        path_uri = to_file_uri(rf'\\NAS\{nfd_upper}\video.jpg')
+
+        assert is_path_under_dir(path_uri, dir_uri) is True
+
+    # ------------------------------------------------------------------
+    # 邊界 4：Drive-letter NFD path → 命中 NFC dir
+    # ------------------------------------------------------------------
+    def test_drive_nfd_path_nfc_dir(self):
+        """Drive-letter：NFD 檔案路徑 命中 NFC 目錄 URI"""
+        import unicodedata
+        from core.path_utils import is_path_under_dir, to_file_uri
+
+        base = 'Médias'
+        dir_nfc  = unicodedata.normalize('NFC', base)
+        path_nfd = unicodedata.normalize('NFD', base)
+
+        dir_uri  = to_file_uri(rf'C:\{dir_nfc}')
+        path_uri = to_file_uri(rf'C:\{path_nfd}\x.jpg')
+
+        assert is_path_under_dir(path_uri, dir_uri) is True
+
+    # ------------------------------------------------------------------
+    # 邊界 5：韓文 Hangul NFC vs NFD（UNC）
+    # ------------------------------------------------------------------
+    def test_unc_hangul_nfc_vs_nfd(self):
+        """UNC Hangul 가 NFC 預組 vs NFD 分解 → True"""
+        import unicodedata
+        from core.path_utils import is_path_under_dir, to_file_uri
+
+        # 가 NFC = 1 codepoint（U+AC00）；NFD = 2 codepoints（ᄀ U+1100 + ᅡ U+1161，無尾音）
+        char_nfc = unicodedata.normalize('NFC', '가')
+        char_nfd = unicodedata.normalize('NFD', '가')
+        # 若 NFC == NFD（字元無分解形式），就改用有分解的字元讓測試有意義
+        # 가 本身可分解，若相等則跳過（不強制失敗）
+        if char_nfc == char_nfd:
+            import pytest
+            pytest.skip('가 NFC == NFD on this platform, no byte difference to test')
+
+        dir_uri  = to_file_uri(rf'\\NAS\{char_nfc}_folder')
+        path_uri = to_file_uri(rf'\\NAS\{char_nfd}_folder\v.mp4')
+
+        assert is_path_under_dir(path_uri, dir_uri) is True
+
+    # ------------------------------------------------------------------
+    # 邊界 5b：Drive-letter Hangul NFC vs NFD
+    # ------------------------------------------------------------------
+    def test_drive_hangul_nfd_path_nfc_dir(self):
+        """Drive-letter 韓文 가 NFD path → NFC dir → True"""
+        import unicodedata
+        from core.path_utils import is_path_under_dir, to_file_uri
+
+        char_nfc = unicodedata.normalize('NFC', '가')
+        char_nfd = unicodedata.normalize('NFD', '가')
+
+        if char_nfc == char_nfd:
+            import pytest
+            pytest.skip('가 NFC == NFD on this platform')
+
+        dir_uri  = to_file_uri(rf'C:\{char_nfc}Media')
+        path_uri = to_file_uri(rf'C:\{char_nfd}Media\v.mp4')
+
+        assert is_path_under_dir(path_uri, dir_uri) is True
+
+    # ------------------------------------------------------------------
+    # 邊界 6：Windows-style 同形式不回歸（NFC/NFC、NFD/NFD 仍 True）
+    # ------------------------------------------------------------------
+    def test_windows_same_nfc_nfc(self):
+        """Windows-style 兩邊都 NFC → True（不回歸）"""
+        import unicodedata
+        from core.path_utils import is_path_under_dir, to_file_uri
+
+        base_nfc = unicodedata.normalize('NFC', 'Répertoire')
+        dir_uri  = to_file_uri(rf'\\NAS\{base_nfc}')
+        path_uri = to_file_uri(rf'\\NAS\{base_nfc}\v.jpg')
+        assert is_path_under_dir(path_uri, dir_uri) is True
+
+    def test_windows_same_nfd_nfd(self):
+        """Windows-style 兩邊都 NFD → True（不回歸）"""
+        import unicodedata
+        from core.path_utils import is_path_under_dir, to_file_uri
+
+        base_nfd = unicodedata.normalize('NFD', 'Répertoire')
+        dir_uri  = to_file_uri(rf'\\NAS\{base_nfd}')
+        path_uri = to_file_uri(rf'\\NAS\{base_nfd}\v.jpg')
+        assert is_path_under_dir(path_uri, dir_uri) is True
+
+    # ------------------------------------------------------------------
+    # POSIX 安全負向 case 7（Codex P1）：POSIX byte-exact，NFC ≠ NFD → False
+    # ------------------------------------------------------------------
+    def test_posix_nfc_dir_does_not_match_nfd_path(self):
+        """
+        Codex P1 安全守衛：POSIX NFC 目錄白名單不放行 NFD byte-distinct 子路徑。
+
+        Linux ext4/xfs 的 NFC 與 NFD 是不同的 byte 序列 → 不同路徑，可並存。
+        折疊它們 = 誤放行白名單外的檔案（安全漏洞）。
+        """
+        import unicodedata
+        from core.path_utils import is_path_under_dir, to_file_uri, _is_windows_style_uri
+
+        base = 'Répertoire'
+        nfc_str = unicodedata.normalize('NFC', base)
+        nfd_str = unicodedata.normalize('NFD', base)
+
+        # 確認 NFC != NFD（若相等測試無意義）
+        assert nfc_str != nfd_str, 'NFC == NFD，無 byte 差異，測試前提不成立'
+
+        # 產生 POSIX URI（4 斜線）
+        dir_uri  = to_file_uri(f'/media/{nfc_str}')   # file:////media/Répertoire(NFC)
+        path_uri = to_file_uri(f'/media/{nfd_str}/video.mp4')  # NFD 子路徑
+
+        # 確認 _is_windows_style_uri 對 POSIX URI 回 False
+        assert _is_windows_style_uri(dir_uri)  is False, f'期望 POSIX URI，但 {dir_uri!r} 被判為 Windows-style'
+        assert _is_windows_style_uri(path_uri) is False, f'期望 POSIX URI，但 {path_uri!r} 被判為 Windows-style'
+
+        # 關鍵安全斷言：POSIX 分支維持 byte-exact，NFD 子路徑不被 NFC 白名單放行
+        assert is_path_under_dir(path_uri, dir_uri) is False
+
+    # ------------------------------------------------------------------
+    # POSIX 不回歸 8：NFC/NFC 同形式 → True
+    # ------------------------------------------------------------------
+    def test_posix_nfc_nfc_same_form(self):
+        """POSIX NFC/NFC 兩邊 bytes 相同 → True（不回歸）"""
+        import unicodedata
+        from core.path_utils import is_path_under_dir, to_file_uri
+
+        nfc = unicodedata.normalize('NFC', 'Répertoire')
+        dir_uri  = to_file_uri(f'/media/{nfc}')
+        path_uri = to_file_uri(f'/media/{nfc}/video.mp4')
+        assert is_path_under_dir(path_uri, dir_uri) is True
+
+    # ------------------------------------------------------------------
+    # POSIX 不回歸 9：前綴碰撞（/media2 不命中 /media）
+    # ------------------------------------------------------------------
+    def test_posix_prefix_collision_not_regressed(self):
+        """POSIX /media2 不誤命中 /media 白名單"""
+        import unicodedata
+        from core.path_utils import is_path_under_dir, to_file_uri
+
+        nfc = unicodedata.normalize('NFC', 'Répertoire')
+        dir_uri  = to_file_uri(f'/media/{nfc}')
+        path_uri = to_file_uri(f'/media2/{nfc}/video.mp4')
+        assert is_path_under_dir(path_uri, dir_uri) is False
