@@ -103,6 +103,10 @@ def _scraper_to_meta(data: dict) -> dict:
         "cover_url": data.get("cover", ""),
         "url": data.get("url", ""),
         "sample_images": data.get("sample_images", []),
+        # 63c-5（CD-63c-5）：唯一 summary/rating 流入 meta 的 crossing point。
+        # _ 前綴 carrier（search_jav 注入）在此去前綴轉 canonical key，流入 NFO writer。
+        "summary": data.get("_summary", ""),
+        "rating": data.get("_rating"),
     }
 
 
@@ -141,6 +145,12 @@ def _merge_meta(base: dict, supplement: dict) -> tuple:
         merged["sample_images"] = supplement["sample_images"]
     elif not merged.get("sample_images") and supplement.get("sample_images"):
         merged["sample_images"] = supplement["sample_images"]
+    # 63c-5：summary/rating 從 supplement（scraper meta）透傳。base 通常是 DB/NFO meta
+    # 無此欄（intentionally NOT carried），fill-if-empty 語意：base 有值不覆蓋。
+    if not merged.get("summary") and supplement.get("summary"):
+        merged["summary"] = supplement["summary"]
+    if merged.get("rating") is None and supplement.get("rating") is not None:
+        merged["rating"] = supplement["rating"]
     return merged, filled
 
 
@@ -184,6 +194,10 @@ def _write_nfo(
         series=meta.get("series", ""),
         label=meta.get("label", ""),
         user_tags=user_tags,
+        # 63c-5：canonical key（無 _ 前綴，已於 _scraper_to_meta crossing 去前綴）。
+        # DB/NFO base meta 無此欄 → default 空 plot / 無 rating tag。
+        summary=meta.get("summary", ""),
+        rating=meta.get("rating"),
     )
     return True
 

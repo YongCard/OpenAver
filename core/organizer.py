@@ -328,6 +328,9 @@ def generate_nfo(
     series: str = '',
     label: str = '',
     user_tags: List[str] = None,
+    summary: str = '',
+    rating: Optional[float] = None,
+    mpaa: str = 'JP-18+',
 ) -> bool:
     """
     生成 NFO 檔案
@@ -367,6 +370,10 @@ def generate_nfo(
     runtime_tag = f"<runtime>{duration}</runtime>" if duration is not None else "<runtime></runtime>"
     director_tag = f"<director>{html.escape(director)}</director>" if director else "<director></director>"
     label_tag = f"<label>{html.escape(label)}</label>"
+    # 63c-5（CD-63c-10）：metatube summary→<plot>，rating×2→<rating>（0-10 Jellyfin scale，
+    # 僅有值才寫），<mpaa>JP-18+ 無條件寫（所有 JAV 共通）。rating_line 含 \n + 2-space 縮排，
+    # 空時不留空行（embedded 在 <plot> 之前）。
+    rating_line = f"  <rating>{rating * 2:.1f}</rating>\n" if (rating is not None and rating > 0) else ""
 
     nfo_content = f'''<?xml version="1.0" encoding="utf-8"?>
 <movie>
@@ -377,7 +384,8 @@ def generate_nfo(
   {label_tag}
   <year>{html.escape(year)}</year>
   <premiered>{html.escape(date)}</premiered>
-  <plot></plot>
+{rating_line}  <plot>{html.escape(summary)}</plot>
+  <mpaa>{html.escape(mpaa)}</mpaa>
   {runtime_tag}
   {director_tag}
   <poster>{html.escape(basename)}{poster_suffix}.jpg</poster>
@@ -722,6 +730,10 @@ def organize_file(
             duration=metadata.get('duration'),
             series=metadata.get('series', ''),
             label=metadata.get('label', ''),
+            # 63c-5：metadata 是 raw search_jav 結果 dict，summary/rating 走 _ 前綴 carrier
+            # （server re-search 路徑帶值；frontend-passed 路徑因 echo strip 無值 → default）
+            summary=metadata.get('_summary', ''),
+            rating=metadata.get('_rating'),
         ):
             result['nfo_path'] = nfo_path
 
