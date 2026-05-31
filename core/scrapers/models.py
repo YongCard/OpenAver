@@ -33,6 +33,9 @@ class Video(BaseModel):
     rating: Optional[float] = None
     votes: Optional[int] = None
 
+    # 簡介欄（僅供 NFO，排除於 to_legacy_dict，US7 硬契約）
+    summary: str = Field(default='', description="簡介（僅供 NFO，排除於 to_legacy_dict）")
+
     def to_legacy_dict(self) -> dict[str, object]:
         """轉換成舊格式（向後相容）"""
         from core.maker_mapping import normalize_maker_name

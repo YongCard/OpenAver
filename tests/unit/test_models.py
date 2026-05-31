@@ -163,3 +163,22 @@ def test_model_frozen_still_enforced():
     v = _make_video(director='山田')
     with pytest.raises(Exception):
         v.director = '田中'
+
+
+# ============ to_legacy_dict regression guard（US7 硬契約） ============
+
+def test_to_legacy_dict_excludes_summary():
+    """summary 欄永不出現於 to_legacy_dict()（US7 硬契約）"""
+    v = Video(number="TEST-001", summary="some summary")
+    assert "summary" not in v.to_legacy_dict()
+
+
+def test_to_legacy_dict_key_set_unchanged():
+    """14 鍵固定集合不因 summary 欄新增而改變"""
+    v = Video(number="TEST-001")
+    expected_keys = {
+        "number", "title", "actors", "date", "maker", "cover",
+        "tags", "source", "url", "director", "duration",
+        "label", "series", "sample_images",
+    }
+    assert set(v.to_legacy_dict().keys()) == expected_keys
