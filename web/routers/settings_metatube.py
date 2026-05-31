@@ -100,8 +100,12 @@ async def connect(req: ConnectRequest):
     try:
         config = load_config()
 
-        # Persist metatube URL + token (NO runtime `connected` field)
-        config["metatube"] = {"url": req.url, "token": req.token}
+        # Persist metatube URL + token, preserving existing `enabled` flag (CD-63b-3).
+        # Do NOT wipe `enabled` on reconnect — user's toggle state must survive.
+        mt = config.get("metatube") or {}
+        mt["url"] = req.url
+        mt["token"] = req.token
+        config["metatube"] = mt
 
         # Merge metatube sources (preserve existing enabled flags)
         existing_mt: dict[str, dict] = {

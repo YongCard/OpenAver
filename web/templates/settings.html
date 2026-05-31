@@ -510,10 +510,16 @@
                                        x-model="metatubeToken"
                                        autocomplete="off">
                             </label>
+                            <label class="settings-mt-field-checkbox">
+                                <input type="checkbox" class="toggle toggle-sm toggle-primary" x-model="metatubeLanMode">
+                                <span>{{ t('settings.sources.mt_lan_mode_label') }}</span>
+                            </label>
                             <button type="button"
                                     class="settings-mt-connect-btn"
+                                    :disabled="metatubeConnecting"
                                     @click="metatubeConnect()">
-                                <i class="bi bi-plug"></i> {{ t('settings.sources.mt_connect_btn') }}
+                                <i class="bi" :class="metatubeConnecting ? 'bi-hourglass-split' : 'bi-plug'"></i>
+                                <span x-text="metatubeConnecting ? window.t('settings.sources.mt_connecting_btn') : window.t('settings.sources.mt_connect_btn')"></span>
                             </button>
                         </div>
 
@@ -1021,6 +1027,18 @@
                             </small>
                             <small class="settings-hint">{{ t('settings.search.favorite_folder_example_prefix') | safe }}</small>
                         </div>
+                    </div>
+
+                    <!-- Metatube 連線（B3）toggle（CD-63b-3） -->
+                    <div class="settings-form-group">
+                        <label class="settings-label">
+                            <input type="checkbox" class="toggle toggle-primary"
+                                   id="metatubeEnableToggle"
+                                   x-model="metatubeEnabled"
+                                   @change="onMetatubeEnabledChange()">
+                            <span class="label-text">{{ t('settings.sources.mt_enable_label') }}</span>
+                        </label>
+                        <small class="settings-hint">{{ t('settings.sources.mt_enable_help') }}</small>
                     </div>
 
                     <!-- 進階搜尋 (Beta) toggle（TASK-61c-7） -->

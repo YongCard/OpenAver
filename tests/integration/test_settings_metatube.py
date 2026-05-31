@@ -501,3 +501,47 @@ def test_test_endpoint_while_disconnected(client):
     call_args = mock_probe.call_args
     names_arg = call_args.args[3] if len(call_args.args) > 3 else call_args.kwargs.get("provider_names", [])
     assert names_arg == [], f"Expected empty names list, got {names_arg}"
+
+
+# ---------------------------------------------------------------------------
+# Test: connect preserves metatube.enabled flag (CD-63b-3 Work Item A)
+# ---------------------------------------------------------------------------
+
+def test_connect_preserves_metatube_enabled_flag(client):
+    """POST /connect must preserve existing config.metatube.enabled (CD-63b-3).
+
+    Scenario: user previously set enabled=True in Advanced tab.
+    After reconnecting (e.g. with different URL/token), enabled must remain True.
+    """
+    initial_cfg = _fresh_config()
+    initial_cfg["metatube"] = {"enabled": True, "url": "", "token": ""}
+    store = _make_config_patches(initial_cfg)
+
+    with patch("web.routers.settings_metatube.MetatubeHttpClient") as MockClient, \
+         patch("web.routers.settings_metatube.probe_all"), \
+         patch("web.routers.settings_metatube.load_config", side_effect=store.load), \
+         patch("web.routers.settings_metatube.save_config", side_effect=store.save):
+
+        mock_instance = MagicMock()
+        mock_instance.list_providers.return_value = {
+            "FANZA": "http://mt:8080",
+        }
+        MockClient.return_value = mock_instance
+
+        resp = client.post(
+            "/api/settings/metatube/connect",
+            json={"url": "http://192.168.1.10:8080", "token": "tok123", "allow_lan": True},
+        )
+
+    assert resp.json()["success"] is True
+    assert len(store.saved) >= 1
+    saved_cfg = store.saved[-1]
+
+    # enabled flag MUST be preserved (was True, must remain True after connect)
+    assert saved_cfg["metatube"]["enabled"] is True, (
+        "CD-63b-3: connect must not wipe metatube.enabled — "
+        "was True before connect, must remain True after"
+    )
+    # URL and token must be updated to the new values
+    assert saved_cfg["metatube"]["url"] == "http://192.168.1.10:8080"
+    assert saved_cfg["metatube"]["token"] == "tok123"

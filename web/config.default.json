@@ -184,6 +184,7 @@
   ],
   "advanced_search_enabled": false,
   "metatube": {
+    "enabled": false,
     "url": "",
     "token": ""
   }

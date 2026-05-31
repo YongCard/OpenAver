@@ -8701,3 +8701,93 @@ class TestScannerXShowCssConflictGuard:
             r":style=\"\{\s*display:\s*doneActionsVisible\s*\?\s*'flex'\s*:\s*'none'\s*\}\"",
             tag,
         ), ".done-actions 應為 :style=\"{ display: doneActionsVisible ? 'flex' : 'none' }\""
+
+
+class TestMetatubeB3Guard:
+    """CD-63b-3: 守衛 state-config.js STUB 已移除 + 真實 HTTP 已接線 + helpers 已加入 + settings.html 已更新。"""
+
+    SETTINGS_JS = PROJECT_ROOT / "web" / "static" / "js" / "pages" / "settings" / "state-config.js"
+    SETTINGS_HTML = PROJECT_ROOT / "web" / "templates" / "settings.html"
+
+    def _js(self) -> str:
+        return self.SETTINGS_JS.read_text(encoding="utf-8")
+
+    def _html(self) -> str:
+        return self.SETTINGS_HTML.read_text(encoding="utf-8")
+
+    def test_stub_connect_removed(self):
+        """B2: STUB connect 字串已從 state-config.js 移除。"""
+        js = self._js()
+        assert "STUB connect" not in js, (
+            "CD-63b-3 違規：state-config.js 仍含 'STUB connect' — B3 應已替換為真實 fetch"
+        )
+
+    def test_stub_disconnect_removed(self):
+        """B3: STUB disconnect 字串已從 state-config.js 移除。"""
+        js = self._js()
+        assert "STUB disconnect" not in js, (
+            "CD-63b-3 違規：state-config.js 仍含 'STUB disconnect' — B3 應已替換為真實 fetch"
+        )
+
+    def test_connect_uses_real_fetch(self):
+        """B2: metatubeConnect() 使用真實 POST /api/settings/metatube/connect。"""
+        js = self._js()
+        assert "'/api/settings/metatube/connect'" in js, (
+            "CD-63b-3 違規：state-config.js 缺少 '/api/settings/metatube/connect' fetch 呼叫"
+        )
+
+    def test_disconnect_uses_real_fetch(self):
+        """B3: metatubeDisconnect() 使用真實 POST /api/settings/metatube/disconnect。"""
+        js = self._js()
+        assert "'/api/settings/metatube/disconnect'" in js, (
+            "CD-63b-3 違規：state-config.js 缺少 '/api/settings/metatube/disconnect' fetch 呼叫"
+        )
+
+    def test_start_probe_polling_present(self):
+        """B4: startProbePolling helper 已加入 state-config.js。"""
+        js = self._js()
+        assert "startProbePolling" in js, (
+            "CD-63b-3 違規：state-config.js 缺少 startProbePolling 方法"
+        )
+
+    def test_stop_probe_polling_present(self):
+        """B4: stopProbePolling helper 已加入 state-config.js。"""
+        js = self._js()
+        assert "stopProbePolling" in js, (
+            "CD-63b-3 違規：state-config.js 缺少 stopProbePolling 方法"
+        )
+
+    def test_hydrate_metatube_status_present(self):
+        """B5: hydrateMetatubeStatus helper 已加入 state-config.js。"""
+        js = self._js()
+        assert "hydrateMetatubeStatus" in js, (
+            "CD-63b-3 違規：state-config.js 缺少 hydrateMetatubeStatus 方法"
+        )
+
+    def test_on_metatube_enabled_change_present(self):
+        """B7: onMetatubeEnabledChange 已加入 state-config.js。"""
+        js = self._js()
+        assert "onMetatubeEnabledChange" in js, (
+            "CD-63b-3 違規：state-config.js 缺少 onMetatubeEnabledChange 方法"
+        )
+
+    def test_settings_html_has_metatube_lan_mode(self):
+        """C2: settings.html 含 metatubeLanMode 綁定（LAN checkbox）。"""
+        html = self._html()
+        assert "metatubeLanMode" in html, (
+            "CD-63b-3 違規：settings.html 缺少 metatubeLanMode 綁定（LAN mode checkbox）"
+        )
+
+    def test_settings_html_has_metatube_connecting(self):
+        """C2: settings.html 含 metatubeConnecting 綁定（connect button loading state）。"""
+        html = self._html()
+        assert "metatubeConnecting" in html, (
+            "CD-63b-3 違規：settings.html 缺少 metatubeConnecting 綁定（button loading state）"
+        )
+
+    def test_settings_html_has_metatube_enable_toggle(self):
+        """C1: settings.html 含 metatubeEnableToggle ID（Advanced tab toggle）。"""
+        html = self._html()
+        assert "metatubeEnableToggle" in html, (
+            "CD-63b-3 違規：settings.html 缺少 metatubeEnableToggle（Advanced tab 啟用開關）"
+        )

@@ -79,11 +79,17 @@ export function stateConfig() {
         //   idle      = metatubeEnabled && !metatubeConnected     → 連線表單
         //   connected = metatubeEnabled && metatubeConnected      → 連線狀態列 + 摺疊 Parts Bin
         // B1：metatubeEnabled 維持 hardcoded false（production 不渲染 Section 3）；B3 接實際連線翻 true。
-        metatubeEnabled: false,
+        metatubeEnabled: false,    // hydrated from config.metatube.enabled (CD-63b-3)
         metatubeConnected: false,
         partsBinExpanded: false,   // §2.8 Parts Bin 預設摺疊
         metatubeServerUrl: '',     // idle 連線表單 Server URL
         metatubeToken: '',         // idle 連線表單 Bearer Token
+        metatubeConnecting: false, // true while POST /connect is in-flight (CD-63b-3)
+        metatubeLanMode: false,    // allow_lan checkbox (CD-63b-3)
+        probeProgress: 0,          // number of providers probed so far
+        probeTotal: 30,            // total providers expected (updated from /status)
+        probeDone: true,           // false while background probe is running
+        _probeInterval: null,      // interval handle for probe polling
 
         // 無碼模式 transient off-hint（EC-2：off 不自動重開有碼，僅提示使用者手動重啟）
         showUncensoredOffHint: false,
@@ -489,6 +495,8 @@ export function stateConfig() {
                             display_name: s.type === 'metatube'
                                 ? (s.display_name_raw || '')
                                 : (s.display_name_key || ''),
+                            available: s.available ?? (s.type !== 'metatube'),  // builtins default available; metatube waits for /status
+                            requires_proxy: s.requires_proxy ?? false,           // forward-compat for 63c-6
                         }))
                         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
@@ -497,6 +505,12 @@ export function stateConfig() {
                     this.savedOpenaiUseCustomModel = this.openaiUseCustomModel;
                     // 解鎖表單（config hydrate 完成）
                     this._configLoading = false;
+
+                    // Hydrate metatube fields from config + /status (CD-63b-3)
+                    this.metatubeEnabled = config.metatube?.enabled || false;
+                    this.metatubeServerUrl = config.metatube?.url || '';
+                    this.metatubeToken = config.metatube?.token || '';
+                    try { await this.hydrateMetatubeStatus(); } catch (_e) { this.metatubeConnected = false; }
 
                     // 背景載入 Ollama 模型列表（不阻塞表單）
                     const ollamaUrl = config.translate.ollama?.url || config.translate.ollama_url;
@@ -603,6 +617,9 @@ export function stateConfig() {
                     theme: this.theme || document.documentElement.getAttribute('data-theme') || 'light'
                     // theme / sidebar_collapsed 由 base.html $watch 即時同步，此處僅隨整體設定一併寫入
                 };
+
+                // 更新 metatube enabled（CD-63b-3）：保留 url/token（GET 載入的），只更新 enabled。
+                config.metatube = { ...(config.metatube || {}), enabled: this.metatubeEnabled };
 
                 // 更新 sources（61c-2）：序列化回後端 SourceConfig 欄位形狀。
                 // order 重算 = 當前陣列 index。is_censored 是後端 computed，**不回送**。
@@ -794,28 +811,98 @@ export function stateConfig() {
         },
 
         // ═══════════════════════════════════════════════════════════════
-        // Metatube 連線狀態機 handlers（61c-4）
-        // B1 STUB：無真實 HTTP；B3 換成真實 /v1/providers 列舉 + MetatubeConnectionState。
+        // Metatube 連線狀態機 handlers（CD-63b-3）
         // ═══════════════════════════════════════════════════════════════
 
-        // STUB connect：翻 connected + bulk-set available=true 於所有 metatube source
-        // （NOTE-A / EC-9：connect success → 已註冊 provider 全部視為 live，避免 promoted
-        // metatube 因 available=undefined 被誤判斷線）。B3 換成真實列舉回填 available。
-        metatubeConnect() {
-            this.metatubeConnected = true;
-            this.sources.forEach(s => { if (s.type === 'metatube') s.available = true; });
+        async metatubeConnect() {
+            if (this.metatubeConnecting) return;
+            this.metatubeConnecting = true;
+            try {
+                const body = { url: this.metatubeServerUrl.trim(), token: this.metatubeToken.trim(), allow_lan: this.metatubeLanMode };
+                const resp = await fetch('/api/settings/metatube/connect', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+                const result = await resp.json();
+                if (result.success) {
+                    this.sources.forEach(s => { if (s.type === 'metatube') s.available = true; });
+                    await this.loadConfig();
+                    this.metatubeConnected = true;
+                    this.showToast(`已連線，${result.provider_count} 個 provider 已載入 Parts Bin`, 'success');
+                    this.startProbePolling();
+                } else {
+                    this.showToast(`連線失敗：${result.error}`, 'error');
+                }
+            } catch (_e) {
+                this.showToast(window.t('settings.sources.mt_connect_network_error'), 'error');
+            } finally {
+                this.metatubeConnecting = false;
+            }
         },
 
-        // STUB disconnect：回 idle + 全部 metatube available=false（保留 enabled — EC-9，
-        // 斷線不掉 cap 槽，重連即恢復 live）。
-        metatubeDisconnect() {
+        async metatubeDisconnect() {
+            try {
+                await fetch('/api/settings/metatube/disconnect', { method: 'POST' });
+            } catch (_e) { /* ignore network error; proceed to local reset */ }
             this.metatubeConnected = false;
             this.sources.forEach(s => { if (s.type === 'metatube') s.available = false; });
+            this.stopProbePolling();
         },
 
         // 編輯：回 idle 連線表單（保留 url/token 供修改），不動 enabled。
         metatubeEdit() {
             this.metatubeConnected = false;
+        },
+
+        // ─── Probe polling helpers (CD-63b-3 / CD-63b-6) ───────────────
+        startProbePolling() {
+            this.probeDone = false; this.probeProgress = 0;
+            if (this._probeInterval) clearInterval(this._probeInterval);
+            this._probeInterval = setInterval(async () => {
+                try {
+                    const r = await fetch('/api/settings/metatube/status');
+                    const s = await r.json();
+                    this.probeProgress = s.probe_progress ?? 0;
+                    this.probeTotal = s.providers?.length ?? 30;
+                    this.probeDone = s.probe_done ?? false;
+                    if (s.providers) {
+                        s.providers.forEach(p => {
+                            const src = this.sources.find(x => x.id === p.id);
+                            if (src) src.available = p.available;
+                        });
+                    }
+                    if (this.probeDone) { clearInterval(this._probeInterval); this._probeInterval = null; }
+                } catch (_e) { clearInterval(this._probeInterval); this._probeInterval = null; this.probeDone = true; }
+            }, 500);
+        },
+
+        stopProbePolling() {
+            if (this._probeInterval) { clearInterval(this._probeInterval); this._probeInterval = null; }
+            this.probeDone = true;
+        },
+
+        // ─── Hydrate metatube runtime state from /status ──────────────
+        async hydrateMetatubeStatus() {
+            try {
+                const r = await fetch('/api/settings/metatube/status');
+                const s = await r.json();
+                this.metatubeConnected = !!s.connected;
+                if (s.providers) {
+                    s.providers.forEach(p => {
+                        const src = this.sources.find(x => x.id === p.id);
+                        if (src) src.available = p.available;
+                    });
+                }
+                this.probeDone = s.probe_done ?? true;
+                this.probeProgress = s.probe_progress ?? 0;
+            } catch (_e) {
+                this.metatubeConnected = false;
+            }
+        },
+
+        // ─── Toggle callback (CD-63b-3) ───────────────────────────────
+        async onMetatubeEnabledChange() {
+            if (!this.metatubeEnabled && this.metatubeConnected) {
+                await this.metatubeDisconnect();
+            }
+            await this.saveConfig();
         },
 
         // TODO(B4): remove metatube mock providers after B3 lands （CD-61-13）

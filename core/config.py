@@ -86,6 +86,7 @@ class OpenAIConfig(BaseModel):
 
 class MetatubeConfig(BaseModel):
     """串接結構：Metatube HTTP server 配置（CD-63b-3）"""
+    enabled: bool = False  # 使用者在 Settings › Advanced 啟用 metatube（CD-63b-3）
     url: str = ""    # metatube server URL (persisted; runtime connected state NOT stored here)
     token: str = ""  # API token（空字串 = 不需驗證）
 
