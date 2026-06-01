@@ -158,6 +158,12 @@ class MetatubeHttpClient:
           2. Classify by status_code (no json() yet) → raise appropriate exception
           3. Only for status 200: parse json() → check envelope → return data
 
+        SSRF guard: redirects are NOT followed (allow_redirects=False). A public,
+        validated metatube host could otherwise 30x-redirect to a loopback / internal
+        address, bypassing validate_metatube_url() (which only checks the original URL).
+        metatube is a direct JSON REST API and never legitimately redirects, so any 3xx
+        is treated as a protocol error rather than followed.
+
         Returns:
             The 'data' value from the envelope (may be None for empty responses).
 
@@ -166,13 +172,15 @@ class MetatubeHttpClient:
             MetatubeAuthError:     401
             MetatubeNotFound:      404
             MetatubeClientError:   other 4xx
-            MetatubeProtocolError: 200 + invalid JSON or missing 'data' key
+            MetatubeProtocolError: 3xx redirect (SSRF guard), or 200 + invalid JSON / missing 'data' key
         """
         url = f"{self._base_url}{path}"
         logger.debug("metatube GET %s params=%s", url, params)
 
         try:
-            resp = self._session.get(url, params=params, timeout=self._timeout)
+            resp = self._session.get(
+                url, params=params, timeout=self._timeout, allow_redirects=False
+            )
         except requests.RequestException as exc:
             logger.warning("metatube unavailable: %s — %s", url, type(exc).__name__)
             raise MetatubeUnavailable("Network error reaching metatube server") from exc
@@ -180,6 +188,13 @@ class MetatubeHttpClient:
         status = resp.status_code
 
         # --- Status-code classification (before JSON parsing) ---
+        # SSRF guard: never follow redirects — a 3xx could point at loopback / internal
+        # hosts that validate_metatube_url() never saw. Reject instead of following.
+        if 300 <= status < 400:
+            raise MetatubeProtocolError(
+                f"Unexpected redirect from {url} (HTTP {status}); "
+                "redirects are not allowed (SSRF guard)."
+            )
         if status == 401:
             raise MetatubeAuthError(f"Authentication failed for {url} (HTTP 401)")
         if status == 404:
