@@ -251,6 +251,20 @@ class TestSearch:
         assert "provider" in params
         assert params["provider"] == "FANZA"
 
+    def test_search_sends_fallback_false(self):
+        """params must contain fallback=false to enforce source isolation (Codex P2):
+        upstream metatube defaults Fallback=true, so a no-match provider-scoped search
+        would otherwise return a foreign provider's hit, corrupting US8 / auto fan-out."""
+        client = make_client()
+        client._session.get = MagicMock(
+            return_value=make_json_response({"data": []})
+        )
+        client.search("SOD", "ssis-001")
+        params = client._session.get.call_args.kwargs.get("params") or {}
+        assert params.get("fallback") == "false"
+        # must be the lowercase string, not Python bool False (requests → "False")
+        assert isinstance(params.get("fallback"), str)
+
     def test_search_data_null_returns_empty_list(self):
         """data=null on search → return [] not raise."""
         client = make_client()

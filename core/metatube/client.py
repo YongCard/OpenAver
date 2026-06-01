@@ -127,14 +127,20 @@ class MetatubeHttpClient:
 
     def search(self, provider: str, q: str) -> list:
         """
-        GET /v1/movies/search?q={q}&provider={provider}
+        GET /v1/movies/search?q={q}&provider={provider}&fallback=false
 
         Always sends 'provider' param to prevent triggering SearchMovieAll broadcast.
+        Sends 'fallback=false' to enforce source isolation: the upstream metatube
+        route defaults Fallback=true, so a provider-scoped search with no match would
+        otherwise return ANOTHER provider's hit — corrupting explicit single-source
+        picks (US8) and auto fan-out source attribution. We want [] when the requested
+        provider has no match, never a foreign provider's result. (Go strconv.ParseBool
+        accepts the lowercase string "false".)
 
         Returns:
             list of movie result dicts, or [] if server returned data=null.
         """
-        params = {"q": q, "provider": provider}
+        params = {"q": q, "provider": provider, "fallback": "false"}
         data = self._get_data("/v1/movies/search", params=params)
         if data is None:
             return []
