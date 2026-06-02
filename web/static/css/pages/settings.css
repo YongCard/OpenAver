@@ -63,88 +63,13 @@
 }
 
 
-/* ========== Settings Tab Nav (61b-2) — 64b-1: tab-bar HTML removed; CSS rules kept for reference ========== */
-/* 64b-1: .settings-tab-bar HTML 整段已移除（64b-1 reparent）；
-   nav icon-only 嵌 header 由 64b-2 重建。下方 .settings-tab 規則保留備用。
-   注意：原 position:sticky top:0 z-index:30 已移除（header 接管 z-index:31）。*/
-#settings-components .settings-tab-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin: 0 0 1.5rem;
-    padding: 0.5rem;
-    background: color-mix(in oklch, var(--surface-0) 80%, transparent);
-    backdrop-filter: blur(var(--fluent-blur-light)) saturate(var(--fluent-saturate));
-    -webkit-backdrop-filter: blur(var(--fluent-blur-light)) saturate(var(--fluent-saturate));
-    border: 1px solid var(--stroke-subtle);
-    border-radius: var(--fluent-radius-xl);
-    box-shadow: var(--fluent-shadow-2);
-}
-
-#settings-components .settings-tab {
-    flex: 1 1 auto;
-    min-width: 7.5rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.45rem;
-    padding: 0.55rem 0.85rem;
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    border: 1px solid transparent;
-    border-radius: var(--fluent-radius-md);
-    background: transparent;
-    cursor: pointer;
-    transition: all var(--fluent-duration-fast) var(--fluent-ease-standard);
-}
-
-#settings-components .settings-tab i {
-    font-size: 0.95rem;
-    opacity: 0.7;
-}
-
-#settings-components .settings-tab:hover:not(.active) {
-    color: var(--text-primary);
-    background: color-mix(in oklch, var(--surface-2) 70%, transparent);
-}
-
-#settings-components .settings-tab.active {
-    background: var(--surface-0);
-    color: var(--text-primary);
-    border-color: var(--stroke-default, var(--stroke-subtle));
-    box-shadow: var(--fluent-shadow-2);
-}
-
-#settings-components .settings-tab.active i {
-    opacity: 1;
-    color: var(--accent);
-}
-
-/* 61b-5: panel 進場 fade 由 GSAP 全權負責（state-ui.js _initActiveTab watch），
-   不用 CSS keyframe，避免 CSS animation 與 GSAP inline opacity 雙軌（gotchas C21）。 */
+/* 64b-5: .settings-tab-bar / .settings-tab CSS 已移除（HTML 於 64b-1 拆除，
+   quick-jump nav 由 64b-2 的 .settings-nav 取代）。 */
 
 /* ========== Responsive: 行動版（窄螢幕）RWD ========== */
 
 /* Tablet / Mobile: 768px 以下 */
 @media (max-width: 768px) {
-    /* Tab bar: horizontal scroll instead of wrap (mobile spec §4.4) */
-    #settings-components .settings-tab-bar {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        white-space: nowrap;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-    }
-
-    #settings-components .settings-tab-bar::-webkit-scrollbar {
-        display: none;
-    }
-
-    #settings-components .settings-tab {
-        flex: 0 0 auto;
-    }
-
     /* 1. Settings Form Row - 垂直堆疊 */
     #settings-components .settings-form-row {
         flex-direction: column;

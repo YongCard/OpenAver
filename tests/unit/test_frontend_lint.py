@@ -7341,46 +7341,52 @@ class TestConstellationRealCovers:
 
 
 class TestSettingsPanelStructureGuard:
-    """61b-4: settings.html — form wraps all 6 panels + all form ids preserved.
+    """61b-4 → 64b-1/64b-5: settings.html — form wraps all 3 sections + ids preserved.
 
-    Mixed task frontend-guard: protect against accidental id drop during the
-    big DOM reorg, and assert the structural invariant that <form id="settingsForm">
-    opens BEFORE the panels and </form> closes AFTER them (so every input stays
-    inside #settingsForm → :inert protection works).
+    64b-5 改寫：branch64 把 6-tab x-show panel 拆成單欄三分類常駐 section
+    （sec-search / sec-gallery / sec-system）。本守衛從「form 包 6 panel」改為
+    「form 包 3 section」+「單欄無 activeTab gating」，仍守住「每個 input 留在
+    #settingsForm 內 → :inert 保護」這個結構不變量。
     """
 
     def _settings(self):
         return SETTINGS_HTML.read_text(encoding="utf-8")
 
-    def test_form_wraps_all_six_panels(self):
-        """<form id="settingsForm"> opens before the first .settings-panel and
-        </form> closes after the last one (form contains all 6 panels)."""
+    def test_form_wraps_all_three_sections(self):
+        """<form id="settingsForm"> opens before the first .settings-section and
+        </form> closes after the last (form contains all 3 sections; modals/toast
+        live OUTSIDE the form)."""
         html = self._settings()
         form_open = html.index('<form id="settingsForm"')
         form_close = html.index("</form>")
-        first_panel = html.index('class="settings-panel"')
-        last_panel = html.rindex('class="settings-panel"')
-        assert form_open < first_panel, (
-            "61b-4 違規：<form id=\"settingsForm\"> 必須在第一個 .settings-panel 之前"
+        first_section = html.index('class="settings-section"')
+        last_section = html.rindex('class="settings-section"')
+        assert form_open < first_section, (
+            "64b-1 違規：<form id=\"settingsForm\"> 必須在第一個 .settings-section 之前"
         )
-        assert last_panel < form_close, (
-            "61b-4 違規：</form> 必須在最後一個 .settings-panel 之後（form 須包住全部 panel）"
+        assert last_section < form_close, (
+            "64b-1 違規：</form> 必須在最後一個 .settings-section 之後（form 須包住全部 section）"
         )
-        # exactly 6 panels
-        assert html.count('class="settings-panel"') == 6, (
-            f"61b-4 違規：應有 6 個 .settings-panel，實得 {html.count('class=\"settings-panel\"')}"
+        # exactly 3 sections
+        assert html.count('class="settings-section"') == 3, (
+            f"64b-1 違規：應有 3 個 .settings-section，實得 {html.count('class=\"settings-section\"')}"
         )
+        # 三個 section id 齊全
+        for sid in ("sec-search", "sec-gallery", "sec-system"):
+            assert f'id="{sid}"' in html, f"64b-1 違規：缺少 section id=\"{sid}\""
 
-    def test_panels_use_x_show_not_x_if(self):
-        """Panels must use x-show (not x-if), each with x-cloak (no flash)."""
+    def test_sections_single_column_no_activetab_gating(self):
+        """64b-1: 退單欄後 section 常駐——舊 .settings-panel wrapper 已移除，
+        section 不再由 activeTab x-show/x-if 控制顯隱（nav 改純 scroll 定位）。"""
         html = self._settings()
-        # 6 panels each carry x-show="activeTab === '...'" + x-cloak
-        for tab in ("display", "scraping", "sources", "organize", "translate", "advanced"):
-            needle = f"x-show=\"activeTab === '{tab}'\""
-            assert needle in html, f"61b-4 違規：缺少 panel x-show binding：{needle}"
-        # no x-if wrapping a settings-panel
+        assert 'class="settings-panel"' not in html, (
+            "64b-1 違規：殘留舊 .settings-panel wrapper（應已拆為 .settings-section）"
+        )
+        assert 'x-show="activeTab' not in html, (
+            "64b-1 違規：section 不應由 activeTab x-show 控制顯隱（已退單欄，nav 純 scroll）"
+        )
         assert 'x-if="activeTab' not in html, (
-            "61b-4 違規：panel 不可用 x-if（會反覆建毀斷掉 form binding），須用 x-show"
+            "64b-1 違規：不可用 x-if activeTab gating"
         )
 
     def test_all_form_ids_preserved(self):
