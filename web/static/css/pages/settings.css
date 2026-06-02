@@ -415,6 +415,37 @@
         height: 40px;
         justify-content: center;
     }
+
+    /* P2(Codex): settings-header 換行防溢出（需在 .settings-header base rule 之後，避免被 cascade 覆蓋）*/
+
+    /* scroll-margin-top 加大：sticky header 換兩列後高度增加，避免遮蓋段頭 */
+    #settings-components .settings-section {
+        scroll-margin-top: 9rem;
+    }
+
+    /* header 整體允許換行，h4 佔第一列全寬，actions 落第二列 */
+    .settings-header {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .settings-header h4 {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .settings-header-actions {
+        flex: 1 1 100%;
+        min-width: 0;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    /* quick-toggle-row 子 form-group：窄屏允許縮小（覆蓋 flex-shrink:0），避免橫向溢出 */
+    #settings-components .settings-quick-toggle-row .settings-form-group {
+        max-width: 100%;
+        min-width: 0;
+    }
 }
 
 /* ========== Source Badges（無碼模式來源狀態顯示）========== */
@@ -1076,10 +1107,4 @@
         animation: none;
     }
 
-    /* 61b-2/61b-5: neutralize tab transitions.
-       panel fade 改由 GSAP 負責，其 reduced-motion guard（playEnter _shouldAnimate）
-       會直接跳過動畫，故不需 CSS panel 規則。 */
-    #settings-components .settings-tab {
-        transition: none !important;
-    }
 }
