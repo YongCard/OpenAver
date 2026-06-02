@@ -247,7 +247,7 @@
     "mock": {
       "page_title": "Settings IA POC — 單欄收斂",
       "hidden_note": "POC · 未掛 sidebar · 不入 capabilities · Phase D 移除",
-      "subtitle": "feature/64 Phase B 版面定稿：退回舊版單欄分類（搜尋與刮削／列表生成／系統設定），進階就地摺疊；頂部新增 sticky 快速定位 nav。",
+      "subtitle": "feature/64 Phase B 版面定稿：退回舊版單欄分類（搜尋與刮削／列表生成／系統設定），進階就地摺疊；頂部新增 sticky 快速定位 nav。 欄位為版面示意，完整欄位實作以 settings.html 為準。",
       "nav_search_scrape": "搜尋與刮削",
       "nav_gallery": "列表生成",
       "nav_system": "系統設定",
