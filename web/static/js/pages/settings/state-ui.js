@@ -174,10 +174,17 @@ export function stateUI() {
             this._initScrollspy();
         },
 
-        // ─── 64b-2: scrollToSection ───────────────────────────────────────────
+        // ─── 64b-2: scrollToSection（64b-4: + US-B2 auto-expand）──────────────
         scrollToSection(id, smooth = true) {
             const el = document.getElementById(id);
             if (!el) return;
+            // 64b-4 US-B2: 使用者點 nav（smooth=true）時自動展開該區進階摺疊；
+            // 初始 deep-link（smooth=false）不展開，避免載入即動所有摺疊。
+            if (smooth) {
+                const SECTION_COLLAPSE = { 'sec-search': 'scraperAdvanced', 'sec-gallery': 'galleryAdvanced' };
+                const prop = SECTION_COLLAPSE[id];
+                if (prop) this[prop] = true;
+            }
             el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
         },
 

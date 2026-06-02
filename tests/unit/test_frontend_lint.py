@@ -9425,6 +9425,14 @@ class TestSettingsNavGuard:
         assert "IntersectionObserver" in self._js(), \
             "64b-2 違規：state-ui.js 缺少 IntersectionObserver（scrollspy）"
 
+    def test_scroll_to_section_auto_expands_collapse(self):
+        """64b-4 US-B2: scrollToSection 點 nav 時自動展開該區進階摺疊"""
+        js = self._js()
+        idx = js.index("scrollToSection(id")
+        block = js[idx:idx + 600]
+        assert "scraperAdvanced" in block and "galleryAdvanced" in block, \
+            "64b-4 違規：scrollToSection 缺少 section→collapse auto-expand map"
+
 
 class TestSettingsNavI18nGuard:
     """64b-2: settings.nav.* zh_TW key 存在（zh_TW 先行；en/zh_CN/ja milestone 同步）"""
