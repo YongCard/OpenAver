@@ -7810,8 +7810,10 @@ class TestRescrapeModalGuard:
             "modal_title", "number_label", "filename_hint", "source_question",
             "auto_source", "not_found", "overwrite_warning", "confirm",
             "back_to_pick", "success", "fail",
+            # 64a 新增（zh_TW 先行，其餘 locale milestone 同步）
+            "search_title", "offline_tooltip",
         ]:
-            assert key in rescrape, f"62a-2 違規：zh_TW.json 缺少 showcase.rescrape.{key}"
+            assert key in rescrape, f"zh_TW.json 缺少 showcase.rescrape.{key}"
 
 
 class TestRescrapeStateGuard:
@@ -9201,6 +9203,146 @@ class TestDmmProxyRequiredGuard:
         hover_body = m.group(1)
         assert "transform" in hover_body, (
             "63c-6 違規：:hover rule 缺 transform: none（防 lift）"
+        )
+
+
+# ─── 64a: 進階 picker 三態膠囊語意 + 標題依入口（CD-64-A1~A5 / US-A2）───
+class TestPicker64aThreeStateGuard:
+    """64a-1/64a-2: 進階重刮 / 進階搜尋彈窗 picker 膠囊三態 + 標題契約守衛。
+
+    這些是 template(_rescrape_modal.html) ↔ JS state field / CSS 的跨檔契約（C/E 類），
+    eslint 只掃 web/static/js、stylelint 只掃 CSS，皆不處理 Jinja template，故守衛留 pytest
+    （沿用同檔既有 _rescrape_modal binding 守衛之先例，如 63c-6 TestDmmProxyRequiredGuard）。
+
+    Frontend-guard 強度：先 regex 擷取目標 pill 的 button tag 範圍，再在 tag 內斷言屬性，
+    不對整檔做字串存在性檢查（gotchas「字串存在性 ≠ contract」）。
+    """
+
+    RESCRAPE_MODAL_HTML = PROJECT_ROOT / "web" / "templates" / "_rescrape_modal.html"
+    SOURCE_PILL_CSS     = PROJECT_ROOT / "web" / "static" / "css" / "components" / "source-pill.css"
+
+    def _builtin_button_attrs(self):
+        html = self.RESCRAPE_MODAL_HTML.read_text(encoding="utf-8")
+        m = re.search(
+            r'x-for="s in rescrapeBuiltinSources\(\)"[^>]*>.*?<button\s+([^>]+)>',
+            html, re.DOTALL,
+        )
+        assert m, "64a 違規：找不到 rescrapeBuiltinSources() 模板內的 button tag"
+        return m.group(1)
+
+    def _metatube_button_attrs(self):
+        html = self.RESCRAPE_MODAL_HTML.read_text(encoding="utf-8")
+        m = re.search(
+            r'x-for="s in rescrapeMetatubeSources\(\)"[^>]*>.*?<button\s+([^>]+)>',
+            html, re.DOTALL,
+        )
+        assert m, "64a 違規：找不到 rescrapeMetatubeSources() 模板內的 button tag"
+        return m.group(1)
+
+    # ── 64a-1: builtin pill 恆可選（CD-64-A4）─────────────────────────────────────
+
+    def test_builtin_pill_data_enabled_hardcoded_true(self):
+        """builtin pill data-enabled 硬編 'true'，不綁 s.enabled（picker 依 usability 不依 promotion）。"""
+        attrs = self._builtin_button_attrs()
+        assert 'data-enabled="true"' in attrs, (
+            "64a-1 違規：builtin pill 缺硬編 data-enabled=\"true\"（CD-64-A4 恆可選）"
+        )
+        assert ":data-enabled" not in attrs, (
+            "64a-1 違規：builtin pill 不得再 :data-enabled 綁 s.enabled（picker 不反映 Settings 開關）"
+        )
+
+    # ── 64a-1: metatube pill 依 available（CD-64-A1/A5）──────────────────────────
+
+    def test_metatube_pill_data_enabled_binds_available(self):
+        """metatube pill :data-enabled 綁 s.available（非 s.enabled）。"""
+        attrs = self._metatube_button_attrs()
+        assert ":data-enabled" in attrs and "s.available" in attrs, (
+            "64a-1 違規：metatube pill :data-enabled 應綁 s.available（可達性，非 promote）"
+        )
+        m = re.search(r':data-enabled="([^"]+)"', attrs)
+        assert m and "s.available" in m.group(1), (
+            "64a-1 違規：metatube pill :data-enabled 表達式未引用 s.available"
+        )
+        assert "s.enabled" not in m.group(1), (
+            "64a-1 違規：metatube pill :data-enabled 不得綁 s.enabled（CD-64-A1）"
+        )
+
+    def test_metatube_pill_offline_aria_disabled_and_guard(self):
+        """metatube offline 用 aria-disabled + title tooltip + @click guard（非 native disabled，CD-64-A5）。"""
+        attrs = self._metatube_button_attrs()
+        assert ":aria-disabled" in attrs and "s.available" in attrs, (
+            "64a-1 違規：metatube pill 缺 :aria-disabled（依 s.available 的 offline 不可點語意）"
+        )
+        # tooltip 走 offline_tooltip i18n key
+        assert "offline_tooltip" in attrs, (
+            "64a-1 違規：metatube pill :title 缺 showcase.rescrape.offline_tooltip"
+        )
+        # @click offline guard：點擊路徑須以 s.available 把關
+        m = re.search(r'@click="([^"]+)"', attrs)
+        assert m and "s.available" in m.group(1), (
+            "64a-1 違規：metatube pill @click 缺 s.available offline guard"
+        )
+        # native disabled 仍只給 loading state（保留），不得被 offline 挪用
+        dm = re.search(r':disabled="([^"]+)"', attrs)
+        assert dm and "rescrapeLoadingSource" in dm.group(1), (
+            "64a-1 違規：metatube pill native :disabled 應只綁 loading（rescrapeLoadingSource），不可被 offline 佔用"
+        )
+
+    # ── 64a-1: CSS offline scope（CD-64-A2/A3）───────────────────────────────────
+
+    def test_css_action_offline_removes_line_through(self):
+        """source-pill.css picker offline 去刪除線：.source-pill--action[data-enabled=false] .pill-name text-decoration:none（雙 class）。"""
+        css = self.SOURCE_PILL_CSS.read_text(encoding="utf-8")
+        m = re.search(
+            r'\.source-pill\.source-pill--action\[data-enabled="false"\]\s+\.pill-name\s*\{([^}]+)\}',
+            css, re.DOTALL,
+        )
+        assert m, (
+            "64a-1 違規：source-pill.css 缺 .source-pill.source-pill--action[data-enabled=\"false\"] .pill-name 規則"
+            "（picker offline 去刪除線，雙 class 0,4,0 勝全域 0,3,0）"
+        )
+        assert "text-decoration: none" in m.group(1), (
+            "64a-1 違規：picker offline .pill-name 應 text-decoration: none"
+        )
+
+    def test_css_global_line_through_untouched(self):
+        """CD-64-A3：全域 .source-pill[data-enabled=false] .pill-name 仍 line-through（picker scope 為加法，不動全域）。"""
+        css = self.SOURCE_PILL_CSS.read_text(encoding="utf-8")
+        m = re.search(
+            r'(?<!--action)\.source-pill\[data-enabled="false"\]\s+\.pill-name\s*\{([^}]+)\}',
+            css, re.DOTALL,
+        )
+        assert m, "64a-1 違規：全域 .source-pill[data-enabled=\"false\"] .pill-name 規則不應被移除"
+        assert "line-through" in m.group(1), (
+            "64a-1 違規：全域 line-through 不應被改動（CD-64-A3：只在 picker scope 加法覆寫）"
+        )
+
+    def test_css_action_offline_cursor_not_allowed(self):
+        """offline 膠囊 cursor: not-allowed（不可點 affordance；scope 在 .source-pill--action[aria-disabled=true]）。"""
+        css = self.SOURCE_PILL_CSS.read_text(encoding="utf-8")
+        m = re.search(
+            r'\.source-pill--action\[aria-disabled="true"\]\s*\{([^}]+)\}',
+            css, re.DOTALL,
+        )
+        assert m, "64a-1 違規：source-pill.css 缺 .source-pill--action[aria-disabled=\"true\"] cursor 規則"
+        assert "not-allowed" in m.group(1), (
+            "64a-1 違規：offline 膠囊 cursor 應 not-allowed"
+        )
+
+    # ── 64a-2: 標題依入口切換（US-A2）────────────────────────────────────────────
+
+    def test_modal_title_switches_by_entrypoint(self):
+        """彈窗標題 x-text 依 rescrapeEntryPoint 切：'search'→search_title，其餘→modal_title。"""
+        html = self.RESCRAPE_MODAL_HTML.read_text(encoding="utf-8")
+        m = re.search(r'class="fluent-modal-title".*?</h3>', html, re.DOTALL)
+        assert m, "64a-2 違規：找不到 fluent-modal-title h3"
+        title = m.group(0)
+        assert "x-text" in title, "64a-2 違規：標題應改 x-text 動態切換（非靜態 Jinja）"
+        assert "rescrapeEntryPoint === 'search'" in title, (
+            "64a-2 違規：標題未依 rescrapeEntryPoint === 'search' 分支"
+        )
+        assert "search_title" in title and "modal_title" in title, (
+            "64a-2 違規：標題分支應同時引用 search_title 與 modal_title 兩個 i18n key"
         )
 
 
