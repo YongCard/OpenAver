@@ -1,12 +1,21 @@
-// 61b-3: 合法 tab id ↔ URL hash fragment（CD-61-1，防 typo）。
-// 非法 hash / localStorage 值一律 fallback 預設 'display'。
-const SETTINGS_TAB_IDS = ['display', 'scraping', 'sources', 'organize', 'translate', 'advanced'];
+// 64b-2: 新 section ID（3 個）取代舊 6 tab ID（CD-64-B6）
+const SETTINGS_TAB_IDS = ['sec-search', 'sec-gallery', 'sec-system'];
+
+// 64b-2: 舊 6-tab 值遷移 map（舊 localStorage/hash → 新 section id；CD-64-B6）
+const LEGACY_TAB_MAP = {
+    display:   'sec-search',
+    scraping:  'sec-search',
+    sources:   'sec-search',
+    translate: 'sec-search',
+    advanced:  'sec-search',
+    organize:  'sec-gallery',
+};
 
 export function stateUI() {
     return {
         // ===== UI State =====
-        // 61b-3: 當前 tab（預設第一個 tab；初始化由 _initActiveTab 處理，禁加 init()）
-        activeTab: 'display',
+        // 64b-2: activeTab → activeSection（初始值 sec-search；由 _initActiveTab 處理）
+        activeSection: 'sec-search',
         newSuffixInput: '',
         showPathHelp: false,
         showSampleImagesHelp: false,
@@ -30,6 +39,9 @@ export function stateUI() {
         favoriteScannerLink: null,   // null=隱藏, {linked, matched_directory}=已查
         showDirDropdown: false,
         scannerDirectories: [],
+
+        // 64b-2: IntersectionObserver ref（供 cleanup disconnect）
+        _sectionObserver: null,
 
         // ===== Methods =====
         showToast(message, type = 'success', duration = 2500) {
@@ -92,33 +104,56 @@ export function stateUI() {
             this.dirtyCheckModalOpen = false;
         },
 
-        // ─── 61b-3: activeTab / URL hash / localStorage ───────────────────
+        // ─── 64b-2: activeSection / URL hash / localStorage ──────────────────
         // ⚠️ 具名 init helper（禁加 stateUI.init() — 會覆蓋 stateConfig.init）。
         // 由 state-config.js init() 末尾呼叫，比照 _initB1 慣例。
         _initActiveTab() {
-            // 優先序：URL hash > localStorage('settings_active_tab') > 'display'
-            let resolved = 'display';
+            // 優先序：URL hash > localStorage('settings_active_tab') > 'sec-search'
+            // 舊 6-tab 值先過 LEGACY_TAB_MAP 再驗新 SETTINGS_TAB_IDS
+
+            let resolved = 'sec-search';
 
             // 1) URL hash（去掉前導 #）
             const hashId = (location.hash || '').replace(/^#/, '');
-            if (SETTINGS_TAB_IDS.includes(hashId)) {
-                resolved = hashId;
+            if (hashId) {
+                const mapped = LEGACY_TAB_MAP[hashId];
+                if (mapped) {
+                    resolved = mapped;
+                } else if (SETTINGS_TAB_IDS.includes(hashId)) {
+                    resolved = hashId;
+                }
+                // else: 未知 hash → fallback sec-search
             } else {
                 // 2) localStorage（隱私模式 / storage 不可用會拋，包 try-catch）
                 try {
                     const stored = localStorage.getItem('settings_active_tab');
-                    if (SETTINGS_TAB_IDS.includes(stored)) {
-                        resolved = stored;
+                    if (stored) {
+                        const mappedStored = LEGACY_TAB_MAP[stored];
+                        if (mappedStored) {
+                            resolved = mappedStored;
+                        } else if (SETTINGS_TAB_IDS.includes(stored)) {
+                            resolved = stored;
+                        }
+                        // else: 未知值 → fallback sec-search
                     }
                 } catch (e) {
                     console.warn('[settings] read settings_active_tab failed:', e);
                 }
             }
 
-            this.activeTab = resolved;
+            this.activeSection = resolved;
 
-            // tab 變更 → 記憶 + 同步 URL（replaceState，不堆瀏覽歷史）+ GSAP fade + mobile scroll
-            this.$watch('activeTab', async (val) => {
+            // 初始 deep-link 捲動：resolved 非首段（sec-search 在頂部，無需捲）時，
+            // 載入後 instant 捲到該段，否則頁面停在頂部 → IO 會立刻把 activeSection
+            // clobber 回 sec-search，deep-link 失效。用 requestAnimationFrame 確保
+            // section 已 layout；instant（smooth=false）避免與 IO 捲動途中競態。
+            if (resolved !== 'sec-search') {
+                requestAnimationFrame(() => this.scrollToSection(resolved, false));
+            }
+
+            // activeSection 變更 → 記憶 + 同步 URL（replaceState，不堆瀏覽歷史）
+            // IO callback 只設 activeSection，由此 $watch 統一寫 localStorage + replaceState。
+            this.$watch('activeSection', (val) => {
                 if (!SETTINGS_TAB_IDS.includes(val)) return;
                 try {
                     localStorage.setItem('settings_active_tab', val);
@@ -126,47 +161,59 @@ export function stateUI() {
                     console.warn('[settings] write settings_active_tab failed:', e);
                 }
                 history.replaceState(null, '', '#' + val);
-
-                // 61b-5: 等 Alpine 把新 panel 的 x-show 套上 display（避免 rect 0×0 /
-                // 幽靈動畫，gotchas L426 / C17：animate 在 nextTick 之後）。
-                await this.$nextTick();
-
-                // 對新顯示的 panel 起 GSAP fade（opacity 0→1，純淡入無位移）。
-                // playEnter 內含 reduced-motion guard，不自寫 matchMedia；缺 motion 時跳過。
-                const panel = this.$el.querySelector('[data-settings-panel="' + val + '"]');
-                if (panel && window.OpenAver && window.OpenAver.motion) {
-                    // lazy ctx：motion-adapter ESM 在 init() 當下可能尚未載入完成
-                    // （_gsapCtx 留 false）。首次 tab 切換時 motion 必已就緒，補建一次，
-                    // 確保 cleanup 的 _gsapCtx.revert() 真能 revert（frontend-stack-roles rule 3）。
-                    if (!this._gsapCtx) {
-                        this._gsapCtx = window.OpenAver.motion.createContext(this.$el);
-                    }
-                    window.OpenAver.motion.playEnter(panel, {
-                        y: 0,
-                        duration: window.OpenAver.motion.DURATION.medium,
-                        ease: 'fluent-decel',
-                        ctx: this._gsapCtx
-                    });
-                }
-
-                // Mobile（<768px）橫向 scroll：把 active tab button 帶進可視範圍。
-                // block:'nearest' 防止頁面整體垂直跳動。
-                const tabBtn = this.$el.querySelector('[data-settings-tab="' + val + '"]');
-                if (tabBtn) {
-                    tabBtn.scrollIntoView({ inline: 'nearest', block: 'nearest' });
-                }
             });
 
-            // 外部深連結（如 /settings#translate）：監聽 hashchange
+            // 外部深連結（如 /settings#organize）：監聽 hashchange
             window.addEventListener('hashchange', () => {
-                const id = (location.hash || '').replace(/^#/, '');
-                if (SETTINGS_TAB_IDS.includes(id) && id !== this.activeTab) {
-                    this.activeTab = id;
-                }
+                const raw = (location.hash || '').replace(/^#/, '');
+                const id = LEGACY_TAB_MAP[raw] || (SETTINGS_TAB_IDS.includes(raw) ? raw : 'sec-search');
+                if (id !== this.activeSection) this.activeSection = id;
             });
+
+            // 64b-2: IntersectionObserver scrollspy（掛在此函式末尾，不另外 x-init）
+            this._initScrollspy();
         },
 
-        // ─── B1: Scanner directory link ───────────────────────────────────
+        // ─── 64b-2: scrollToSection ───────────────────────────────────────────
+        scrollToSection(id, smooth = true) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+        },
+
+        // ─── 64b-2: IntersectionObserver scrollspy ────────────────────────────
+        _initScrollspy() {
+            const sections = SETTINGS_TAB_IDS.map(id => document.getElementById(id)).filter(Boolean);
+            if (!sections.length) return;
+
+            const observer = new IntersectionObserver((entries) => {
+                // 取 intersecting 且 intersectionRatio 最大的那個
+                let best = null;
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        if (!best || entry.intersectionRatio > best.intersectionRatio) best = entry;
+                    }
+                }
+                if (best) {
+                    const id = best.target.id;
+                    if (SETTINGS_TAB_IDS.includes(id) && id !== this.activeSection) {
+                        // 只設 activeSection；設值會觸發 $watch('activeSection')，
+                        // 由 $watch 統一寫 localStorage + history.replaceState。
+                        // 不要在此重複寫（會造成 double replaceState）。
+                        this.activeSection = id;
+                    }
+                }
+            }, {
+                rootMargin: '-20% 0px -60% 0px',   // 進入視窗上方 20% 即觸發；下方 60% 留白
+                threshold: [0, 0.1, 0.25, 0.5]
+            });
+
+            sections.forEach(s => observer.observe(s));
+            // cleanup：存 observer ref 供 state-config.js cleanup() disconnect 用
+            this._sectionObserver = observer;
+        },
+
+        // ─── B1: Scanner directory link ───────────────────────────────────────
 
         async _initB1() {
             try {

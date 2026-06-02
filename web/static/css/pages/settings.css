@@ -259,6 +259,98 @@
     }
 }
 
+/* ==================== Settings Quick-jump Nav（64b-2, CD-64-B9）==================== */
+
+/* scroll-margin-top：sticky header 高度補償，避免標題被遮 */
+#settings-components .settings-section {
+    scroll-margin-top: 5rem;   /* 與 .settings-header 高度對齊，實作後目視微調 */
+}
+
+/* Nav 容器 */
+#settings-components .settings-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    /* 在 header flex row 內佔用位置但不撐開 */
+    flex-shrink: 0;
+}
+
+/* Nav 按鈕 */
+#settings-components .settings-nav-btn {
+    position: relative;          /* tooltip absolute 定位基準 */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--fluent-radius-md);
+    color: var(--text-secondary);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+        background var(--fluent-duration-fast) var(--fluent-ease-standard),
+        color var(--fluent-duration-fast) var(--fluent-ease-standard),
+        border-color var(--fluent-duration-fast) var(--fluent-ease-standard);
+}
+
+#settings-components .settings-nav-btn i {
+    font-size: 1rem;
+    line-height: 1;
+    pointer-events: none;
+}
+
+/* Hover / focus-visible 互動（icon 位置固定，tooltip 出現） */
+#settings-components .settings-nav-btn:hover,
+#settings-components .settings-nav-btn:focus-visible {
+    color: var(--text-primary);
+    background: color-mix(in oklch, var(--accent) 8%, transparent);
+    border-color: color-mix(in oklch, var(--accent) 16%, transparent);
+}
+
+/* Active（scrollspy 高亮 + 點擊後）*/
+#settings-components .settings-nav-btn.active {
+    color: var(--accent);
+    background: color-mix(in oklch, var(--accent) 12%, transparent);
+    border-color: color-mix(in oklch, var(--accent) 28%, transparent);
+}
+
+/* Hover 浮窗 tooltip（position:absolute，icon 本體不位移）*/
+#settings-components .settings-nav-tooltip {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 0.3rem 0.6rem;
+    background: var(--surface-0);
+    border: 1px solid var(--stroke-subtle);
+    border-radius: var(--fluent-radius-md);
+    box-shadow: var(--fluent-shadow-4);
+    color: var(--text-primary);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    z-index: 50;
+    transition: opacity var(--fluent-duration-fast) var(--fluent-ease-standard),
+                visibility var(--fluent-duration-fast) var(--fluent-ease-standard);
+}
+
+#settings-components .settings-nav-btn:hover .settings-nav-tooltip,
+#settings-components .settings-nav-btn:focus-visible .settings-nav-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #settings-components .settings-nav-btn { transition: none; }
+    #settings-components .settings-nav-tooltip { transition: none; }
+}
+
 /* ==================== Settings Header + Actions (Font Size + Theme) ==================== */
 
 .settings-header {

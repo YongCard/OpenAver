@@ -12,6 +12,33 @@
         <h4 class="mb-0">
             <i class="bi bi-gear"></i> {{ t('settings.header.title') }}
         </h4>
+        <!-- 64b-2: quick-jump nav icon-only（CD-64-B9；非 role=tab，CD-64-B9 Codex P3） -->
+        <nav class="settings-nav" aria-label="{{ t('settings.header.title') }}">
+            <button type="button" class="settings-nav-btn"
+                    :class="{ active: activeSection === 'sec-search' }"
+                    :aria-current="activeSection === 'sec-search' ? 'page' : 'false'"
+                    @click="scrollToSection('sec-search')"
+                    aria-label="{{ t('settings.nav.search_scrape') }}">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <span class="settings-nav-tooltip">{{ t('settings.nav.search_scrape') }}</span>
+            </button>
+            <button type="button" class="settings-nav-btn"
+                    :class="{ active: activeSection === 'sec-gallery' }"
+                    :aria-current="activeSection === 'sec-gallery' ? 'page' : 'false'"
+                    @click="scrollToSection('sec-gallery')"
+                    aria-label="{{ t('settings.nav.gallery') }}">
+                <i class="bi bi-list-ul" aria-hidden="true"></i>
+                <span class="settings-nav-tooltip">{{ t('settings.nav.gallery') }}</span>
+            </button>
+            <button type="button" class="settings-nav-btn"
+                    :class="{ active: activeSection === 'sec-system' }"
+                    :aria-current="activeSection === 'sec-system' ? 'page' : 'false'"
+                    @click="scrollToSection('sec-system')"
+                    aria-label="{{ t('settings.nav.system') }}">
+                <i class="bi bi-sliders" aria-hidden="true"></i>
+                <span class="settings-nav-tooltip">{{ t('settings.nav.system') }}</span>
+            </button>
+        </nav>
         <div class="settings-header-actions">
             <!-- Font Size Control -->
             <div class="font-size-control">

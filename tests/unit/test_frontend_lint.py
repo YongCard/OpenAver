@@ -3679,13 +3679,16 @@ class TestSettingsESMGuard:
         assert "export function stateUI" in content
 
     def test_state_ui_has_active_tab_contract(self):
-        """61b-3：state-ui.js 含 activeTab 狀態 + settings_active_tab localStorage key
+        """64b-2: activeTab → activeSection 改名；localStorage key 維持 settings_active_tab
         （跨檔 Alpine state contract，eslint 無法表達 — plan-61.md:561 授權）"""
         content = self._read("web/static/js/pages/settings/state-ui.js")
-        assert "activeTab" in content, \
-            "state-ui.js 缺少 activeTab 狀態（61b-3 tab state contract）"
+        # 64b-2: activeTab → activeSection 改名；localStorage key 維持 settings_active_tab
+        assert "activeSection" in content, \
+            "state-ui.js 缺少 activeSection 狀態（64b-2 改名，CD-64-B6）"
         assert "settings_active_tab" in content, \
-            "state-ui.js 缺少 settings_active_tab localStorage key（CD-61-12）"
+            "state-ui.js 缺少 settings_active_tab localStorage key（CD-61-12，維持不變）"
+        assert "LEGACY_TAB_MAP" in content, \
+            "state-ui.js 缺少 LEGACY_TAB_MAP（CD-64-B6：舊 6-tab 值不跳空）"
 
     def test_main_js_exists_and_has_alpine_init(self):
         content = self._read("web/static/js/pages/settings/main.js")
@@ -9377,3 +9380,60 @@ class TestMetatube63c7I18nGuard:
         assert "help.scraper.metatube_sqlite_hint" in html, (
             "63c-7 違規：help.html 未引用 metatube_sqlite_hint"
         )
+
+
+class TestSettingsNavGuard:
+    """64b-2: icon-only nav 嵌 header 契約守衛（CD-64-B9 Codex P3）"""
+
+    SETTINGS_HTML = Path(__file__).parent.parent.parent / "web" / "templates" / "settings.html"
+    STATE_UI_JS = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "settings" / "state-ui.js"
+
+    def _html(self): return self.SETTINGS_HTML.read_text(encoding="utf-8")
+    def _js(self): return self.STATE_UI_JS.read_text(encoding="utf-8")
+
+    def test_settings_nav_exists_in_header(self):
+        html = self._html()
+        header_start = html.index('class="settings-header"')
+        # settings-nav 必須在 header 的前半部（.settings-header-actions 之前或之後均可，但必須在 header 內）
+        nav_pos = html.find('class="settings-nav"')
+        assert nav_pos != -1, "64b-2 違規：settings.html 缺少 class=settings-nav"
+        assert nav_pos > header_start, "64b-2 違規：.settings-nav 應在 .settings-header 內"
+
+    def test_nav_has_three_buttons(self):
+        assert self._html().count('class="settings-nav-btn"') == 3, \
+            "64b-2 違規：.settings-nav 應有 3 顆 .settings-nav-btn"
+
+    def test_nav_aria_current_not_role_tab(self):
+        """Codex P3：nav btn 不用 role=tab / aria-selected，用 aria-current"""
+        html = self._html()
+        import re
+        nav_block_match = re.search(r'class="settings-nav".*?</nav>', html, re.DOTALL)
+        assert nav_block_match, "64b-2 違規：找不到 <nav class=\"settings-nav\"> block"
+        nav_block = nav_block_match.group(0)
+        assert 'role="tab"' not in nav_block, \
+            "64b-2 違規：settings-nav 不可用 role=tab（Codex P3）"
+        assert 'aria-selected' not in nav_block, \
+            "64b-2 違規：settings-nav 不可用 aria-selected（Codex P3）"
+        assert ':aria-current=' in nav_block, \
+            "64b-2 違規：settings-nav button 應有 :aria-current dynamic binding"
+
+    def test_scroll_to_section_in_state_ui(self):
+        assert "scrollToSection" in self._js(), \
+            "64b-2 違規：state-ui.js 缺少 scrollToSection method"
+
+    def test_intersection_observer_in_state_ui(self):
+        assert "IntersectionObserver" in self._js(), \
+            "64b-2 違規：state-ui.js 缺少 IntersectionObserver（scrollspy）"
+
+
+class TestSettingsNavI18nGuard:
+    """64b-2: settings.nav.* zh_TW key 存在（zh_TW 先行；en/zh_CN/ja milestone 同步）"""
+
+    ZH_TW = LOCALES_ROOT / "zh_TW.json"
+
+    def _zh(self): return json.loads(self.ZH_TW.read_text(encoding="utf-8"))
+
+    def test_settings_nav_keys_exist(self):
+        nav = self._zh().get("settings", {}).get("nav", {})
+        for key in ("search_scrape", "gallery", "system"):
+            assert nav.get(key), f"64b-2 違規：缺 settings.nav.{key}"

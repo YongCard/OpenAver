@@ -190,6 +190,11 @@
       "translate": "AI 翻譯",
       "advanced": "進階"
     },
+    "nav": {
+      "search_scrape": "搜尋與刮削",
+      "gallery": "列表生成",
+      "system": "系統設定"
+    },
     "display": {
       "font_size_label": "介面字級",
       "locale_label": "介面語言",
