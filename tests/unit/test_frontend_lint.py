@@ -9496,3 +9496,16 @@ class TestSettingsDmmProxyContract:
         collapsible_pos = html.index('class="collapsible-content"')
         assert proxy_model_pos < collapsible_pos, \
             "64b-6 違規：proxy x-model 應在第一個 collapsible-content 之前（已移出進階刮削摺疊）"
+
+    def test_proxy_row_before_metatube_toggle(self):
+        """64e-3: proxy row 整行搬至 metatube enable toggle 正上方（CD-64-E5 方案 B）。
+
+        layout contract：proxy 控件（含「需日本 IP」hint）須貼近 DMM 來源 + metatube
+        連線區，故位置在 id="sec-search" 之後、id="metatubeEnableToggle" 之前。
+        """
+        html = self._html()
+        sec_search_pos = html.index('id="sec-search"')
+        proxy_model_pos = html.index('x-model="form.proxyUrl"')
+        metatube_toggle_pos = html.index('id="metatubeEnableToggle"')
+        assert sec_search_pos < proxy_model_pos < metatube_toggle_pos, \
+            "64e-3 違規：proxy row 應在 id=\"sec-search\" 之後、id=\"metatubeEnableToggle\" 之前（搬至 metatube toggle 正上方）"

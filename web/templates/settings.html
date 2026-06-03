@@ -222,6 +222,29 @@
                         <span>{{ t('settings.sources.warn_all_disabled') }}</span>
                     </div>
 
+                    <!-- 64e-3: proxy row 搬至 metatube toggle 正上方（CD-64-E5 方案 B 整行 move，貼近 DMM 來源 + 連線區） -->
+                    <div class="settings-form-row">
+                        <label class="row-label">
+                            Proxy
+                            <small class="settings-hint">{{ t('settings.search.proxy_dmm_hint') }}</small>
+                        </label>
+                        <div class="flex-1 flex flex-col gap-1">
+                            <div class="variable-input-group">
+                                <input type="text" class="input input-bordered input-sm flex-1"
+                                    x-model="form.proxyUrl"
+                                    placeholder="{{ t('settings.search.proxy_placeholder') }}">
+                                <button class="btn btn-sm btn-outline" type="button"
+                                    @click="testProxy()"
+                                    :disabled="!form.proxyUrl.trim() || testProxyLoading">
+                                    <span x-show="testProxyLoading" class="loading loading-spinner loading-sm"></span>
+                                    {{ t('settings.action.test') }}
+                                </button>
+                            </div>
+                            <small class="settings-hint" x-show="proxyStatus" x-text="proxyStatus"
+                                :class="{ 'text-success': proxyStatusOk, 'text-error': proxyStatus && !proxyStatusOk && !testProxyLoading }"></small>
+                        </div>
+                    </div>
+
                     <!-- Metatube 連線（B3）toggle（CD-63b-3）— 64b-6: 移至 Section 3 正上方 -->
                     <div class="settings-form-group">
                         <label class="settings-label">
@@ -391,29 +414,6 @@
                             </template>
                         </div>
                         <small class="settings-hint mt-1">{{ t('settings.sources.primary_source_deprecated_note') }}</small>
-                    </div>
-
-                    <!-- Proxy（64b-6: 從進階刮削摺疊上移至搜尋來源卡末，貼近 DMM 來源） -->
-                    <div class="settings-form-row">
-                        <label class="row-label">
-                            Proxy
-                            <small class="settings-hint">{{ t('settings.search.proxy_dmm_hint') }}</small>
-                        </label>
-                        <div class="flex-1 flex flex-col gap-1">
-                            <div class="variable-input-group">
-                                <input type="text" class="input input-bordered input-sm flex-1"
-                                    x-model="form.proxyUrl"
-                                    placeholder="{{ t('settings.search.proxy_placeholder') }}">
-                                <button class="btn btn-sm btn-outline" type="button"
-                                    @click="testProxy()"
-                                    :disabled="!form.proxyUrl.trim() || testProxyLoading">
-                                    <span x-show="testProxyLoading" class="loading loading-spinner loading-sm"></span>
-                                    {{ t('settings.action.test') }}
-                                </button>
-                            </div>
-                            <small class="settings-hint" x-show="proxyStatus" x-text="proxyStatus"
-                                :class="{ 'text-success': proxyStatusOk, 'text-error': proxyStatus && !proxyStatusOk && !testProxyLoading }"></small>
-                        </div>
                     </div>
 
             </div>
