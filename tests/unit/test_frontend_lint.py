@@ -3717,15 +3717,12 @@ class TestSettingsESMGuard:
             "settings.html pre_alpine_module block 缺少 main.js module script"
 
     def test_settings_html_xdata_is_settings(self):
-        """settings.html x-data 值為 'settings'（非 'settingsPage'）+ 含 primarySource binding"""
+        """settings.html x-data 值為 'settings'（非 'settingsPage'）"""
         content = self._read("web/templates/settings.html")
         assert 'x-data="settings"' in content, \
             "settings.html x-data 非 settings（54d-T2 切換未完成）"
         assert 'x-data="settingsPage"' not in content, \
             "settings.html 仍有舊 x-data=settingsPage（54d-T2 切換未完成）"
-        # 59b-1b: TestSettingsSourceBadge REFACTOR — primarySource 正向斷言併入此 method
-        assert 'primarySource' in content, \
-            "settings.html missing: 'primarySource' (37d T2 badge selector binding)"
 
     def test_settings_html_no_settings_js_script(self):
         """settings.html extra_js block 不含 /pages/settings.js script 載入"""
@@ -7412,20 +7409,6 @@ class TestSettingsPanelStructureGuard:
         ids = _re.findall(r'\sid="([^"]+)"', html)
         dupes = sorted({i for i in ids if ids.count(i) > 1})
         assert not dupes, f"61b-4 違規：settings.html 含 duplicate id：{dupes}"
-
-    def test_primary_source_deprecated_marker(self):
-        """primarySource block kept in sources panel + deprecated comment marker.
-
-        [transient-guard] B2 進階 re-scrape source picker 接手後 primarySource 元素
-        會被徹底拔除（CD-61-14）→ 本守衛屆時失效，B2 milestone 刪除。
-        """
-        html = self._settings()
-        assert "CD-61-14: deprecated" in html, (
-            "61b-4 違規：sources panel 缺少 CD-61-14 deprecated 註解標記"
-        )
-        assert "form.primarySource" in html, (
-            "61b-4 違規：primarySource binding 不可刪（61c-1 接手前保留元素）"
-        )
 
 
 # ─── TASK-62a-0: source pill 跨頁共用 component + bootstrap 注入 ───
