@@ -1,20 +1,22 @@
-<!-- OpenAver: open-source desktop GUI JAV metadata manager.
-No Docker, one-line install (Win/Mac), 6 scrape sources,
-Jellyfin/Emby compatible, actress favorites with alias deduplication,
-AI-operable REST API with capabilities manifest, 2400+ tests, MIT license. -->
+<!-- OpenAver: free open-source desktop GUI JAV metadata scraper & manager.
+No Docker, no CLI, one-line install (Windows/macOS), 8 built-in scrape sources
+(JavBus/Jav321/JavDB/DMM/D2Pass/HEYZO/FC2/AVSOX) plus optional Metatube federation (30+ providers),
+generates NFO + cover art (poster/fanart) for Jellyfin / Emby / Kodi,
+actress favorites with cross-language alias expansion, cross-language tag aliases,
+AI-operable REST API with capabilities manifest, 3,400+ tests, MIT license. -->
 
 <h1 align="center">OpenAver</h1>
 
 <p align="center">
-  <strong>No Docker, no CLI — one-line install for Win/Mac, full GUI JAV metadata manager out of the box.</strong><br>
-  6-source unified search · Actress favorites & alias management · Interactive collection browser · Jellyfin integration · AI API to manage your library with a single prompt
+  <strong>No Docker, no command line — one-line install for Win/Mac, a full GUI JAV metadata manager the moment you open it.</strong><br>
+  8-source unified scraping · Actress favorites & alias management · Interactive collection browser · Jellyfin / Emby integration · An AI API that operates your library from a single prompt
 </p>
 
 <p align="center"><em>
-  Open-source desktop GUI for JAV metadata — one-line install, 6 scrape sources, actress favorites + alias system, Jellyfin/Emby ready, AI-operable REST API.
+  Open-source desktop GUI for JAV metadata — one-line install, 8 built-in scrape sources, actress favorites + alias system, Jellyfin/Emby/Kodi ready, AI-operable REST API.
 </em></p>
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.12-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Tests](https://github.com/slive777/OpenAver/actions/workflows/test.yml/badge.svg)
@@ -22,15 +24,31 @@ AI-operable REST API with capabilities manifest, 2400+ tests, MIT license. -->
 
 **English** | [繁體中文](README.md)
 
-The core workflow spans three pages: 🔍 Search video info → 📋 Scan & build library → 🎬 Browse collection
+> **OpenAver is a free, open-source desktop app (Windows/macOS, no Docker, no CLI) that scrapes JAV metadata from 8 sources and generates NFO files + cover art for Jellyfin, Emby, and Kodi — with actress collections, cross-language tag aliases, and a built-in REST API that lets AI agents operate your library.**
 
-**100% local** — no data collection, no uploads. Network requests are only used to scrape publicly available metadata.
+The core workflow spans three pages: 📋 Scan & build library → 🎬 Browse collection → 🔍 Per-ID scraping (advanced)
 
-**✨ Highlights**: Search 6 sources at once · Actress favorites with auto profile + alias expansion · One-click NFO & cover fill from the web · AI-operable library in natural language · Jellyfin / Emby cover auto-generation · 2400+ automated tests
+**100% local** — no data collection, no uploaded file info. Network requests are only used to scrape publicly available metadata.
+
+**✨ Highlights**: Search 8 sources in one query · Toggle and drag-reorder scrape sources freely · Actress favorites with auto profiles + alias-expanded search · Cross-language tag aliases — Chinese/Japanese/English synonyms auto-expand consistently across the search box, chips, and similar-video exploration · One-click NFO & cover fill from the web · Rule-based similar-video exploration (no model download, offline, millisecond response) · Operate your library in natural language with AI · Jellyfin / Emby cover auto-generation · 3,400+ automated tests
 
 ⚡ **[Live Demo → openaver.slive.uk](https://openaver.slive.uk/)**
 
 *Just mecha villains and fictional movie posters inside — zero NSFW, totally safe to open with your boss walking by.*
+
+## Spec Sheet
+
+| Item | Details |
+|------|---------|
+| **Platform** | Windows 10/11 · macOS (Apple Silicon M1–M4) |
+| **Install** | One-line command or ZIP install (**no Docker**); once installed, everything runs in the GUI — **no CLI** |
+| **Scrape sources** | 8 built-in (JavBus / Jav321 / JavDB / DMM / D2Pass / HEYZO / FC2 / AVSOX); advanced users can optionally federate **Metatube (30+ more providers)** |
+| **Media server output** | NFO + cover art (poster / fanart) for **Jellyfin / Emby / Kodi** |
+| **Actress collection** | Auto profiles + cross-language alias expansion + multi-source photo download |
+| **AI control** | Built-in REST API + capabilities manifest (Claude Code / Cursor / Perplexity and other AI agents operate it directly) |
+| **AI translation** | Ollama (local, free) / Gemini / OpenAI-compatible — your choice |
+| **Data** | 100% local SQLite — **no cloud, no account, no telemetry** |
+| **License** | MIT |
 
 ## Screenshots
 
@@ -92,27 +110,39 @@ On first launch, a built-in setup wizard walks you through folder configuration 
 ## Features
 
 ### 🔍 Search
-- **Multi-Source Aggregation**: One query simultaneously searches JavBus, Jav321, JavDB, DMM, D2Pass, and HEYZO — all sources at once.
+- **8-Source Unified Search**: One query simultaneously searches JavBus, Jav321, JavDB, DMM, D2Pass, HEYZO, FC2, and AVSOX — all sources at once.
 - **Detail View**: Cover, stills, actress, tags — all in one place, no tab-hopping.
 - **Smart Search**: Search by ID, actress name, series, or maker — results are matched against your local library and marked if already in your collection.
 - **Actress Features**: Searching a favorited actress automatically shows her profile card; results can be added to your collection directly.
 - **Version Detection**: Automatically identifies UC/LEAK/4K variants — no manual renaming needed.
 - **Local Batch Search**: Drag in video files or folders — automatically extracts IDs and batch-searches for metadata, covers, and stills.
+- **Advanced Re-Scrape**: For any title, change the ID and re-fetch from a specific source — preview the result card before deciding whether to overwrite.
 
 ### 🎬 Showcase
 - **Video Mode**: Cover wall grid + detail Lightbox + search/filter/sort + stills browser — a full interactive collection viewer.
 - **Actress Mode**: Favorited actress grid + profile Lightbox + sort by cup size / age / height — one-click refresh to pull updated data.
 - **Visual Design**: GSAP animations + Fluent Design frosted-glass effects + Dark Mode, with SSR real-time rendering.
 
-### 📋 Scanner
+### 📋 Scanner (local scan & metadata management)
 - **Scan & Build Library**: Scan local video folders, build a SQLite metadata database, automatically reads existing NFO files and covers.
 - **NFO & Cover Completion**: Detects missing NFO fields or files and fills them in from the web with one click.
-- **Actress Alias Management**: Add and edit aliases — searches automatically expand to all known names.
-- **Subtitle Detection**: Automatically detects and moves subtitle files when organizing videos.
+- **Scrape-Source Management**: Toggle each scrape source on/off and drag to reorder your preferred priority (want a particular site's covers? move it to the top) — changes take effect instantly; one click switches to "uncensored mode" to use uncensored sources only.
+- **Actress Alias Management**: Add and edit aliases live through the GUI (no editing config files or XML) — searches automatically expand to all of a person's stage names and post-retirement names.
+- **Tag Alias Management chip wall**: Manage cross-language synonyms in one place; the search box and Showcase chips auto-expand them at query time (Chinese/Japanese/English, e.g. "Maid＝メイド＝女僕").
+- **Subtitle Detection**: Automatically detects and moves subtitle files in the same folder when relocating videos.
+
+### ⚡ Search → Showcase, Made Instant
+- **Same-Name NFO Skip**: If your favorites folder already has a `.nfo` next to the video, it's treated as organized and the scraper is skipped (avoids redundant external requests).
+- **Scanner Tracked-Folder Dropdown**: In Settings, "My Favorites Folder" can be picked directly from Scanner's already-tracked folders, with inline live status (✓ linked / ⚠ not in tracking scope).
+- **Instant DB Write + GhostFly Animation**: After organizing a title on the Search page, if the target path is within Scanner's tracking scope → it's written to SQLite immediately, and the cover flies from the source spot to the sidebar Showcase icon via a GhostFly animation — no manual rescan needed.
 
 ### 🌐 AI Translation
-Translate Japanese titles into your UI locale (Traditional Chinese, Simplified Chinese, English) in one click — Japanese locale skips translation since titles are already in Japanese.
+- Translate Japanese titles into your UI locale (Traditional Chinese, Simplified Chinese, English) in one click — Japanese locale skips translation since titles are already in Japanese.
 - Supports **Ollama** (local GPU, free & unlimited), **Gemini Flash** (Google cloud, free tier available), and **OpenAI API Compatible** (OpenRouter, any compatible endpoint).
+
+### 🔍 Similar-Video Exploration
+- **No model download, no GPU, millisecond response, fully offline**: Uses multiple signals — tags, series, maker, year, cast — to surface videos with a similar style, all computed locally and usable offline. No need to download the hundreds of megabytes of models that image-similarity tools require.
+- **Star-Field Exploration Animation**: In the Showcase Lightbox, tap the wand button → 12 stars orbit the main cover, champagne-gold lines connecting them to the center → tap any star to "dive in" and make it the new center for endless exploration.
 
 ### ⚙️ Settings
 - **Multi-Language UI**: Traditional Chinese, Simplified Chinese, Japanese, English — instant switch.
@@ -120,6 +150,14 @@ Translate Japanese titles into your UI locale (Traditional Chinese, Simplified C
 - **Favorites Folders**: Save frequently used folders for one-click batch loading.
 - **Jellyfin Image Mode**: Auto-generates `poster` and `fanart` in the format Jellyfin / Emby expects.
 - **Static HTML Export**: Generates a standalone HTML index file — viewable offline without a server.
+
+### 🔌 Scrape-Source Expansion: Metatube Federation (advanced, optional)
+
+The 8 built-in sources work out of the box, with no extra deployment required. If you want even more sources — or an extra layer of insurance for your library:
+
+- **30+ more sources**: In advanced settings, connect your own self-hosted [Metatube](https://github.com/metatube-community/metatube-sdk-go) server and your scrape sources expand from the 8 built-ins to **30+ community-maintained providers**, strengthening coverage of uncensored and niche makers all at once.
+- **A decoupled fallback layer**: Metatube is an actively maintained open-source scrape-source layer. Once connected, it acts as a decoupled fallback so that even if a built-in source temporarily breaks, your enrichment pipeline keeps running independently through Metatube.
+- **Advanced and optional — it won't pollute the main path**: Metatube is self-hosted (Docker or binary) and aimed at advanced users. Leaving it disabled has zero impact on the default "no Docker, works out of the box" experience.
 
 ### 🤖 AI-Ready API
 
@@ -158,9 +196,42 @@ Works with any MCP / function-calling compatible AI tool:
 
 > 💡 **Recommended**: **Codex App (inline chat)** or **Google Antigravity 2.0 (artifact panel)** — both desktop apps display covers directly in your conversation flow. Easy to install, works out of the box.
 
-> ⚡ **Small-model friendly**: The capabilities manifest is optimized for lightweight models — Gemini Flash / GPT-5.4 mini / Claude Haiku can all operate every endpoint correctly.
+> ⚡ **Small-model friendly**: The capabilities manifest is optimized for lightweight models — Gemini Flash / GPT mini / Claude Haiku can all operate every endpoint correctly.
 
 > 💻 **Want your AI to pre-read the repo, or extend endpoints yourself?** Every endpoint is defined in [`web/routers/capabilities.py`](web/routers/capabilities.py) — AI agents cloning the repo will read this file first and learn every tool without even starting the server.
+
+> 🪄 **Power-user easter egg: auto-identify actresses in FC2 videos.** FC2 videos almost never have actress tags, but many feature familiar faces who later debuted in censored productions (Shirakami Sakura is a classic case). SQL pulls titles with an empty actress field → DeepFace (RetinaFace + ArcFace) matches against the Gfriends library → `POST /api/user-tags` writes the tags back. 50 lines of Python runs your whole library over a weekend; manually favorite the ones you like, and unidentified amateurs get auto-clustered into groups via DBSCAN for direct matching next time.
+
+---
+
+## FAQ
+
+**Does OpenAver need Docker?**
+No. OpenAver is a desktop app installed with a single command on Windows / macOS — no Docker. Once installed, everything runs in the GUI, with no command line.
+
+**Does OpenAver work on Mac?**
+Yes. It runs on Windows 10/11 and macOS (Apple Silicon M1–M4).
+
+**Which media servers does OpenAver support?**
+It generates standard NFO files + cover art (poster / fanart) that Jellyfin, Emby, and Kodi can read directly.
+
+**What is an NFO file?**
+An NFO is an XML file placed next to your video that records the title, cast, tags, cover, and more, so media servers like Jellyfin / Emby / Kodi can display your videos correctly. OpenAver generates them for you automatically.
+
+**Will OpenAver rename or move my files?**
+By default, scanning only "reads" your files — it never touches them. Files are renamed or moved only when you actively run "organize," following the rules you set, and NFO/cover completion is written in place without moving anything.
+
+**What if a built-in scraper source breaks?**
+The 8 built-in sources fall back on one another, so if one source is temporarily down you can still fill in from the others. Advanced users can additionally federate a self-hosted Metatube server for 30+ more sources — extra insurance for your library so a single failing source never stalls you.
+
+**A number won't scrape — what can I do?**
+Use "Advanced Re-Scrape": change the ID and re-fetch from a specific source, and preview the result card before deciding whether to overwrite.
+
+**Can AI tools operate OpenAver?**
+Yes. With the built-in REST API + capabilities manifest, one `curl` teaches your AI every endpoint, and it can run multi-step workflows from a single prompt (see the AI-Ready API section above).
+
+**Does OpenAver collect data or upload my local files?**
+No. It runs 100% locally and never collects or uploads any file info; network requests are only used to scrape publicly available metadata.
 
 ---
 
@@ -170,16 +241,16 @@ Works with any MCP / function-calling compatible AI tool:
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | FastAPI (Python 3.10+) |
+| **Backend** | FastAPI (Python 3.12) |
 | **Frontend** | Jinja2 + DaisyUI + Tailwind CSS + Alpine.js 3.x + Fluent Design 2 |
 | **Animation** | GSAP 3.14+ with Motion Adapter (respects `prefers-reduced-motion`) |
 | **Desktop Shell** | PyWebView (Windows / macOS) |
 | **Database** | SQLite (WAL mode) |
-| **Testing** | Pytest — 2400+ tests |
+| **Testing** | Pytest — 3,400+ tests |
 
 ### Run from Source
 
-**Prerequisites**: Python 3.10+, Chrome/Edge, [WebView2 Runtime](https://go.microsoft.com/fwlink/p/?LinkId=2124703) (Windows 10/VM)
+**Prerequisites**: Python 3.12 (matches the packaged build; other versions may work for venv development only, no guarantees), Chrome/Edge, [WebView2 Runtime](https://go.microsoft.com/fwlink/p/?LinkId=2124703) (Windows 10/VM)
 
 ```bash
 # Clone + set up virtual environment + install dependencies

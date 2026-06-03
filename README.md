@@ -1,17 +1,19 @@
-<!-- OpenAver: open-source desktop GUI JAV metadata manager.
-No Docker, one-line install (Win/Mac), 6 scrape sources,
-Jellyfin/Emby compatible, actress favorites with alias deduplication,
-AI-operable REST API with capabilities manifest, 2400+ tests, MIT license. -->
+<!-- OpenAver: free open-source desktop GUI JAV metadata scraper & manager.
+No Docker, no CLI, one-line install (Windows/macOS), 8 built-in scrape sources
+(JavBus/Jav321/JavDB/DMM/D2Pass/HEYZO/FC2/AVSOX) plus optional Metatube federation (30+ providers),
+generates NFO + cover art (poster/fanart) for Jellyfin / Emby / Kodi,
+actress favorites with cross-language alias expansion, cross-language tag aliases,
+AI-operable REST API with capabilities manifest, 3,400+ tests, MIT license. -->
 
 <h1 align="center">OpenAver</h1>
 
 <p align="center">
   <strong>不需要 Docker，不需要命令列 — Win/Mac 一行安裝，打開就是完整圖形介面的 JAV 元數據管理工具。</strong><br>
-  6 大來源聯合搜尋 · 女優收藏與別名管理 · 互動式收藏瀏覽器 · Jellyfin 整合 · AI API 一句話操作片庫
+  8 大來源聯合刮削 · 女優收藏與別名管理 · 互動式收藏瀏覽器 · Jellyfin / Emby 整合 · AI API 一句話操作片庫
 </p>
 
 <p align="center"><em>
-  Open-source desktop GUI for JAV metadata — one-line install, 6 scrape sources, actress favorites + alias system, Jellyfin/Emby ready, AI-operable REST API.
+  Open-source desktop GUI for JAV metadata — one-line install, 8 built-in scrape sources, actress favorites + alias system, Jellyfin/Emby ready, AI-operable REST API.
 </em></p>
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue.svg)
@@ -22,15 +24,31 @@ AI-operable REST API with capabilities manifest, 2400+ tests, MIT license. -->
 
 **[English](README_EN.md)** | 繁體中文
 
+> **OpenAver 是一款免費開源的桌面 App（Windows / macOS，免 Docker、免命令列），一行安裝就能用圖形介面刮削 JAV／日本影片的番號元數據，從 8 個來源聚合資料、生成 NFO 與封面海報供 Jellyfin、Emby、Kodi 使用，並提供女優收藏、跨語言 Tag 別名與可讓 AI agent 直接操作的 REST API。**
+
 核心功能由三個頁面組成：📋 掃描建庫 → 🎬 瀏覽收藏 → 🔍 逐一刮削（進階）
 
 **100% 本地運行** — 不蒐集資料、不上傳任何檔案資訊，網路請求僅用於刮削公開元數據。
 
-**✨ 亮點**：同時搜 6 個來源一次查完 · 女優收藏自動建檔 + 別名搜尋展開 · 跨語言 Tag 別名 — 中日英同義詞自動展開，搜尋框 / chip / 模糊探索一致 · 缺 NFO 或封面一鍵從網路補齊 · AI 一句話操作你的片庫 · Jellyfin / Emby 封面自動生成 · 2400+ 自動化測試
+**✨ 亮點**：同時搜 8 個來源一次查完 · 自由開關／拖曳排序刮削來源 · 女優收藏自動建檔 + 別名搜尋展開 · 跨語言 Tag 別名 — 中日英同義詞自動展開，搜尋框 / chip / 相似探索一致 · 缺 NFO 或封面一鍵從網路補齊 · 規則式相似探索（免下載模型、離線、毫秒級）· AI 一句話操作你的片庫 · Jellyfin / Emby 封面自動生成 · 3,400+ 自動化測試
 
 ⚡ **[Live Demo → openaver.slive.uk](https://openaver.slive.uk/)**
 
 *裡面只有 mecha 反派與虛構電影海報，零 NSFW—老闆從你身後走過也沒事。*
+
+## 規格速覽
+
+| 項目 | 內容 |
+|------|------|
+| **平台** | Windows 10/11 · macOS（Apple Silicon M1–M4） |
+| **安裝** | 一行指令或 ZIP 安裝（**免 Docker**）；裝好後全程圖形介面操作、**免命令列** |
+| **刮削來源** | 8 個內建（JavBus / Jav321 / JavDB / DMM / D2Pass / HEYZO / FC2 / AVSOX）；進階可選配接 Metatube 聯邦再擴 **30+ 來源** |
+| **媒體庫輸出** | NFO + 封面海報（poster / fanart），供 **Jellyfin / Emby / Kodi** 使用 |
+| **女優收藏** | 自動建檔 + 跨語言別名展開 + 多來源照片下載 |
+| **AI 操作** | 內建 REST API + capabilities manifest（Claude Code / Cursor / Perplexity 等 AI agent 直接操作） |
+| **AI 翻譯** | Ollama（本地免費）/ Gemini / OpenAI-compatible 任選 |
+| **資料** | 100% 本地 SQLite，**無雲端、無帳號、無遙測** |
+| **授權** | MIT |
 
 ## 截圖預覽
 
@@ -92,23 +110,25 @@ irm https://raw.githubusercontent.com/slive777/OpenAver/main/install.ps1 | iex
 ## 核心功能
 
 ### 🔍 Search（搜尋）
-- **多來源聯合搜尋**：同時搜尋 JavBus, Jav321, JavDB, DMM, D2Pass, HEYZO，一次查完所有來源。
+- **8 來源聯合搜尋**：同時搜尋 JavBus, Jav321, JavDB, DMM, D2Pass, HEYZO, FC2, AVSOX，一次查完所有來源。
 - **大圖詳情頁**：封面、劇照、演員、標籤集中顯示，不用反覆切頁找資訊。
 - **智慧搜尋**：番號、女優名、系列、片商都能搜，搜尋結果自動比對本地片庫並標示已收藏。
 - **女優功能**：搜尋已收藏女優自動顯示個人資料卡，搜尋結果可直接加入收藏。
 - **版本自動辨識**：自動識別 UC/LEAK/4K 等版本差異，整理檔名時不用手動補。
 - **本地檔案批次搜尋**：拖入影片檔案或資料夾，自動辨識番號並批次查詢影片資訊、封面與劇照。
+- **進階重刮**：對任何一片改番號、挑指定來源重新抓取，先看預覽卡再決定要不要覆蓋。
 
 ### 🎬 Showcase（瀏覽收藏）
 - **影片模式**：封面牆 Grid + 詳細 Lightbox + 搜尋篩選排序 + 劇照瀏覽，完整的互動式收藏瀏覽器。
 - **女優模式**：收藏女優 Grid + 個人資料 Lightbox + 按罩杯 / 年齡 / 身高排序，一鍵重新抓取更新資料。
 - **視覺設計**：GSAP 動效 + Fluent Design 毛玻璃特效 + Dark Mode，SSR 即時渲染。
 
-### 📋 Scanner（掃描與管理）
+### 📋 Scanner（本地掃描與元數據管理）
 - **掃描建庫**：掃描本地影片資料夾，建立 SQLite 元數據庫，自動讀取 NFO 封面。
 - **NFO / 封面補完**：偵測缺失的 NFO 欄位或檔案，一鍵從網路刮削補齊。
-- **女優別名管理**：新增、編輯別名，搜尋時自動展開所有已知名稱。
-- **Tag 別名管理 chip 牆**：跨語言同義詞集中管理，搜尋框與 Showcase chip 自動展開（中日英）。
+- **刮削來源管理**：自由開關各刮削來源、拖曳排出偏好的優先順序（想要哪家的封面就把它排前面），即時生效；一鍵切換「無碼模式」只用無碼來源。
+- **女優別名管理**：用 GUI 即時新增、編輯別名（不用手改設定檔或 XML），搜尋時自動展開同一人的所有藝名與退休名。
+- **Tag 別名管理 chip 牆**：跨語言同義詞集中管理，搜尋框與 Showcase chip 在搜尋時自動展開（中日英，如「女僕＝Maid＝メイド」）。
 - **字幕偵測**：影片搬移時自動偵測並搬移同目錄字幕檔。
 
 ### ⚡ Search → Showcase 即時化
@@ -121,9 +141,8 @@ irm https://raw.githubusercontent.com/slive777/OpenAver/main/install.ps1 | iex
 - 支援 **Ollama**（本地 GPU，免費無限制）、**Gemini Flash**（Google 雲端，有免費額度）和 **OpenAI API Compatible**（OpenRouter、任意相容端點）。
 
 ### 🔍 相似影片探索
-- 規則式 metadata 多訊號比對（tag IDF + 系列 / 片商 / 年份 / cast），找出同類風格的影片。
-- Showcase Lightbox 點魔杖按鈕 → 12 顆星辰環繞主圖、香檳金星線連結中央 → 點任一顆「鑽入」變新主圖無限探索。
-- 開箱即用，無需下載模型，不依賴 GPU，本地計算毫秒級回應。
+- **免下載模型、不依賴 GPU、毫秒級回應**：用 tag、系列、片商、年份、演員等多重訊號找出同類風格的影片，全程本地計算、離線可用，不像影像比對工具要先下載數百 MB 模型。
+- **探索星空動畫**：Showcase Lightbox 點魔杖按鈕 → 12 顆星辰環繞主圖、香檳金星線連結中央 → 點任一顆「鑽入」變新主圖無限探索。
 
 ### ⚙️ Settings（設定）
 - **多語系 UI**：繁中 / 简中 / 日文 / 英文，即時切換。
@@ -131,6 +150,14 @@ irm https://raw.githubusercontent.com/slive777/OpenAver/main/install.ps1 | iex
 - **我的最愛資料夾**：設定常用資料夾，一鍵載入並自動搜尋。
 - **Jellyfin 圖片模式**：自動生成 poster / fanart 供 Jellyfin / Emby 使用。
 - **靜態 HTML 匯出**：生成獨立 HTML 索引檔，不需部署伺服器也能離線瀏覽。
+
+### 🔌 刮削來源擴充：Metatube 聯邦（進階選配）
+
+預設的 8 個內建來源開箱即用、免任何額外部署。如果你想要更多來源、或想替片庫多買一份保險：
+
+- **再多 30+ 來源**：在進階設定接上你自架的 [Metatube](https://github.com/metatube-community/metatube-sdk-go) server，刮削來源就能從 8 個內建擴充到 **30+ 個社群維護的 provider**，無碼與小眾片商覆蓋一次補強。
+- **與本體解耦的避險層**：Metatube 是近期維護活躍的開源刮削來源層；接上之後，即使某個內建來源暫時失效，你的補完管道仍可透過 Metatube 獨立運作、持續更新。
+- **進階選配，不汙染主路徑**：Metatube 需自行架設（Docker 或執行檔），屬進階玩家選配；不啟用完全不影響「免 Docker、開箱即用」的預設體驗。
 
 ### 🤖 AI-Ready API
 
@@ -177,6 +204,37 @@ curl http://localhost:<port>/api/capabilities
 
 ---
 
+## 常見問題（FAQ）
+
+**OpenAver 需要 Docker 嗎？**
+不需要。OpenAver 是桌面 App，Windows / macOS 一行指令安裝，免 Docker；裝好後全程圖形介面操作，免命令列。
+
+**OpenAver 支援 Mac 嗎？**
+支援。Windows 10/11 與 macOS（Apple Silicon M1–M4）皆可。
+
+**OpenAver 支援哪些媒體伺服器（Media Server）？**
+生成標準 NFO + 封面海報（poster / fanart），供 Jellyfin、Emby、Kodi 直接讀取。
+
+**什麼是 NFO？**
+NFO 是放在影片旁的一個 XML 檔，記錄標題、演員、標籤、封面等資訊，讓 Jellyfin / Emby / Kodi 等媒體伺服器能正確顯示你的影片。OpenAver 會自動幫你生成。
+
+**OpenAver 會搬移或改名我的檔案嗎？**
+預設掃描建庫只「讀取」，不會動到你的檔案；只有當你主動執行「整理」時才會依你設定的規則重新命名或搬移，而 NFO／封面補完是原地寫入、不搬移。
+
+**如果內建的刮削來源（Scraper）失效了怎麼辦？**
+內建 8 個來源彼此 fallback，單一來源暫時失效仍可從其他來源補；進階玩家還可選配接上自架的 Metatube 聯邦再擴 30+ 來源，等於替片庫多買一份保險，即使單一來源失效也不斷檔。
+
+**番號刮不到資料怎麼辦？**
+用「進階重刮」：改番號、挑指定來源重新抓取，先看預覽卡再決定要不要覆蓋。
+
+**可以讓 AI 工具操作 OpenAver 嗎？**
+可以。內建 REST API + capabilities manifest，`curl` 一次 AI 就學會所有端點，能用一句話跑完多步流程（詳見上方 AI-Ready API 段）。
+
+**OpenAver 會收集隱私或上傳我的本地檔案嗎？**
+不會。100% 本地運行，不蒐集、不上傳任何檔案資訊；網路請求僅用於刮削公開元數據。
+
+---
+
 ## 開發者指南
 
 ### 技術架構
@@ -188,7 +246,7 @@ curl http://localhost:<port>/api/capabilities
 | **Animation** | GSAP 3.14+ + Motion Adapter (reduced-motion support) |
 | **Desktop** | PyWebView (Windows/macOS) |
 | **Database** | SQLite (WAL mode) |
-| **Testing** | Pytest (2400+ tests) |
+| **Testing** | Pytest (3,400+ tests) |
 
 ### 從原始碼執行
 
