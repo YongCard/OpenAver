@@ -822,6 +822,13 @@ def smart_search(query: str, limit: int = 20, offset: int = 0, status_callback: 
         return []
 
     # 無碼模式：D2Pass → HEYZO → FC2 → AVSOX
+    #
+    # ⚠️ 設計語意（feature/65 CL-3 / CD-65-7）：無碼模式下對女優名/關鍵字做模糊搜尋
+    # **預期回空，此為設計而非 bug**。女優名經 _new_extract_number 取不到番號 → search_term
+    # 退回原字串 → 丟給只做精確番號查的無碼來源（D2Pass/HEYZO/FC2/AVSOX）→ 必然無命中 →
+    # 回空並於下方 return（永遠不會落到後面的模糊鏈 else 分支）。無碼番號命名無通則、模糊本
+    # 就難命中；維持「安靜回空」是真正零改動的選擇（接 AVSOX keyword 搜或改走有碼 always-on
+    # 反而要動更多 code，見 CD-65-7）。未來維護者勿把此處的空結果誤判為 bug。
     if uncensored_mode:
         if status_callback:
             status_callback('mode', 'uncensored')
