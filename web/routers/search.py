@@ -214,7 +214,7 @@ def search(
     elif mode == "partial":
         results = search_partial(q, discovery_only=use_discovery)
     elif mode == "actress":
-        results = search_actress(q, limit=limit, offset=offset, primary_source=primary_source, proxy_url=proxy_url, discovery_only=use_discovery)
+        results = search_actress(q, limit=limit, offset=offset, proxy_url=proxy_url, discovery_only=use_discovery)
     else:
         results = smart_search(q, limit=limit, offset=offset, proxy_url=proxy_url, discovery_only=use_discovery)
 

@@ -232,29 +232,38 @@ class TestPipeline:
         assert result['_source'] == 'javbus'
 
     def test_get_fuzzy_source_dmm_no_proxy(self):
-        """primary_source='dmm' + 無 proxy → fallback to javbus"""
-        from core.scraper import _get_fuzzy_source
-        assert _get_fuzzy_source('dmm', '') == 'javbus'
-        assert _get_fuzzy_source('dmm', None) == 'javbus'
-        assert _get_fuzzy_source('dmm', 'http://proxy') == 'dmm'
-        assert _get_fuzzy_source('javbus', '') == 'javbus'
-        assert _get_fuzzy_source('javbus', 'http://proxy') == 'javbus'
+        """DMM 排第一 + 無 proxy → 跳過 DMM，fallback 到 javbus（新鏈行為）"""
+        from core.scraper import search_actress, _fuzzy_search_chain
+        from core.scrapers.javdb import JavDBScraper
+
+        mock_video = _make_video("javbus", "SONE-205")
+
+        with patch('core.scraper.get_all_source_ids_ordered', return_value=['dmm', 'javbus', 'jav321', 'javdb']), \
+             patch.object(DMMScraper, 'search_by_keyword_with_ids') as mock_dmm_kw, \
+             patch.object(JavBusScraper, 'get_ids_from_search', return_value=['SONE-205']), \
+             patch('core.scraper.search_jav', return_value=mock_video.to_legacy_dict()), \
+             patch.object(JavDBScraper, 'search_by_keyword', return_value=[]):
+            results = search_actress("未歩なな", limit=1, proxy_url='')
+
+        # DMM must NOT be called when proxy_url is empty
+        mock_dmm_kw.assert_not_called()
+        assert len(results) >= 1
 
     def test_search_actress_dmm_routing(self):
-        """search_actress(primary_source='dmm', proxy_url=...) → DMM search_by_keyword_with_ids 先被呼叫"""
+        """DMM 排第一 + proxy 有效 → DMM search_by_keyword_with_ids 先被呼叫，JavBus 不呼叫"""
         from core.scraper import search_actress
 
         mock_video = _make_video("dmm", "SONE-205")
         mock_pairs = [("sone00205", mock_video)]
 
-        with patch.object(DMMScraper, 'search_by_keyword_with_ids', return_value=mock_pairs) as mock_dmm_kw, \
+        with patch('core.scraper.get_all_source_ids_ordered', return_value=['dmm', 'javbus', 'jav321', 'javdb']), \
+             patch.object(DMMScraper, 'search_by_keyword_with_ids', return_value=mock_pairs) as mock_dmm_kw, \
              patch.object(DMMScraper, '_fetch_by_id', return_value=mock_video), \
              patch.object(JavBusScraper, 'get_ids_from_search', return_value=[]) as mock_jb, \
              patch('core.scrapers.dmm.rate_limit'):
             results = search_actress(
                 "未歩なな",
                 limit=10,
-                primary_source='dmm',
                 proxy_url='http://test-proxy:8080',
             )
 
@@ -265,18 +274,18 @@ class TestPipeline:
         assert results[0]['source'] == 'dmm'
 
     def test_search_actress_dmm_fallback_to_javbus(self):
-        """search_actress(primary_source='dmm') → DMM 無結果時 fallback 到 JavBus"""
+        """DMM 排第一 + proxy 有效 + DMM 無結果 → fallback 到 JavBus"""
         from core.scraper import search_actress
         from core.scrapers.javdb import JavDBScraper
 
         # DMM returns nothing → should fall through to JavBus path
-        with patch.object(DMMScraper, 'search_by_keyword_with_ids', return_value=[]) as mock_dmm_kw, \
+        with patch('core.scraper.get_all_source_ids_ordered', return_value=['dmm', 'javbus', 'jav321', 'javdb']), \
+             patch.object(DMMScraper, 'search_by_keyword_with_ids', return_value=[]) as mock_dmm_kw, \
              patch.object(JavBusScraper, 'get_ids_from_search', return_value=[]) as mock_jb, \
              patch.object(JavDBScraper, 'search_by_keyword', return_value=[]) as mock_javdb_kw:
             results = search_actress(
                 "未歩なな",
                 limit=10,
-                primary_source='dmm',
                 proxy_url='http://test-proxy:8080',
             )
 

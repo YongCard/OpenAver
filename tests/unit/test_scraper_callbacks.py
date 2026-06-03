@@ -491,9 +491,12 @@ class TestDiscoveryOnly:
         assert mock_jav.call_count == 2, \
             f"search_jav should be called twice (once per ID), got {mock_jav.call_count}"
 
-    def test_search_actress_discovery_only_returns_ids_no_enrich(self, make_mock_search_jav):
+    def test_search_actress_discovery_only_returns_ids_no_enrich(self, monkeypatch, make_mock_search_jav):
         """discovery_only=True: search_actress 只做 get_ids_from_search，不呼叫 search_jav"""
         from core.scraper import search_actress
+
+        # Pin source order so test is not config-coupled
+        monkeypatch.setattr("core.scraper.get_all_source_ids_ordered", lambda: ['javbus'])
 
         ids = ['SONE-100', 'SONE-101']
         mock_scraper = make_mock_scraper_actress([ids])

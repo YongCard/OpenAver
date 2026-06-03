@@ -51,12 +51,12 @@ class TestDMMProgressiveFacade:
         def mock_result_callback(slot, data):
             callbacks.append((slot, data))
 
-        with patch.object(DMMScraper, 'search_by_keyword_with_ids', return_value=mock_pairs), \
+        with patch('core.scraper.get_all_source_ids_ordered', return_value=['dmm', 'javbus', 'jav321', 'javdb']), \
+             patch.object(DMMScraper, 'search_by_keyword_with_ids', return_value=mock_pairs), \
              patch.object(DMMScraper, '_fetch_by_id', return_value=mock_video), \
              patch('core.scrapers.dmm.rate_limit'):
             results = search_actress(
                 "三上悠亜",
-                primary_source="dmm",
                 proxy_url="http://proxy:8080",
                 result_callback=mock_result_callback,
             )
@@ -79,12 +79,12 @@ class TestDMMProgressiveFacade:
         enriched1 = Video(number="SONE-205", title="Title 1", source="dmm")
         enriched2 = Video(number="SONE-300", title="Title 2", source="dmm")
 
-        with patch.object(DMMScraper, 'search_by_keyword_with_ids', return_value=mock_pairs), \
+        with patch('core.scraper.get_all_source_ids_ordered', return_value=['dmm', 'javbus', 'jav321', 'javdb']), \
+             patch.object(DMMScraper, 'search_by_keyword_with_ids', return_value=mock_pairs), \
              patch.object(DMMScraper, '_fetch_by_id', side_effect=[enriched1, enriched2]), \
              patch('core.scrapers.dmm.rate_limit'):
             results = search_actress(
                 "三上悠亜",
-                primary_source="dmm",
                 proxy_url="http://proxy:8080",
             )
 

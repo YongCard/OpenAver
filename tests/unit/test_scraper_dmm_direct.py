@@ -107,11 +107,11 @@ class TestSearchDirect:
             "proxy_url='direct' 時 dmm_config 不應為 None"
 
     def test_empty_proxy_url_dmm_config_is_none(self):
-        """proxy_url='' + primary_source='dmm' → _is_dmm_enabled=False → fallback javbus
+        """proxy_url='' → _is_dmm_enabled=False → dmm_config 為 None
 
-        關鍵邊界：空字串不可被誤判為 direct，必須 fallback。
+        關鍵邊界：空字串不可被誤判為 direct，DMM 不得啟用。
         """
-        from core.scraper import _is_dmm_enabled, _dmm_proxy_url, _get_fuzzy_source
+        from core.scraper import _is_dmm_enabled, _dmm_proxy_url
         from core.scrapers import ScraperConfig
         proxy_url = ''
         # 1. _is_dmm_enabled 必須為 False
@@ -122,10 +122,6 @@ class TestSearchDirect:
             if _is_dmm_enabled(proxy_url) else None
         assert dmm_config is None, \
             "proxy_url='' 時 dmm_config 必須為 None（不得啟用 DMM）"
-        # 3. _get_fuzzy_source 必須 fallback 到 javbus
-        source = _get_fuzzy_source('dmm', proxy_url)
-        assert source == 'javbus', \
-            "proxy_url='' + primary_source='dmm' 時必須 fallback 到 javbus"
 
 
 # ============================================================

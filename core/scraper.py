@@ -22,11 +22,11 @@ from core.scrapers import (
     D2PassScraper, HEYZOScraper, DMMScraper,
     Video, ScraperConfig, BaseScraper
 )
-from core.scrapers.utils import extract_number as _new_extract_number
+from core.scrapers.utils import extract_number as _new_extract_number, FUZZY_SEARCH_SOURCES
 from core.maker_mapping import get_maker_by_prefix
 from core.source_merger import merge_results
 from core.source_config import validate_source_id
-from core.source_settings import get_enabled_source_ids
+from core.source_settings import get_enabled_source_ids, get_all_source_ids_ordered
 
 # 63c metatube routing imports（CD-63c-1 / CD-63c-2 / CD-63c-3）
 from core.metatube.client import MetatubeHttpClient, pick_movie_result
@@ -200,14 +200,6 @@ def _dmm_proxy_url(proxy_url: str) -> str:
     if proxy_url.strip().lower() == 'direct':
         return ''
     return proxy_url
-
-
-def _get_fuzzy_source(primary_source: str, proxy_url: str) -> str:
-    """決定實際使用的模糊搜尋來源（含降級）"""
-    if primary_source == 'dmm' and not _is_dmm_enabled(proxy_url):
-        logger.info("[Search] primary_source=dmm but no proxy, fallback to javbus")
-        return 'javbus'
-    return primary_source
 
 
 VALID_JAVBUS_LANGS = {'zh-tw', 'ja', 'en'}
@@ -541,22 +533,19 @@ def _dmm_keyword_search_progressive(
     return results
 
 
-def search_actress(name: str, limit: int = 20, offset: int = 0, status_callback: Optional[Callable[[str, str], None]] = None, result_callback: Optional[Callable[[int, Any], None]] = None, primary_source: str = 'javbus', proxy_url: str = '', discovery_only: bool = False) -> List[Dict[str, Any]]:
-    """女優搜尋"""
-    # DMM routing: when primary_source='dmm' and proxy is available, try DMM first
-    fuzzy_source = _get_fuzzy_source(primary_source, proxy_url)
-    if fuzzy_source == 'dmm' and not discovery_only:
-        if status_callback:
-            status_callback('dmm', 'searching')
-        dmm_config = ScraperConfig(proxy_url=_dmm_proxy_url(proxy_url))
-        dmm_scraper = DMMScraper(dmm_config)
-        dmm_results = _dmm_keyword_search_progressive(
-            dmm_scraper, name, limit, status_callback, result_callback, offset=offset
-        )
-        if dmm_results is not None:
-            return dmm_results
-        # DMM returned nothing → fall through to JavBus path
+def _javbus_keyword_search(
+    name: str,
+    limit: int,
+    offset: int,
+    status_callback: Optional[Callable[[str, str], None]],
+    result_callback: Optional[Callable[[int, Any], None]],
+    discovery_only: bool = False,
+) -> List[Dict[str, Any]]:
+    """JavBus keyword search — extracted from search_actress.
 
+    Returns list[dict] (empty list on failure / no ids).
+    JavDB fallback is NOT included; the chain owns that.
+    """
     try:
         if status_callback:
             status_callback('javbus', 'searching')
@@ -607,27 +596,119 @@ def search_actress(name: str, limit: int = 20, offset: int = 0, status_callback:
                             if result_callback:
                                 result_callback(idx, data)
                     except Exception:
-                        logger.error('search_actress: %s failed', num)
+                        logger.error('_javbus_keyword_search: %s failed', num)
 
             if status_callback:
                 status_callback('done', f'found:{len(results)}')
             return sort_results_by_date(results)
 
     except Exception as e:
-        logger.error('search_actress failed: %s', e)
+        logger.error('_javbus_keyword_search failed: %s', e)
 
-    # Fallback: JavDB 關鍵字搜尋（JavBus 失敗時）
-    if status_callback:
-        status_callback('javdb', 'searching')
+    return []
 
-    scraper = JavDBScraper()
-    videos = scraper.search_by_keyword(name, limit=limit)
-    results = [v.to_legacy_dict() for v in videos]
 
-    if status_callback:
-        status_callback('done', f'found:{len(results)}')
+def _fuzzy_one(
+    source: str,
+    query: str,
+    limit: int,
+    offset: int,
+    proxy_url: str,
+    status_callback: Optional[Callable[[str, str], None]],
+    result_callback: Optional[Callable[[int, Any], None]],
+    discovery_only: bool = False,
+) -> List[Dict[str, Any]]:
+    """統一 adapter：將四個 keyword 入口歸一為 list[dict]（空 → []，永不回 None）。
 
-    return results
+    Caller must already have confirmed DMM is enabled before passing 'dmm' here.
+
+    discovery_only semantics: only javbus has a stub-return mode; all other sources
+    perform full enrichment and therefore must NOT participate when discovery_only=True.
+    """
+    if discovery_only and source != 'javbus':
+        return []
+
+    if source == 'dmm':
+        if status_callback:
+            status_callback('dmm', 'searching')
+        dmm_config = ScraperConfig(proxy_url=_dmm_proxy_url(proxy_url))
+        dmm_scraper = DMMScraper(dmm_config)
+        result = _dmm_keyword_search_progressive(
+            dmm_scraper, query, limit, status_callback, result_callback, offset=offset
+        )
+        return result if result is not None else []
+
+    if source == 'javbus':
+        return _javbus_keyword_search(
+            query, limit, offset, status_callback, result_callback,
+            discovery_only=discovery_only,
+        )
+
+    if source == 'jav321':
+        return search_jav321_keyword(query, limit, status_callback)
+
+    if source == 'javdb':
+        if status_callback:
+            status_callback('javdb', 'searching')
+        videos = JavDBScraper().search_by_keyword(query, limit=limit)
+        results = [v.to_legacy_dict() for v in videos]
+        if status_callback:
+            status_callback('done', f'found:{len(results)}')
+        return results
+
+    return []
+
+
+def _fuzzy_search_chain(
+    query: str,
+    limit: int = 20,
+    offset: int = 0,
+    proxy_url: str = '',
+    status_callback: Optional[Callable[[str, str], None]] = None,
+    result_callback: Optional[Callable[[int, Any], None]] = None,
+    discovery_only: bool = False,
+) -> List[Dict[str, Any]]:
+    """Active-Row-ordered fuzzy fallback chain (CD-plan-65-5).
+
+    Iterates get_all_source_ids_ordered() ∩ FUZZY_SEARCH_SOURCES in order.
+    Stops at first non-empty result. Passes result_callback only to the first
+    actually-dispatched source (seed rule). Returns [] when chain is exhausted.
+    """
+    chain = [s for s in get_all_source_ids_ordered() if s in FUZZY_SEARCH_SOURCES]
+    first_dispatched = False
+    for source in chain:
+        if source == 'dmm' and not _is_dmm_enabled(proxy_url):
+            continue  # 不可達，跳過（不算 dispatched）
+        cb = result_callback if not first_dispatched else None
+        results = _fuzzy_one(
+            source, query, limit, offset, proxy_url, status_callback, cb,
+            discovery_only=discovery_only,
+        )
+        first_dispatched = True  # 第一個實際發動後，後續 seed 不送
+        if results:
+            return results
+    return []
+
+
+def search_actress(
+    name: str,
+    limit: int = 20,
+    offset: int = 0,
+    status_callback: Optional[Callable[[str, str], None]] = None,
+    result_callback: Optional[Callable[[int, Any], None]] = None,
+    proxy_url: str = '',
+    discovery_only: bool = False,
+) -> List[Dict[str, Any]]:
+    """女優搜尋 — thin wrapper delegating to _fuzzy_search_chain."""
+    return _fuzzy_search_chain(
+        name,
+        limit=limit,
+        offset=offset,
+        proxy_url=proxy_url,
+        status_callback=status_callback,
+        result_callback=result_callback,
+        discovery_only=discovery_only,
+    )
 
 
 def search_jav321_keyword(keyword: str, limit: int = 20, status_callback: Optional[Callable[[str, str], None]] = None) -> List[Dict[str, Any]]:
@@ -837,7 +918,7 @@ def smart_search(query: str, limit: int = 20, offset: int = 0, status_callback: 
              # Fallback to actress（不透傳 result_callback：prefix 的 seed 已送出，
              # actress fallback 不可送第二個 seed，避免 slot index 錯位）
              if status_callback: status_callback('mode', 'actress')
-             results = search_actress(query, limit=limit, status_callback=status_callback, primary_source=primary_source, proxy_url=proxy_url)
+             results = search_actress(query, limit=limit, status_callback=status_callback, proxy_url=proxy_url)
              if results: mode = 'actress'
 
         if not results:
@@ -851,24 +932,15 @@ def smart_search(query: str, limit: int = 20, offset: int = 0, status_callback: 
 
     # 4. 女優/關鍵字搜尋
     else:
-        # 模糊搜尋路由
-        fuzzy_source = _get_fuzzy_source(primary_source, proxy_url)
-        if fuzzy_source == 'dmm' and not discovery_only:
-            # DMM keyword search (progressive)
-            if status_callback:
-                status_callback('dmm', 'searching')
-            dmm_config = ScraperConfig(proxy_url=_dmm_proxy_url(proxy_url))
-            dmm_scraper = DMMScraper(dmm_config)
-            dmm_results = _dmm_keyword_search_progressive(
-                dmm_scraper, query, limit, status_callback, result_callback, offset=offset
-            )
-            if dmm_results is not None:
-                for r in dmm_results:
-                    r['_mode'] = 'actress'
-                return dmm_results
-            # DMM returned nothing → fall through to JavBus
-
-        results = search_actress(query, limit=limit, offset=offset, status_callback=status_callback, result_callback=result_callback, primary_source=primary_source, proxy_url=proxy_url, discovery_only=discovery_only)
+        results = search_actress(
+            query,
+            limit=limit,
+            offset=offset,
+            proxy_url=proxy_url,
+            status_callback=status_callback,
+            result_callback=result_callback if not discovery_only else None,
+            discovery_only=discovery_only,
+        )
         mode = 'actress'
 
         if not results and not discovery_only:
