@@ -114,32 +114,46 @@
             <div class="card-body">
 
                     <!-- ===== Section 2 — Active Row (Zone A) — 61c-1 structure ===== -->
-                    <!-- Batch bar: 無碼模式 toggle placeholder (61c-3 wires uncensoredMode) -->
+                    <!-- Batch bar: segmented 全開|無碼 control (64e-2) -->
                     <div class="settings-sources-batchbar">
                         <div class="settings-sources-batchbar-left">
-                            <button type="button"
-                                    id="sourcesUncensoredToggle"
-                                    class="settings-sources-uncensored-toggle"
-                                    :class="{ 'is-on': uncensoredMode }"
-                                    :aria-pressed="uncensoredMode ? 'true' : 'false'"
-                                    @click="uncensoredMode = !uncensoredMode">
-                                <span class="track"><span class="thumb"></span></span>
-                                <span class="lbl" x-text="uncensoredMode ? t('settings.sources.uncensored_mode_on') : t('settings.sources.uncensored_mode_off')">{{ t('settings.sources.uncensored_mode_label') }}</span>
-                            </button>
-                            <span class="settings-sources-counter">
+                            <div class="settings-sources-segmented">
+                                <button type="button"
+                                        id="sourcesAllOpenToggle"
+                                        :class="{ 'is-on': allBuiltinEnabled && !uncensoredMode }"
+                                        :aria-pressed="(allBuiltinEnabled && !uncensoredMode) ? 'true' : 'false'"
+                                        @click="if (uncensoredMode && enabledCount >= 10) { _flashCapAlert(); } else { enableAllToCap(); }">
+                                    {{ t('settings.sources.select_all') }}
+                                </button>
+                                <button type="button"
+                                        id="sourcesUncensoredToggle"
+                                        :class="{ 'is-on': uncensoredMode }"
+                                        :aria-pressed="uncensoredMode ? 'true' : 'false'"
+                                        @click="uncensoredMode = true">
+                                    {{ t('settings.sources.uncensored_mode_label') }}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="settings-sources-batchbar-right">
+                            <span class="settings-sources-counter popover-anchor">
                                 <span>{{ t('settings.sources.counter_prefix') }}</span>
                                 <strong x-text="enabledCount"></strong>
                                 <span class="cap-divider">/</span>
                                 <span class="cap-value">10</span>
                                 <span class="cap-tag">{{ t('settings.sources.cap_tag') }}</span>
+                                <button type="button" class="help-popover-btn"
+                                        @click.prevent="showCounterHelp = !showCounterHelp"
+                                        :aria-expanded="showCounterHelp">
+                                    <i class="bi bi-question-circle"></i>
+                                </button>
+                                <div x-show="showCounterHelp" x-cloak x-transition
+                                     @click.outside="showCounterHelp = false"
+                                     class="help-popover">
+                                    <small class="help-popover__body">
+                                        {{ t('settings.sources.counter_help') }}
+                                    </small>
+                                </div>
                             </span>
-                        </div>
-                        <div class="settings-sources-batchbar-right">
-                            <button type="button"
-                                    class="settings-sources-mini-btn"
-                                    @click="enableAllToCap()">
-                                <i class="bi bi-check2-all"></i> {{ t('settings.sources.select_all') }}
-                            </button>
                         </div>
                     </div>
 
@@ -207,9 +221,6 @@
                         <i class="bi bi-exclamation-triangle-fill"></i>
                         <span>{{ t('settings.sources.warn_all_disabled') }}</span>
                     </div>
-
-                    <!-- Disabled-sources footnote (F6 / CD-61-20) — always visible, no Alpine cond -->
-                    <p class="settings-sources-footnote">{{ t('settings.sources.disabled_footnote') }}</p>
 
                     <!-- Metatube 連線（B3）toggle（CD-63b-3）— 64b-6: 移至 Section 3 正上方 -->
                     <div class="settings-form-group">

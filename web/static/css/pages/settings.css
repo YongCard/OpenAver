@@ -619,12 +619,50 @@
     font-size: 1rem;
 }
 
-/* Disabled-sources footnote (F6 / CD-61-20) */
-#settings-components .settings-sources-footnote {
-    margin-top: 0.75rem;
-    font-size: var(--font-size-xs, 0.78rem);
-    line-height: 1.5;
+/* ─── Segmented control (64e-2): 全開 | 無碼模式 capsule ─── */
+/* pill 白名單：.settings-sources-segmented（搜尋來源卡 segmented 藥丸型分段控件容器） */
+#settings-components .settings-sources-segmented {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklch, var(--surface-1) 60%, transparent);
+    border: 1px solid var(--stroke-subtle);
+}
+
+#settings-components .settings-sources-segmented button {
+    padding: 0.25rem 0.75rem;
+    border-radius: calc(var(--radius-pill) - 2px);
+    border: none;
+    background: transparent;
     color: var(--text-secondary);
+    cursor: pointer;
+    font-size: var(--font-size-sm, 0.85rem);
+    font-weight: 500;
+    line-height: 1.4;
+    transition: color var(--fluent-duration-fast) var(--fluent-ease-standard),
+                background var(--fluent-duration-fast) var(--fluent-ease-standard),
+                box-shadow var(--fluent-duration-fast) var(--fluent-ease-standard);
+}
+
+#settings-components .settings-sources-segmented button:hover:not(.is-on) {
+    color: var(--text-primary);
+    background: color-mix(in oklch, var(--surface-2) 50%, transparent);
+}
+
+#settings-components .settings-sources-segmented button.is-on {
+    background: color-mix(in oklch, var(--surface-2) 80%, transparent);
+    backdrop-filter: blur(var(--fluent-blur-light));
+    -webkit-backdrop-filter: blur(var(--fluent-blur-light));
+    color: var(--text-primary);
+    box-shadow: var(--fluent-shadow-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #settings-components .settings-sources-segmented button {
+        transition: none;
+    }
 }
 
 /* ─── Section 3 wrapper (Zone B) — 61c-4 fills content ─── */
