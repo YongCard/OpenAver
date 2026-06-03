@@ -4,6 +4,7 @@ export function stateUI() {
         newSuffixInput: '',
         showPathHelp: false,
         showSampleImagesHelp: false,
+        showAdvancedSearchHelp: false,
 
         // 64b-1: 進階摺疊開關（x-collapse 驅動）
         scraperAdvanced: false,

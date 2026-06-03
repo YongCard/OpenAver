@@ -239,8 +239,8 @@
       "disabled_footnote": "⚠️ 停用 ≠ 完全不被呼叫。Fuzzy 鏈（DMM / JavBus / JavDB / Jav321）、無碼 fallback（FC2 / HEYZO / 日期番號）、進階搜尋單選覆寫屬 always-on，仍會觸發已停用來源。例外：JavBus variant probe 由 Active Row 啟用身份把關，JavBus 停用時跳過。"
     },
     "advanced_search": {
-      "toggle_label": "進階搜尋 (Beta)",
-      "help": "啟用後可在搜尋頁長壓搜尋按鈕，從所有來源（含未啟用）選一個做單次覆寫。",
+      "toggle_label": "進階搜尋",
+      "help": "啟用後可從以下入口指定單一來源搜尋：\n① 搜尋頁長壓 → 送出鈕（搜尋新番號）\n② 結果面板 🔄 長壓（切換當前結果來源）\n③④ 封面牆／燈箱缺卡長壓 → 補缺鈕（重新刮削）\n⑤ 燈箱番號旁 ⚙（進階重刮）\nmetatube 來源不支援女優／關鍵字搜尋，建議輸入完整番號。",
       "metatube_keyword_hint": "metatube 來源不支援女優/關鍵字搜尋，建議輸入完整番號。",
       "group_metatube_empty": "尚無 Metatube 來源"
     },
@@ -320,7 +320,7 @@
       "video_extensions_hint": "以逗號分隔",
       "jellyfin_mode_label": "Jellyfin 圖片模式",
       "jellyfin_mode_hint": "自動產生 {stem}-poster.jpg + {stem}-fanart.jpg（Jellyfin 圖庫用）",
-      "download_sample_images_label": "下載劇照（extrafanart）",
+      "download_sample_images_label": "下載劇照",
       "download_sample_images_hint": "整理時自動下載劇照至 extrafanart/ 子目錄（需啟用「建立資料夾」）"
     },
     "gallery": {

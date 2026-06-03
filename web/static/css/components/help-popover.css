@@ -46,6 +46,7 @@
     color: var(--text-muted);
     line-height: 1.6;
     display: block;
+    white-space: pre-line;  /* 保留 i18n 文案中的 \n 換行（如進階搜尋 5 入口清單）；無 \n 者仍正常自動換行 */
 }
 
 /* code block（路徑長度說明等）*/

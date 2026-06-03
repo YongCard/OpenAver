@@ -9435,6 +9435,17 @@ class TestSettingsQuickToggleGuard:
         assert count == 1, \
             f"64b-3 違規：id=advancedSearchToggle 出現 {count} 次，應只在 quick-toggle 列（1 次）"
 
+    def test_advanced_search_has_help_popover(self):
+        """64e-1 E2：進階搜尋區塊必須有 showAdvancedSearchHelp state 與 help-popover 元件（Alpine↔HTML API contract）"""
+        html = self._html()
+        row_start = html.index('class="settings-quick-toggle-row"')
+        sec_search_pos = html.index('id="sec-search"')
+        row_block = html[row_start:sec_search_pos]
+        assert 'showAdvancedSearchHelp' in row_block, \
+            "64e-1 違規：quick-toggle 列內進階搜尋區塊缺少 showAdvancedSearchHelp state binding"
+        assert 'help-popover' in row_block, \
+            "64e-1 違規：quick-toggle 列內進階搜尋區塊缺少 help-popover 元件"
+
 
 class TestSettingsDmmProxyContract:
     """64b-3: DMM 灰化 + proxy binding contract 驗證（CD-64-B4）"""
