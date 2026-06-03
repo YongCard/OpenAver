@@ -338,6 +338,11 @@ CENSORED_SOURCES = ['dmm', 'javbus', 'jav321', 'javdb']
 UNCENSORED_SOURCES = ['d2pass', 'heyzo', 'fc2', 'avsox']
 PROXY_SOURCES = {'dmm'}  # 需要 proxy 才能使用的來源
 
+# 模糊候選池白名單（CL-1 / CD-plan-65-4）：排除 AVSOX（無碼專用）、FC2/HEYZO/D2Pass（keyword=番號，非真模糊）。
+# ⚠️ 雖與 CENSORED_SOURCES 內容相同，但語意不同（支援模糊 vs 有碼分類），不複用。
+# 未來若新增有碼但不支援模糊的來源，兩個常數會分歧，必須獨立維護。
+FUZZY_SEARCH_SOURCES = ['javbus', 'dmm', 'jav321', 'javdb']
+
 SOURCE_ORDER = CENSORED_SOURCES + UNCENSORED_SOURCES
 
 SOURCE_NAMES = {

@@ -59,6 +59,28 @@ def get_enabled_source_ids(
     return [s.get('id') for s in included if s.get('id') is not None]
 
 
+def get_all_source_ids_ordered() -> list[str]:
+    """回傳全部來源 id（含停用），依 order 升冪。模糊鏈 always-on 用（CD-65-4）。
+
+    與 get_enabled_source_ids() 的差異：
+    - 不過濾 enabled / manual_only / type / availability。
+    - 純粹「全部來源依拖曳順序」，包含停用、manual_only、metatube 離線等條目。
+    - 不接受任何參數（模糊鏈語意是 always-on，不依賴 runtime availability）。
+
+    防禦：缺 sources 段回 []；malformed 非 dict 條目跳過不 crash；
+    缺 order key 的條目以 0 計排序。
+    """
+    config = load_config()
+    sources = config.get('sources', [])
+    if not isinstance(sources, list):
+        logger.warning("config['sources'] 非 list（got=%r）：視為空", type(sources))
+        return []
+
+    all_sources: list[dict] = [s for s in sources if isinstance(s, dict)]
+    all_sources.sort(key=lambda s: s.get('order', 0))
+    return [s.get('id') for s in all_sources if s.get('id') is not None]
+
+
 def is_uncensored_mode_effective(config: dict) -> bool:
     """無碼模式是否生效（單一真理來源，CD-61-7b）。
 

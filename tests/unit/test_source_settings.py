@@ -2,10 +2,13 @@
 
 Covers Runtime Auto Pool filtering (`get_enabled_source_ids`) and the
 uncensored-mode single-source-of-truth (`is_uncensored_mode_effective`).
+Also covers `get_all_source_ids_ordered()` (TASK-65a-1) and the
+`FUZZY_SEARCH_SOURCES` constant from `core.scrapers.utils`.
 """
 import pytest
 
 from core import source_settings
+from core.scrapers.utils import CENSORED_SOURCES, FUZZY_SEARCH_SOURCES
 
 
 # ---------------------------------------------------------------------------
@@ -162,3 +165,118 @@ def test_uncensored_empty_sources_uses_legacy():
     assert source_settings.is_uncensored_mode_effective(config) is True
     config2 = {'sources': [], 'search': {'uncensored_mode_enabled': False}}
     assert source_settings.is_uncensored_mode_effective(config2) is False
+
+
+# ---------------------------------------------------------------------------
+# get_all_source_ids_ordered  (TASK-65a-1)
+# ---------------------------------------------------------------------------
+
+def test_all_sources_includes_disabled(monkeypatch):
+    """Key difference vs get_enabled_source_ids: disabled entries still returned."""
+    _patch_config(monkeypatch, {
+        'sources': [
+            {'id': 'dmm', 'enabled': True, 'order': 0},
+            {'id': 'javbus', 'enabled': False, 'order': 1},
+        ]
+    })
+    result = source_settings.get_all_source_ids_ordered()
+    assert result == ['dmm', 'javbus']
+
+
+def test_all_sources_sort_by_order_ascending(monkeypatch):
+    """Entries are returned sorted by 'order' ascending, regardless of input order."""
+    _patch_config(monkeypatch, {
+        'sources': [
+            {'id': 'c', 'enabled': True, 'order': 5},
+            {'id': 'a', 'enabled': False, 'order': 1},
+            {'id': 'b', 'enabled': True, 'order': 3},
+        ]
+    })
+    assert source_settings.get_all_source_ids_ordered() == ['a', 'b', 'c']
+
+
+def test_all_sources_missing_sources_key_returns_empty(monkeypatch):
+    """Config without 'sources' key -> returns []."""
+    _patch_config(monkeypatch, {'search': {}})
+    assert source_settings.get_all_source_ids_ordered() == []
+
+
+def test_all_sources_empty_sources_returns_empty(monkeypatch):
+    """sources: [] -> returns []."""
+    _patch_config(monkeypatch, {'sources': []})
+    assert source_settings.get_all_source_ids_ordered() == []
+
+
+def test_all_sources_malformed_non_dict_entries_skipped(monkeypatch):
+    """Non-dict entries (int, None, str) are skipped without crashing."""
+    _patch_config(monkeypatch, {
+        'sources': [
+            42,
+            None,
+            'bad_entry',
+            {'id': 'dmm', 'enabled': True, 'order': 0},
+        ]
+    })
+    assert source_settings.get_all_source_ids_ordered() == ['dmm']
+
+
+def test_all_sources_missing_order_key_treated_as_zero(monkeypatch):
+    """Entry without 'order' key sorts as order=0, no crash."""
+    _patch_config(monkeypatch, {
+        'sources': [
+            {'id': 'b', 'enabled': True, 'order': 2},
+            {'id': 'a', 'enabled': True},  # no 'order' key -> treated as 0
+        ]
+    })
+    result = source_settings.get_all_source_ids_ordered()
+    assert result == ['a', 'b']
+
+
+def test_all_sources_manual_only_still_returned(monkeypatch):
+    """manual_only: True entries are NOT filtered out (unlike get_enabled_source_ids)."""
+    _patch_config(monkeypatch, {
+        'sources': [
+            {'id': 'javlibrary', 'enabled': True, 'order': 0, 'manual_only': True},
+            {'id': 'dmm', 'enabled': True, 'order': 1, 'manual_only': False},
+        ]
+    })
+    result = source_settings.get_all_source_ids_ordered()
+    assert result == ['javlibrary', 'dmm']
+
+
+def test_all_sources_metatube_disabled_still_returned(monkeypatch):
+    """type='metatube' disabled entries are still returned (no availability gate)."""
+    _patch_config(monkeypatch, {
+        'sources': [
+            {'id': 'dmm', 'type': 'builtin', 'enabled': True, 'order': 0},
+            {'id': 'mt1', 'type': 'metatube', 'enabled': False, 'order': 1},
+        ]
+    })
+    result = source_settings.get_all_source_ids_ordered()
+    assert result == ['dmm', 'mt1']
+
+
+# ---------------------------------------------------------------------------
+# FUZZY_SEARCH_SOURCES constant  (TASK-65a-1)
+# ---------------------------------------------------------------------------
+
+def test_fuzzy_search_sources_contains_correct_four():
+    """FUZZY_SEARCH_SOURCES must contain exactly the 4 fuzzy-capable censored sources."""
+    assert sorted(FUZZY_SEARCH_SOURCES) == sorted(['javbus', 'dmm', 'jav321', 'javdb'])
+
+
+def test_fuzzy_search_sources_excludes_avsox():
+    """avsox is uncensored-only — must not be in FUZZY_SEARCH_SOURCES."""
+    assert 'avsox' not in FUZZY_SEARCH_SOURCES
+
+
+def test_fuzzy_search_sources_excludes_fake_fuzzy_sources():
+    """fc2, heyzo, d2pass do keyword-as-id lookup, not real fuzzy search — excluded."""
+    assert 'fc2' not in FUZZY_SEARCH_SOURCES
+    assert 'heyzo' not in FUZZY_SEARCH_SOURCES
+    assert 'd2pass' not in FUZZY_SEARCH_SOURCES
+
+
+def test_fuzzy_search_sources_is_independent_constant():
+    """FUZZY_SEARCH_SOURCES must be a distinct object from CENSORED_SOURCES, not reused."""
+    assert FUZZY_SEARCH_SOURCES is not CENSORED_SOURCES
