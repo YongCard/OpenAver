@@ -445,7 +445,7 @@ async def generate():
 
 
 @router.get("/stats")
-async def get_stats():
+def get_stats():
     """取得 Scanner 統計資訊（從 SQLite 讀取）"""
     try:
         db_path = get_db_path()
@@ -471,7 +471,7 @@ async def get_stats():
 
 
 @router.delete("/cache")
-async def clear_cache():  # noqa: ranker-invalidate (DELETE FROM videos only in docstring; actual deletion delegates to repo.clear_all() which already calls SimilarRankerCache.invalidate())
+def clear_cache():  # noqa: ranker-invalidate (DELETE FROM videos only in docstring; actual deletion delegates to repo.clear_all() which already calls SimilarRankerCache.invalidate())
     """清除所有影片快取（DELETE FROM videos）"""
     try:
         db_path = get_db_path()
@@ -492,7 +492,7 @@ async def clear_cache():  # noqa: ranker-invalidate (DELETE FROM videos only in 
 
 
 @router.get("/update-check")
-async def check_update():
+def check_update():
     """檢查需要更新的影片數量（從 SQLite 讀取）"""
     try:
         db_path = get_db_path()
@@ -544,7 +544,7 @@ async def check_update():
 
 
 @router.get("/missing-check")
-async def check_missing():
+def check_missing():
     """T10: 檢查 DB 中缺少 NFO 或封面的影片數量與清單"""
     try:
         db_path = get_db_path()
@@ -672,7 +672,7 @@ async def run_update():
 
 
 @router.get("/view")
-async def view_list():
+def view_list():
     """取得產生的 HTML 列表檔案（修改圖片路徑為 API 代理）"""
     try:
         config = load_config()
@@ -931,7 +931,7 @@ async def video_player(path: str = Query(..., description="影片路徑（file:/
 
 
 @router.get("/actress-stats")
-async def get_actress_stats(name: str = Query(..., description="女優名稱")):
+def get_actress_stats(name: str = Query(..., description="女優名稱")):
     """查詢某名字的片數"""
     try:
         db_path = get_db_path()

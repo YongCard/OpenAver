@@ -28,7 +28,7 @@ async def motion_lab_page(request: Request):
 
 
 @router.get("/api/motion-lab/data")
-async def motion_lab_data():
+def motion_lab_data():
     """取得前 30 筆影片資料（用於 Motion Lab 沙盒頁）"""
     try:
         db_path = get_db_path()

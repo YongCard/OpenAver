@@ -676,7 +676,7 @@ async def get_sources() -> dict:
 
 
 @router.get("/search/favorite-files")
-async def get_favorite_files() -> dict:
+def get_favorite_files() -> dict:
     """取得我的最愛資料夾的檔案列表（已過濾）
 
     Returns:
@@ -844,7 +844,7 @@ async def filter_files(request: Request) -> dict:
 
 
 @router.get("/search/local-status")
-async def get_local_status(numbers: str = Query(..., description="逗號分隔的番號列表")) -> dict:
+def get_local_status(numbers: str = Query(..., description="逗號分隔的番號列表")) -> dict:
     """查詢番號在本地庫的存在狀態
 
     Args:

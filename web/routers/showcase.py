@@ -73,7 +73,7 @@ def _get_configured_dirs(config: dict) -> tuple[set, dict]:
 
 
 @router.get("/videos")
-async def get_videos():
+def get_videos():
     """取得所有影片資料（用於 Showcase 頁面客戶端渲染）"""
     try:
         db_path = get_db_path()
@@ -115,7 +115,7 @@ async def get_videos():
 
 
 @router.get("/video")
-async def get_video(path: str = Query(..., description="file:/// URI")):
+def get_video(path: str = Query(..., description="file:/// URI")):
     """取得單筆影片資料（用於 T3 refreshVideoData enrich 後刷新卡片）"""
     try:
         db_path = get_db_path()
