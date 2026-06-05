@@ -722,7 +722,7 @@ async def view_list():
 
 
 @router.get("/image")
-async def get_image(path: str = Query(..., description="圖片路徑")):
+def get_image(path: str = Query(..., description="圖片路徑")):
     """代理圖片請求，解決 file:// 在 iframe 中無法載入的問題"""
     from urllib.parse import unquote
     from core.path_utils import normalize_path
@@ -787,7 +787,7 @@ async def get_image(path: str = Query(..., description="圖片路徑")):
 
 
 @router.get("/video")
-async def get_video(request: Request, path: str = Query(..., description="影片路徑（file:/// URI 或 FS 路徑）")):
+def get_video(request: Request, path: str = Query(..., description="影片路徑（file:/// URI 或 FS 路徑）")):
     """代理影片請求，解決瀏覽器無法開啟 file:/// URI 的問題"""
     # URL decode
     path = unquote(path)
