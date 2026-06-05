@@ -1094,12 +1094,31 @@
 
             <!-- SVG rails 12 條 + 12 sweep lines（id 對映 similar-rail-XX / similar-sweep-XX） -->
             <svg class="similar-stage-rails" viewBox="0 0 960 620" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <template x-for="anchor in SIMILAR_ANCHORS" :key="anchor.id">
-                    <g>
-                        <line :id="'similar-rail-' + anchor.idShort" class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
-                        <line :id="'similar-sweep-' + anchor.idShort" class="similar-rail-sweep" x1="480" y1="310" x2="480" y2="310" />
-                    </g>
-                </template>
+                <!-- 靜態 12 組 rail + sweep（鏡射 motion_lab.html 無錯 precedent；id 對映 state-similar.js 消費端 'similar-rail-'+idShort / 'similar-sweep-'+idShort，runtime setRailCoords 覆蓋座標，初始為退化點 480,310） -->
+                <line id="similar-rail-01"  class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-sweep-01" class="similar-rail-sweep"        x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-rail-02"  class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-sweep-02" class="similar-rail-sweep"        x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-rail-03"  class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-sweep-03" class="similar-rail-sweep"        x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-rail-04"  class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-sweep-04" class="similar-rail-sweep"        x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-rail-05"  class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-sweep-05" class="similar-rail-sweep"        x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-rail-06"  class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-sweep-06" class="similar-rail-sweep"        x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-rail-07"  class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-sweep-07" class="similar-rail-sweep"        x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-rail-08"  class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-sweep-08" class="similar-rail-sweep"        x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-rail-09"  class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-sweep-09" class="similar-rail-sweep"        x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-rail-10"  class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-sweep-10" class="similar-rail-sweep"        x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-rail-11"  class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-sweep-11" class="similar-rail-sweep"        x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-rail-12"  class="similar-rail rail--hidden" x1="480" y1="310" x2="480" y2="310" />
+                <line id="similar-sweep-12" class="similar-rail-sweep"        x1="480" y1="310" x2="480" y2="310" />
             </svg>
 
             <!-- 56c-T4: main image visual center anchor — single source of truth
