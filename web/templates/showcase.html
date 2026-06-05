@@ -269,14 +269,15 @@
                      :alt="_matchedActress?.name"
                      loading="eager"
                      fetchpriority="high"
-                     x-show="_matchedActress && !_heroCardImageError"
+                     x-show="_matchedActress?.photo_url && !_heroCardImageError"
                      :class="{ 'cover-loaded': _heroCardImageLoaded }"
                      @load="_heroCardImageLoaded = true"
                      @error="if (_matchedActress?.photo_url) _heroCardImageError = true">
                 <!-- 67-A3: skeleton overlay。gate 含 photo_url（空 photo 的 img src="" 不觸發 @load/@error → 不卡 shimmer，鏡射 grid cover_url gate）-->
                 <div class="skeleton-cover shimmer"
                      x-show="_matchedActress?.photo_url && !_heroCardImageError && !_heroCardImageLoaded"></div>
-                <div x-show="_matchedActress && _heroCardImageError"
+                <!-- 67/Codex P2#2: 空 photo_url（src="" 不觸發 @error）或 404 error 皆顯破圖 icon；img x-show 同步 gate photo_url，不顯空白框（鏡射 grid no-cover）-->
+                <div x-show="_matchedActress && (!_matchedActress.photo_url || _heroCardImageError)"
                      class="av-card-no-cover">
                   <i class="bi bi-image"></i>
                   <span x-text="t('common.no_image')"></span>

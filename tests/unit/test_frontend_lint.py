@@ -9589,6 +9589,17 @@ class TestCoverLoadingUx67Guard:
         assert 'fetchpriority="high"' in img and 'loading="eager"' in img, \
             "hero <img> 缺首屏 eager+high（CD-67-5）"
 
+    def test_hero_img_xshow_gated_on_photo_url(self):
+        """Codex P2#2: hero <img> x-show 須 gate by _matchedActress?.photo_url（空 photo_url 的 src=""
+        不觸發 @load/@error；若 x-show 只看 !_heroCardImageError 會顯空白框）。no-cover div 對應 gate
+        !photo_url || error 顯破圖 icon（與 grid no-cover 一致）。"""
+        img = self._hero_img()
+        assert 'x-show="_matchedActress?.photo_url && !_heroCardImageError"' in img, \
+            "hero <img> x-show 須含 _matchedActress?.photo_url（防空 photo_url 顯空白框回退，Codex P2#2）"
+        html = self._html()
+        assert "!_matchedActress.photo_url || _heroCardImageError" in html, \
+            "hero no-cover div x-show 須含 !_matchedActress.photo_url || _heroCardImageError（空 photo 或 error 皆顯破圖 icon）"
+
     def test_actress_js_declares_and_resets_heroloaded(self):
         """A3/CD-67-4: state-actress.js 宣告 _heroCardImageLoaded + 兩處 lifecycle 重置"""
         src = SHOWCASE_ACTRESS_JS.read_text(encoding="utf-8")
@@ -9632,6 +9643,21 @@ class TestCoverLoadingUx67Guard:
         rules = re.findall(r'\.av-card-preview-img img\s*\{([^}]*)\}', css)
         assert any("opacity: 0" in b and "transition" in b and "opacity" in b for b in rules), \
             "showcase.css 缺 .av-card-preview-img img 淡入規則（opacity:0 預設 + opacity transition）"
+
+    def test_fade_rule_scoped_to_showcase_container(self):
+        """Codex P2#1: 淡入 opacity:0 規則必須 compound .showcase-container scope（防洩漏到 search.html /
+        design-system.html——兩頁也載 showcase.css + 共用 ds scope 但無 .cover-loaded 機制，洩漏會讓搜尋
+        封面/demo 整片隱形）。抓含 opacity:0 的淡入規則整條 selector，斷言含 .showcase-container。"""
+        css = self._css()
+        # 先剝除 /* */ 註解（否則 [^{}]*? 會吃進前面提及 .showcase-container 的註解 → 假 GREEN）
+        css_nc = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
+        # 抓 opacity:0 淡入 base 規則的完整 selector（含前綴）
+        m = re.search(r'([^{}]*?\.av-card-preview-img img)\s*\{[^}]*opacity:\s*0[^}]*\}', css_nc)
+        assert m, "showcase.css 找不到 opacity:0 的 .av-card-preview-img img 淡入規則"
+        selector = m.group(1)
+        assert ".showcase-container" in selector, \
+            ("淡入 opacity:0 規則未 compound .showcase-container（Codex P2#1）：會洩漏到 search.html / "
+             f"design-system.html 讓封面隱形。實際 selector: {selector.strip()!r}")
 
     def test_prm_degrades_shimmer_and_fade(self):
         """A1/DoD A-4: reduced-motion 下 shimmer animation:none + 淡入 transition:none/opacity:1 皆退化"""

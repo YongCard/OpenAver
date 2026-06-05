@@ -2931,16 +2931,20 @@ body.sidebar-collapsed .showcase-footer {
 
 /* per-image 淡入（CSS transition，不用 GSAP — CD-67-1/G3）：掛 img 層；
    .av-card-preview 容器 opacity 由 GSAP playEntry 專屬（animations.js:142/177/193），此處零容器 transition。
-   ⚠️ 選擇器須對齊 theme.css:1022 的 :is(#ds-gallery-components,.ds-gallery-composition) scope（specificity 1,1,1）——
-   否則裸 .av-card-preview-img img(0,1,1) 的 transition:opacity 蓋不過 theme 的 transition:transform → 淡入失效。
+   ⚠️ 選擇器須對齊 theme.css:1022 的 :is(#ds-gallery-components,.ds-gallery-composition) scope，否則裸
+   .av-card-preview-img img(0,1,1) 的 transition:opacity 蓋不過 theme 的 transition:transform → 淡入失效。
+   ⚠️ Codex P2#1 修正：再 compound .showcase-container（showcase.html:16 同元素同時帶兩 class）——showcase.css
+   也被 search.html / design-system.html 載入且共用 ds scope，但那兩頁的卡 img 無 .cover-loaded 機制；若不
+   收斂，opacity:0 會讓 search 搜尋封面整片隱形、design-system demo 隱形。compound 後 specificity (1,2,1)>theme
+   (1,1,1) 仍贏，且只命中 showcase 頁（search/design-system 容器無 .showcase-container）。
    合併保留 transform transition（hover-zoom 過渡不回歸）。 */
-:is(#ds-gallery-components, .ds-gallery-composition) .av-card-preview-img img {
+:is(#ds-gallery-components, .ds-gallery-composition).showcase-container .av-card-preview-img img {
     opacity: 0;
     transition:
         opacity var(--fluent-duration-fast) var(--fluent-ease-standard),
         transform var(--fluent-duration-slow) var(--fluent-ease-standard);
 }
-:is(#ds-gallery-components, .ds-gallery-composition) .av-card-preview-img img.cover-loaded {
+:is(#ds-gallery-components, .ds-gallery-composition).showcase-container .av-card-preview-img img.cover-loaded {
     opacity: 1;
 }
 
@@ -2950,7 +2954,7 @@ body.sidebar-collapsed .showcase-footer {
     .shimmer {
         animation: none;
     }
-    :is(#ds-gallery-components, .ds-gallery-composition) .av-card-preview-img img {
+    :is(#ds-gallery-components, .ds-gallery-composition).showcase-container .av-card-preview-img img {
         transition: none;
         opacity: 1;
     }
