@@ -87,7 +87,8 @@ async def translate_title(request: TranslateRequest) -> dict:
     # === translate 模式：使用 translate service（支援 Ollama/Gemini）===
     if request.mode == "translate":
         try:
-            translate_service = get_translate_service()
+            # 66 Codex P2：get_translate_service 冷啟動會同步 load_config → to_thread
+            translate_service = await asyncio.to_thread(get_translate_service)
             context = {
                 "actors": request.actors or [],
                 "number": request.number or ""
@@ -213,7 +214,8 @@ async def translate_batch(request: BatchTranslateRequest):
     """
     try:
         # 獲取翻譯服務（單例）
-        translate_service = get_translate_service()
+        # 66 Codex P2：get_translate_service 冷啟動會同步 load_config → to_thread
+        translate_service = await asyncio.to_thread(get_translate_service)
 
         # 獲取配置的批次大小（預留：可從 config 讀取默認值）
         config = await asyncio.to_thread(load_config)

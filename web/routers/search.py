@@ -605,7 +605,11 @@ async def search_stream(
                     top_actor = _analyze_top_actor(results, threshold=0.8, min_samples=3)
                     if top_actor:
                         logger.info(f"[Actress Profile] Fetching profile for: {top_actor}")
-                        actress_profile = _fetch_actress_profile_with_db(top_actor, _extract_top_makers(results))
+                        # 66 Codex P1：event_generator 是 async generator、跑在 event loop 上，
+                        # 此 helper 做 init_db/repo + DB-miss 時同步 scraper HTTP → 必須 to_thread
+                        actress_profile = await asyncio.to_thread(
+                            _fetch_actress_profile_with_db, top_actor, _extract_top_makers(results)
+                        )
                         if not actress_profile:
                             logger.info(f"[Actress Profile] Not found for: {top_actor}")
 

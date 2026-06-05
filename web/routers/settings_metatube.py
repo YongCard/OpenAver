@@ -307,7 +307,8 @@ async def connect(req: ConnectRequest):
     # Even on dedup hit we still need to persist allow_lan in case the user
     # changed it (Codex P2: _persist_allow_lan updates config without re-connecting).
     if state.is_connected and state.base_url == req.url and state.token == req.token:
-        if not _persist_allow_lan(req.url, req.token, req.allow_lan):
+        # 66 Codex P1：dedup path 也跑在 loop，_persist_allow_lan 做 load/save_config → to_thread
+        if not await asyncio.to_thread(_persist_allow_lan, req.url, req.token, req.allow_lan):
             # Mirror Step5 semantics: don't report success if the opt-in wasn't
             # persisted, otherwise the restart bug silently returns (Codex P2).
             return {"success": False, "error": "設定儲存失敗，請重試。"}

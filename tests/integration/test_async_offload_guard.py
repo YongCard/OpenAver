@@ -68,10 +68,16 @@ def _is_route_handler(node: ast.AsyncFunctionDef) -> bool:
 
 
 def _collect_direct_calls(func_node: ast.AsyncFunctionDef) -> list:
-    """收集 func_node 直接 body 的所有 Call 節點。
+    """收集 func_node 在「event loop 上執行的 body」的所有 Call 節點。
 
-    「直接 body」= 不下潛 nested FunctionDef / AsyncFunctionDef
-    （nested 函式不是 to_thread target 就是內層 SSE generator，CD-66-3 不在範圍）。
+    下潛規則（Codex review 修正）：
+    - **停在巢狀同步 `FunctionDef`**：sync def 不是 to_thread target 就是
+      Starlette 在 threadpool 迭代的 sync generator —— 皆不在 loop，不掃。
+    - **下潛巢狀 `AsyncFunctionDef`**：SSE async generator（如 event_generator）
+      由 Starlette 在 event loop 上迭代 → 其 body 的裸阻塞呼叫一樣卡 loop，必須掃。
+
+    註：`await asyncio.to_thread(fn, ...)` 的 fn 是 args 裡的 Name 節點、非 Call，
+    天然不會被當成裸呼叫——已正確包裝者不會誤報。
     """
     calls = []
 
@@ -79,13 +85,66 @@ def _collect_direct_calls(func_node: ast.AsyncFunctionDef) -> list:
         for node in nodes:
             if isinstance(node, ast.Call):
                 calls.append(node)
-            # 停止條件：遇到巢狀函式定義即不下潛
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            # 只在「同步」巢狀 def 停（threadpool-safe）；async def 繼續下潛
+            if isinstance(node, ast.FunctionDef):
                 continue
             _walk(ast.iter_child_nodes(node))
 
     _walk(ast.iter_child_nodes(func_node))
     return calls
+
+
+def _is_generator_def(func_node) -> bool:
+    """func_node 是否為 generator function（自身 body 直接含 yield / yield from，
+    不含 nested 函式內的 yield）。
+
+    關鍵：呼叫一個 sync generator function 只會「建立」generator 物件、**不執行 body**；
+    其 body 在被迭代時才跑（StreamingResponse 的 sync generator 由 Starlette 在
+    threadpool 迭代，不在 loop）。故 generator function 不算「呼叫即阻塞」的 helper。
+    """
+    found = False
+
+    def _walk(nodes):
+        nonlocal found
+        for node in nodes:
+            if found:
+                return
+            if isinstance(node, (ast.Yield, ast.YieldFrom)):
+                found = True
+                return
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue  # 不下潛 nested 函式
+            _walk(ast.iter_child_nodes(node))
+
+    _walk(ast.iter_child_nodes(func_node))
+    return found
+
+
+def _collect_blocking_local_helpers(tree: ast.Module) -> frozenset:
+    """回傳「module-level 同步 def 且 body 含已知阻塞呼叫」的 helper 名稱集合。
+
+    用途：抓「裸呼叫一個本檔 sync helper，而該 helper 內部裹著 load_config /
+    init_db / repo.* 等阻塞 I/O」的二階卡 loop（Codex P1/P2：`_persist_allow_lan`、
+    `get_translate_service`、`_fetch_actress_profile_with_db`）。
+
+    只看 module-level `FunctionDef`（async def 是路由或 coroutine，不算 helper；
+    nested def 是 to_thread target）。**排除 generator function**：呼叫它只建立
+    generator 物件、body 不在 call site 執行（sync generator 給 StreamingResponse
+    由 Starlette threadpool 迭代）—— 否則會誤報 generate_avlist 等。
+    一層偵測即足夠涵蓋本 codebase 的 helper pattern。
+    註：`await asyncio.to_thread(helper)` 的 helper 是 Name arg、非 Call → 不誤報。
+    """
+    helpers = set()
+    for node in ast.iter_child_nodes(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        if _is_generator_def(node):
+            continue  # sync generator：呼叫不執行 body，threadpool 迭代
+        for child in ast.walk(node):
+            if isinstance(child, ast.Call) and _is_blocking_call(child):
+                helpers.add(node.name)
+                break
+    return frozenset(helpers)
 
 
 def _call_name(call: ast.Call) -> Optional[str]:
@@ -121,14 +180,18 @@ def _is_blocking_call(call: ast.Call) -> bool:
 
 
 def _iter_async_route_handlers():
-    """yield (py_file, AsyncFunctionDef) for every async route handler in web/routers/*.py."""
+    """yield (py_file, AsyncFunctionDef, blocking_helpers) for every async route handler.
+
+    blocking_helpers = 本檔 module-level sync helper 中含阻塞 I/O 者（per-file 推斷）。
+    """
     for py_file in sorted(ROUTERS_DIR.glob("*.py")):
         if py_file.name == "__init__.py":
             continue
         tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+        blocking_helpers = _collect_blocking_local_helpers(tree)
         for node in ast.walk(tree):
             if isinstance(node, ast.AsyncFunctionDef) and _is_route_handler(node):
-                yield py_file, node
+                yield py_file, node, blocking_helpers
 
 
 # ============================================================
@@ -141,13 +204,15 @@ class TestAsyncOffloadGuard:
     def test_no_bare_blocking_in_async_routes(self):
         """主守衛：掃 web/routers/*.py 每個 async 路由，直接 body 不得有裸阻塞呼叫。"""
         violations = []
-        for py_file, node in _iter_async_route_handlers():
+        for py_file, node, blocking_helpers in _iter_async_route_handlers():
             if (py_file.stem, node.name) in WHITELIST:
                 continue
             for call in _collect_direct_calls(node):
-                if _is_blocking_call(call):
+                name = _call_name(call)
+                # 直接命中偵測清單，或裸呼叫本檔含阻塞 I/O 的 sync helper
+                if _is_blocking_call(call) or (name is not None and name in blocking_helpers):
                     violations.append(
-                        f"{py_file.name}:{node.name}() — bare blocking call: {_call_name(call)}()"
+                        f"{py_file.name}:{node.name}() — bare blocking call: {name}()"
                     )
         assert not violations, (
             "Async route handlers have bare blocking calls on the event loop "
@@ -157,7 +222,7 @@ class TestAsyncOffloadGuard:
 
     def test_whitelist_entries_exist(self):
         """白名單防腐：每個白名單條目對應的函式必須真實存在（避免殭屍豁免）。"""
-        found = {(py.stem, n.name) for py, n in _iter_async_route_handlers()}
+        found = {(py.stem, n.name) for py, n, _ in _iter_async_route_handlers()}
         missing = [w for w in WHITELIST if w not in found]
         assert not missing, f"WHITELIST 指向不存在的 async 路由（應清理）: {missing}"
 
