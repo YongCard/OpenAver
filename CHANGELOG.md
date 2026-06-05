@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.5] - 2026-06-05
+
+本版單一主軸：**把所有「在 `async def` 路由裡裸跑、會打慢 I/O（NAS 檔案 stat / HDD 上的 sqlite / config 檔 / 同步 HTTP）的同步呼叫」移出 event loop**，讓載圖／播放／切頁／任一慢請求不再互相凍住整個 app。純後端技術收斂，**無新 UI、無新設定、無新端點、零新依賴、零 ZIP 影響**；既有功能行為與輸出 byte 級不變。根因：FastAPI 對 `def` 路由會自動丟 threadpool，但 `async def` 路由的函式體直接跑在 event loop 上——裡面任何同步阻塞呼叫都會卡住整個 loop，連帶讓別的請求（含切到新頁的 HTML/API）排不進 loop，畫面就凍住。手段二選一：body 無 `await` → 直接改宣告為 `def`（最便宜，Starlette 自動 threadpool）；body 必須保留 `await` → 把阻塞段包進 `await asyncio.to_thread(...)`。逐處人工確認、不全域 sed。新增 AST 回歸守衛永久防止新路由再犯。
+
+*This release has one theme: **move every synchronous slow-I/O call (NAS file stat / sqlite on HDD / config files / sync HTTP) that was bare-running inside an `async def` route off the event loop**, so loading covers / playback / pagination / any slow request no longer freeze the whole app for each other. Pure backend convergence — no new UI/settings/endpoints, zero new deps, zero ZIP impact; existing behavior is byte-identical. Root cause: FastAPI auto-threadpools `def` routes, but an `async def` route body runs directly on the event loop, so any synchronous blocking call there stalls the entire loop (including the HTML/API for switching pages). Two fixes: no `await` in body → convert to `def` (Starlette auto-threadpools); must keep `await` → wrap the blocking segment in `await asyncio.to_thread(...)`. Done per-call by hand, no global sed. A new AST regression guard permanently prevents new routes from reintroducing the bug.*
+
+### Changed
+
+#### ⚡ async def → def（body 無 await，Starlette 自動 threadpool）
+- **止血 hot path**：`get_image` / `get_video`（封面/影片代理）轉 def，一次涵蓋 realpath/exists/getsize/load_config 全部裸跑 stat（每張封面 = 多次 NAS stat，HDD 喚醒時單次可達數百 ms～數秒）
+- **純讀 DB 路由 11 處**轉 def：scanner `get_stats`/`clear_cache`/`check_update`/`check_missing`/`view_list`/`get_actress_stats`、showcase `get_videos`/`get_video`、search `get_favorite_files`/`get_local_status`、`motion_lab_data`
+- **config/設定檔 I/O 路由 9 處**轉 def：config 7 路由 + `get_scraper_sources` + `get_favorite_scanner_link`（load_config/save_config 移出 loop）
+
+#### 🧵 必留 async → to_thread 包阻塞段
+- **翻譯/AI 路由 5 處**：gemini/openai/translate/ollama 測試與翻譯端點的 `load_config` 包 `await asyncio.to_thread(...)`（body 有 httpx await，不能轉 def）
+- **半套 offload 補齊**：actress 照片 3 路由 / `jellyfin_image_check` / metatube `connect` 先前只 to_thread 了重活，同 body 的 `init_db`/`repo.*`/`load_config`/`save_config`/同步 HTTP 仍裸跑 → 抽 helper（`_check_cover_path`/`_load_actress`/`_connect_sync` 等）一併移出 loop
+- **SSE 外層 + 檔案走訪**：`search_stream`/`batch_enrich`/`list_photo_candidates` 的 pre-stream load_config/DB、`filter_files` 的整段 exists/stat/iterdir 檔案走訪移出 loop（內層 generator 維持原樣）
+
+### Added
+- **`tests/integration/test_async_offload_guard.py`**：AST 靜態守衛掃 `web/routers/*.py`，斷言每個 `async def` 路由（含巢狀 async generator）的 body 不得裸跑慢 I/O（直接呼叫或經「含阻塞 I/O 的 sync helper」間接呼叫皆抓）；並正斷言 T1–T3 轉 def 的 24 個 handler 維持 `def`，防回退。新路由自動納入掃描。
+
+### Fixed / Internal
+- **Codex review 補三處二階卡 loop**：`search_stream` 內層 async generator 裸呼 `_fetch_actress_profile_with_db`（init_db/repo + DB-miss 同步 scraper HTTP）、metatube `connect` dedup path 裸呼 `_persist_allow_lan`（load/save_config）、`translate_title`/`translate_batch` 裸呼 `get_translate_service`（冷啟動 load_config）全補 to_thread
+- **守衛強化**：下潛巢狀 async generator（跑在 loop 上）、per-file 推斷「含阻塞 I/O 的 sync helper」並抓其裸呼叫、排除 generator function（呼叫只建物件、body 由 threadpool 迭代）
+- `jellyfin_image_check` 的 `get_db_path`（含 mkdir I/O）一併折進 helper，該路由 body 全乾淨
+
+### Non-Goals（明確不做）
+- 不導 HTMX（卡死根源在後端 loop，非前端換頁）、不做縮圖/WebP/快取（thumbnail-cache 押後）、不解單請求自身慢（HDD 喚醒/seek 的單張延遲）、不換 aiosqlite、不調 threadpool limiter
+
+### 測試
+- 全套 pytest **3496 passed, 2 skipped**（unit + integration，排除 smoke / e2e）+ `npm run lint`（eslint + stylelint）綠
+- 守衛 RED→GREEN 驗證 + 5 種 control（bare-helper / sync-generator / async-gen 內阻塞 / to_thread 包裝 / async-gen 內 bare-helper）全對
+
 ## [0.9.4] - 2026-06-04
 
 本版單一主軸：讓「掃描來源」頁的 **Active Row 拖曳順序成為所有搜尋路由的唯一真理**，徹底移除 `primary_source` 概念。改完後邏輯收斂成一句話：**順序就是一切**。先前搜尋路由其實有兩套真理在打架——拖曳順序（auto 合併早已照它走）vs. 殘留的 `primary_source` 欄位（Settings 底部那塊標「已停用設定」的 radio，但對精準 DMM 短路與模糊 routing 仍暗中 live）。本版把這個會誤導人的隱性 gap 連根拔除：**精準搜尋**拔掉 DMM 整包短路（Rule 4a）、封面改跟 Active Row 順序（移除 hardcode 反浮水印優先序）、只用啟用中來源；**模糊搜尋**（女優名/關鍵字）從寫死 dmm/javbus 改成照 Active Row 順序的 fallback 鏈（循序試、命中即停、always-on 無視啟用），候選池實測收斂為 javbus + dmm（jav321 keyword 恆回空、javdb 連續模糊呼叫會被 Cloudflare ban）；**進階搜尋**（picker 單源覆寫）維持原樣不動。`primary_source` 從 schema 欄位、config 預設、no-op 傳遞點、Settings radio UI 到舊 config key 全清（含一次性 strip migration），Help 補一句說明「模糊鏈 always-on：停用的來源仍會被模糊搜尋用到」。
