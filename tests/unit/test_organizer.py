@@ -2440,3 +2440,216 @@ class TestGenerateNfoVrTagDedup:
         content_after = nfo_path_after.read_text(encoding="utf-8")
         assert content_before == content_after, \
             f"has_vr=False 應與不傳時完全相同（零變化）\nbefore={content_before!r}\nafter={content_after!r}"
+
+
+# ============ organize_file() VR 端到端串接測試 (T4) ============
+
+class TestVrEndToEnd:
+    """organize_file(create_nfo=True) 端到端 wiring 測試（TASK-68-T4）
+
+    核心 gap：T2 用 create_nfo=False，T3 直呼 generate_nfo——
+    未有任何測試同時驗「VR tail 檔名」+「NFO 恰一個 <tag>VR</tag>」。
+
+    本 class 補上這條端到端鏈路：一次 organize_file 呼叫，
+    同時斷言 (a) 檔名 stem tail、(b) NFO VR tag count==1 + genre count==1、
+    (c) NFO sidecar 檔名 stem 與影片對齊（GB sidecar 跟隨）。
+    """
+
+    # ---- 共用 helper ----
+
+    def _base_config(self, tmp_path=None, max_filename_length=60, suffix_keywords=None):
+        return {
+            "create_folder": False,
+            "filename_format": "[{num}] {title}{suffix}",
+            "download_cover": False,
+            "create_nfo": True,
+            "max_title_length": 50,
+            "max_filename_length": max_filename_length,
+            "suffix_keywords": suffix_keywords or [],
+        }
+
+    def _base_metadata(self, number, title, tags=None):
+        return {
+            "number": number,
+            "title": title,
+            "actors": [],
+            "tags": tags or [],
+            "maker": "Studio",
+            "date": "2024-01-15",
+            "cover": "",
+            "url": "",
+        }
+
+    # ---- T4 DoD: VR 檔（KAVR-001_mkx200_LR.mp4）端到端 ----
+
+    def test_vr_file_filename_tail_and_nfo_vr_tag(self, tmp_path):
+        """KAVR-001_mkx200_LR.mp4 + tags=['單體']（無 VR）→
+        (a) 檔名 stem 結尾 _mkx200_LR
+        (b) NFO 含恰一個 <tag>VR</tag> + 一個 <genre>VR</genre>
+        (c) NFO sidecar 檔名 stem 與影片 stem 對齊（prove GB sidecar 跟隨）
+        """
+        src = tmp_path / "KAVR-001_mkx200_LR.mp4"
+        src.write_bytes(b"vr content")
+
+        config = self._base_config(tmp_path)
+        metadata = self._base_metadata("KAVR-001", "VR Test Title", tags=["單體"])
+
+        result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+
+        # (a) 檔名 stem 結尾 _mkx200_LR
+        new_path = Path(result["new_filename"])
+        stem = new_path.stem
+        assert stem.endswith("_mkx200_LR"), (
+            f"VR tail _mkx200_LR 未接到 stem 尾：{stem!r}"
+        )
+
+        # (b) NFO 含恰一個 <tag>VR</tag> + 一個 <genre>VR</genre>
+        nfo_path = result.get("nfo_path")
+        assert nfo_path is not None, "create_nfo=True 時 nfo_path 不應為 None"
+        assert Path(nfo_path).exists(), f"NFO 檔不存在：{nfo_path}"
+        nfo_content = Path(nfo_path).read_text(encoding="utf-8")
+        assert nfo_content.count("<tag>VR</tag>") == 1, (
+            f"NFO 應含恰一個 <tag>VR</tag>，count={nfo_content.count('<tag>VR</tag>')}"
+        )
+        assert nfo_content.count("<genre>VR</genre>") == 1, (
+            f"NFO 應含恰一個 <genre>VR</genre>，count={nfo_content.count('<genre>VR</genre>')}"
+        )
+
+        # (c) NFO sidecar 檔名 stem 與影片 stem 對齊（VR tail 隨行，prove GB）
+        nfo_stem = Path(nfo_path).stem
+        assert nfo_stem == stem, (
+            f"NFO sidecar stem({nfo_stem!r}) 應與影片 stem({stem!r}) 完全對齊"
+        )
+        assert nfo_stem.endswith("_mkx200_LR"), (
+            f"NFO sidecar stem 應帶 VR tail：{nfo_stem!r}"
+        )
+
+    def test_vr_file_scraper_already_has_vr_no_duplicate(self, tmp_path):
+        """KAVR-001_mkx200_LR.mp4 + scraper tags=['VR', '單體']
+        → NFO <tag>VR</tag> 恰一個（去重驗端到端不重複）
+        """
+        src = tmp_path / "KAVR-001_mkx200_LR.mp4"
+        src.write_bytes(b"vr content")
+
+        config = self._base_config(tmp_path)
+        metadata = self._base_metadata("KAVR-001", "VR Test", tags=["VR", "單體"])
+
+        result = organize_file(str(src), metadata, config)
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+
+        nfo_content = Path(result["nfo_path"]).read_text(encoding="utf-8")
+        assert nfo_content.count("<tag>VR</tag>") == 1, (
+            f"scraper 已有 VR + has_vr=True → 應仍只有一個 <tag>VR</tag>（端到端去重）"
+        )
+        assert nfo_content.count("<genre>VR</genre>") == 1, (
+            f"scraper 已有 VR + has_vr=True → 應仍只有一個 <genre>VR</genre>（端到端去重）"
+        )
+
+    # ---- T4 DoD: 無 VR 檔（SIVR-999.mp4）端到端 ----
+
+    def test_no_vr_file_no_tail_no_canonical_vr_in_nfo(self, tmp_path):
+        """SIVR-999.mp4（無 VR token）+ create_nfo=True →
+        (a) 檔名無 VR tail
+        (b) NFO 無 canonical <tag>VR</tag>（has_vr=False 端到端）
+        """
+        src = tmp_path / "SIVR-999.mp4"
+        src.write_bytes(b"no vr content")
+
+        config = self._base_config(tmp_path)
+        metadata = self._base_metadata("SIVR-999", "Some 2D Title", tags=["單體"])
+
+        result = organize_file(str(src), metadata, config)
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+
+        # (a) 檔名無 VR tail
+        new_path = Path(result["new_filename"])
+        stem = new_path.stem
+        assert not stem.endswith(("_LR", "_180", "_mkx200", "_3dh", "_sbs")), (
+            f"無 VR token 檔案不應有 VR tail：{stem!r}"
+        )
+
+        # (b) NFO 無 canonical <tag>VR</tag>（has_vr=False 路徑端到端）
+        nfo_path = result.get("nfo_path")
+        assert nfo_path is not None, "nfo_path 不應為 None"
+        nfo_content = Path(nfo_path).read_text(encoding="utf-8")
+        assert "<tag>VR</tag>" not in nfo_content, (
+            f"SIVR-999（無 VR token）NFO 不應含 canonical <tag>VR</tag>"
+        )
+        assert "<genre>VR</genre>" not in nfo_content, (
+            f"SIVR-999（無 VR token）NFO 不應含 canonical <genre>VR</genre>"
+        )
+
+
+# ============ spec §4 DoD 補洞：Row 3/8 檔名端到端 ============
+
+class TestVrCrossCheck:
+    """spec §4 DoD 表 cross-check 補洞（T4）
+
+    Row 3（WAVR-456_4096x2048_180_sbs.mp4）和 Row 8（KAVR-001_MKX200_lr.mp4）
+    只有 T1 偵測層覆蓋，T2/T3/T4 無 organize_file 檔名層驗證。
+    本 class 補上 organize_file 層的斷言，使 spec §4 全表每列在組裝層都有覆蓋。
+    """
+
+    def _base_config(self, max_filename_length=80):
+        return {
+            "create_folder": False,
+            "filename_format": "[{num}] {title}{suffix}",
+            "download_cover": False,
+            "create_nfo": False,
+            "max_title_length": 50,
+            "max_filename_length": max_filename_length,
+            "suffix_keywords": [],
+        }
+
+    def _base_metadata(self, number, title, tags=None):
+        return {
+            "number": number,
+            "title": title,
+            "actors": [],
+            "tags": tags or [],
+            "maker": "Studio",
+            "date": "2024-01-15",
+            "cover": "",
+            "url": "",
+        }
+
+    def test_row3_wavr_180_sbs_filename_tail(self, tmp_path):
+        """spec §4 Row 3: WAVR-456_4096x2048_180_sbs.mp4 → 檔名 stem 結尾 _180_sbs
+
+        T1 只驗偵測，T2 沒有此 case 的 organize_file 層，T4 補上。
+        """
+        src = tmp_path / "WAVR-456_4096x2048_180_sbs.mp4"
+        src.write_bytes(b"wavr content")
+
+        config = self._base_config()
+        metadata = self._base_metadata("WAVR-456", "VR Title")
+
+        result = organize_file(str(src), metadata, config)
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+
+        stem = Path(result["new_filename"]).stem
+        assert stem.endswith("_180_sbs"), (
+            f"spec §4 Row 3: WAVR-456 VR tail 應為 _180_sbs，實際 stem：{stem!r}"
+        )
+
+    def test_row8_mixed_case_filename_tail_preserve_raw(self, tmp_path):
+        """spec §4 Row 8: KAVR-001_MKX200_lr.mp4 → 檔名 stem 結尾 _MKX200_lr（原樣大小寫）
+
+        T1 只驗偵測，T2 沒有此 case 的 organize_file 層，T4 補上。
+        重點：原始大小寫不正規化（MKX200 大寫保留，lr 小寫保留）。
+        """
+        src = tmp_path / "KAVR-001_MKX200_lr.mp4"
+        src.write_bytes(b"mixed case vr content")
+
+        config = self._base_config()
+        metadata = self._base_metadata("KAVR-001", "Mixed Case VR")
+
+        result = organize_file(str(src), metadata, config)
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+
+        stem = Path(result["new_filename"]).stem
+        assert stem.endswith("_MKX200_lr"), (
+            f"spec §4 Row 8: VR tail 大小寫應原樣（_MKX200_lr），實際 stem：{stem!r}"
+        )
