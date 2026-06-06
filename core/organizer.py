@@ -359,6 +359,7 @@ def generate_nfo(
     maker: str = '',
     url: str = '',
     has_subtitle: bool = False,
+    has_vr: bool = False,
     output_path: str = '',
     has_poster: bool = False,
     has_fanart: bool = False,
@@ -447,6 +448,9 @@ def generate_nfo(
     if has_subtitle:
         nfo_content += '  <tag>中文字幕</tag>\n'
 
+    if has_vr and not any(t.strip().lower() == 'vr' for t in tags):
+        nfo_content += '  <tag>VR</tag>\n'
+
     # 用戶自訂標籤（獨立於 scraper tags，其他平台忽略）
     for ut in user_tags:
         nfo_content += f'  <user_tag>{html.escape(ut)}</user_tag>\n'
@@ -457,6 +461,9 @@ def generate_nfo(
 
     if has_subtitle:
         nfo_content += '  <genre>中文字幕</genre>\n'
+
+    if has_vr and not any(t.strip().lower() == 'vr' for t in tags):
+        nfo_content += '  <genre>VR</genre>\n'
 
     nfo_content += f'''  <num>{html.escape(number)}</num>
   <release>{html.escape(date)}</release>
@@ -769,6 +776,7 @@ def organize_file(
             maker=metadata.get('maker', ''),
             url=metadata.get('url', ''),
             has_subtitle=has_subtitle,
+            has_vr=(vr_cluster is not None),
             output_path=nfo_path,
             has_poster=bool(result.get('poster_path')),
             has_fanart=bool(result.get('fanart_path')),

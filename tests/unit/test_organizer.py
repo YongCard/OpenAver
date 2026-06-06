@@ -2276,3 +2276,167 @@ class TestOrganizeVrFilename:
         # 沒有意外 VR tail（無 VR token）
         assert "_180" not in name1 and "_LR" not in name1, f"CD1 意外多了 VR tail：{name1}"
         assert "_180" not in name2 and "_LR" not in name2, f"CD2 意外多了 VR tail：{name2}"
+
+
+# ============ generate_nfo() VR tag/genre 去重測試 (T3) ============
+
+class TestGenerateNfoVrTagDedup:
+    """generate_nfo() has_vr 參數 + tag/genre VR 去重邏輯測試（TASK-68-T3）
+
+    邊界條件來源：68-T3.md 邊界條件表 + plan-68.md CD-68-8/9
+    """
+
+    def test_has_vr_true_no_vr_in_tags_adds_canonical(self, tmp_path):
+        """has_vr=True + tags 無 VR → 補 canonical <tag>VR</tag> + <genre>VR</genre>（各恰一個）"""
+        nfo_path = tmp_path / "SIVR-123.nfo"
+        result = generate_nfo(
+            number="SIVR-123",
+            title="テスト",
+            tags=["巨乳", "單體"],
+            output_path=str(nfo_path),
+            has_vr=True,
+        )
+        assert result is True
+        content = nfo_path.read_text(encoding="utf-8")
+        assert content.count("<tag>VR</tag>") == 1, \
+            f"has_vr=True + 無 VR tags → 應含恰一個 <tag>VR</tag>，content={content!r}"
+        assert content.count("<genre>VR</genre>") == 1, \
+            f"has_vr=True + 無 VR tags → 應含恰一個 <genre>VR</genre>，content={content!r}"
+
+    def test_has_vr_true_scraper_already_has_vr_no_duplicate(self, tmp_path):
+        """has_vr=True + scraper tags 已有 VR → 不重複補 canonical（各恰一個）"""
+        nfo_path = tmp_path / "KAVR-001.nfo"
+        result = generate_nfo(
+            number="KAVR-001",
+            title="テスト",
+            tags=["VR", "單體"],
+            output_path=str(nfo_path),
+            has_vr=True,
+        )
+        assert result is True
+        content = nfo_path.read_text(encoding="utf-8")
+        assert content.count("<tag>VR</tag>") == 1, \
+            f"scraper 已有 VR + has_vr=True → 應仍只有一個 <tag>VR</tag>（不重複）"
+        assert content.count("<genre>VR</genre>") == 1, \
+            f"scraper 已有 VR + has_vr=True → 應仍只有一個 <genre>VR</genre>（不重複）"
+
+    def test_has_vr_true_lowercase_space_variant_no_duplicate(self, tmp_path):
+        """has_vr=True + tags=[' vr ','x']（小寫+空白變體）→ case-insensitive 去重，不補 canonical"""
+        nfo_path = tmp_path / "WAVR-456.nfo"
+        result = generate_nfo(
+            number="WAVR-456",
+            title="テスト",
+            tags=[" vr ", "x"],
+            output_path=str(nfo_path),
+            has_vr=True,
+        )
+        assert result is True
+        content = nfo_path.read_text(encoding="utf-8")
+        # 不可額外補 canonical VR，count 不爆（tag 與 genre 各最多一個 VR 相關 entry）
+        # ` vr ` 由 tags 迴圈寫出（html.escape 後原樣），不補第二個 <tag>VR</tag>
+        assert content.count("<tag>VR</tag>") == 0, \
+            f"小寫/空白 vr 已在 tags → 不應額外補 canonical <tag>VR</tag>"
+        assert content.count("<genre>VR</genre>") == 0, \
+            f"小寫/空白 vr 已在 tags → 不應額外補 canonical <genre>VR</genre>"
+        # 正向：scraper 原始變體仍原樣由 tags 迴圈寫出（去重只擋 canonical，不吞 scraper 條目）
+        assert "<tag> vr </tag>" in content, \
+            "scraper 原始 ' vr ' 變體應原樣寫出（spec §3 邊界表：該變體由 tags 迴圈寫出）"
+        assert "<genre> vr </genre>" in content, \
+            "scraper 原始 ' vr ' 變體 genre 應原樣寫出"
+
+    def test_has_vr_false_no_vr_in_tags_no_vr_written(self, tmp_path):
+        """has_vr=False + tags 無 VR → NFO 完全無 VR tag/genre（不多補）"""
+        nfo_path = tmp_path / "ABP-123.nfo"
+        result = generate_nfo(
+            number="ABP-123",
+            title="テスト",
+            tags=["巨乳"],
+            output_path=str(nfo_path),
+            has_vr=False,
+        )
+        assert result is True
+        content = nfo_path.read_text(encoding="utf-8")
+        assert "<tag>VR</tag>" not in content, \
+            "has_vr=False + 無 VR tags → NFO 不應含 <tag>VR</tag>"
+        assert "<genre>VR</genre>" not in content, \
+            "has_vr=False + 無 VR tags → NFO 不應含 <genre>VR</genre>"
+
+    def test_has_vr_false_scraper_vr_preserved(self, tmp_path):
+        """has_vr=False + scraper tags 含 VR → scraper VR 照寫（不可斷言『無 VR』）"""
+        nfo_path = tmp_path / "STARS-999.nfo"
+        result = generate_nfo(
+            number="STARS-999",
+            title="テスト",
+            tags=["VR", "x"],
+            output_path=str(nfo_path),
+            has_vr=False,
+        )
+        assert result is True
+        content = nfo_path.read_text(encoding="utf-8")
+        # scraper 給的 VR 必須照 tags 路徑寫出（各一）
+        assert content.count("<tag>VR</tag>") == 1, \
+            "has_vr=False + scraper VR → scraper VR tag 應照寫"
+        assert content.count("<genre>VR</genre>") == 1, \
+            "has_vr=False + scraper VR → scraper VR genre 應照寫"
+
+    def test_has_vr_true_with_subtitle_coexist(self, tmp_path):
+        """has_vr=True + has_subtitle=True → VR 與中文字幕 tag/genre 共存（互不干擾）"""
+        nfo_path = tmp_path / "SIVR-VR-C.nfo"
+        result = generate_nfo(
+            number="SIVR-VR-C",
+            title="VR 中字",
+            tags=["巨乳"],
+            output_path=str(nfo_path),
+            has_vr=True,
+            has_subtitle=True,
+        )
+        assert result is True
+        content = nfo_path.read_text(encoding="utf-8")
+        assert content.count("<tag>VR</tag>") == 1, \
+            "has_vr=True + has_subtitle=True → 應含恰一個 <tag>VR</tag>"
+        assert content.count("<genre>VR</genre>") == 1, \
+            "has_vr=True + has_subtitle=True → 應含恰一個 <genre>VR</genre>"
+        assert "<tag>中文字幕</tag>" in content, \
+            "has_subtitle=True 時 <tag>中文字幕</tag> 應仍存在（VR 不干擾中字）"
+        assert "<genre>中文字幕</genre>" in content, \
+            "has_subtitle=True 時 <genre>中文字幕</genre> 應仍存在"
+
+    def test_has_vr_false_no_vr_nfo_byte_identical(self, tmp_path):
+        """has_vr=False（預設）一般檔 → NFO 與未加 has_vr 前 byte 完全相同（CD-68-9）
+
+        兩次呼叫使用同一 output_path（basename 相同），保證 <poster>/<thumb>/<fanart> 不因
+        檔名不同而差異——此測試純粹驗證 has_vr=False 不在 NFO 內容裡新增任何 VR 相關行。
+        """
+        dir_before = tmp_path / "before"
+        dir_after = tmp_path / "after"
+        dir_before.mkdir()
+        dir_after.mkdir()
+        # 兩次用同一 NFO 檔名（basename 相同 → poster/thumb/fanart tag 相同）
+        nfo_path_before = dir_before / "ABP-555.nfo"
+        nfo_path_after = dir_after / "ABP-555.nfo"
+
+        # 「未加 has_vr 前」：不傳 has_vr（使用預設值）
+        generate_nfo(
+            number="ABP-555",
+            title="一般標題",
+            tags=["巨乳", "OL"],
+            actors=["女優A"],
+            date="2024-03-01",
+            maker="Studio",
+            output_path=str(nfo_path_before),
+        )
+        # 「加了 has_vr=False」：明確傳 False
+        generate_nfo(
+            number="ABP-555",
+            title="一般標題",
+            tags=["巨乳", "OL"],
+            actors=["女優A"],
+            date="2024-03-01",
+            maker="Studio",
+            output_path=str(nfo_path_after),
+            has_vr=False,
+        )
+        content_before = nfo_path_before.read_text(encoding="utf-8")
+        content_after = nfo_path_after.read_text(encoding="utf-8")
+        assert content_before == content_after, \
+            f"has_vr=False 應與不傳時完全相同（零變化）\nbefore={content_before!r}\nafter={content_after!r}"
