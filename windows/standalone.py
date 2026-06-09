@@ -308,6 +308,22 @@ def main():
                 # 永遠 early-return，下次啟動仍寫回 maximized=true 形成 sticky failure
                 live["maximized"] = False
 
+        # JavLibrary CF transport — dedicated hidden window
+        try:
+            from cf_transport_impl import PyWebViewCfTransport   # sibling import（WINDOWS_DIR 已在 sys.path）
+            from core.scrapers.javlibrary import JAVLIBRARY_ORIGIN
+            from core.cf_transport import register_cf_transport
+            jl_win = webview.create_window(
+                'JavLibrary — CF 驗證',
+                JAVLIBRARY_ORIGIN,
+                width=1200, height=820,
+                hidden=True,
+            )
+            register_cf_transport(PyWebViewCfTransport(jl_win))
+            logger.info("JavLibrary CF transport registered")
+        except Exception as e:
+            logger.warning(f"JavLibrary CF transport init failed (JL will be unavailable): {e}")
+
     # 5. 開始 GUI 事件循環（阻塞直到窗口關閉）
     # 根據平台選擇 GUI 後端
     if sys.platform == 'darwin':
