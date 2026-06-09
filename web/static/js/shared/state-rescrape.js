@@ -182,6 +182,20 @@ export function rescrapeState() {
                     }),
                 });
                 const data = await resp.json();
+                // 70-T6（P2 fix）: cf_needed / cf_unavailable 統一在所有入口分支之前處理——
+                // 原本只在 showcase 分支處理，導致 switch-source 入口收到 {cf_needed:true} 時
+                // 因 data.success falsy 而落入 rescrapeNotFound=true，CF flow 從未觸發。
+                // 上移後：search 已在函式頂端 early-return，不受影響；switch-source / showcase
+                // 兩條路徑皆能正確進入 CF flow。finally 確保 rescrapeLoadingSource=null，retry 可進行。
+                if (data && data.cf_needed) {
+                    this.rescrapeCfWaiting = true;
+                    this._pollCfThenRetry(this.rescrapeNumber.trim());
+                    return;
+                }
+                if (data && data.cf_unavailable) {
+                    this.showToast(window.t('showcase.rescrape.jl_desktop_only'), 'warning');
+                    return;
+                }
                 // 62c-3 US7：switch-source 入口（在 showcase 分支之前判斷）。找到 → 只替換捕捉的當前卡 slot
                 // （不重設結果列、currentIndex 不歸零、無 ✓/✗ commit）+ seed cycle state；找不到 → 沿用 not-found。
                 // 2026-05-31：番號改為可編輯（拍板放開唯讀），故 stale 比對仍用捕捉的原 t.number
@@ -216,13 +230,8 @@ export function rescrapeState() {
                 }
                 // Showcase（lightbox / enrich）：找到 → 換頁 preview；找不到 → 留 pick
                 // （Search 入口已在函式開頭提早分流到 advancedSearch，不走到這裡）
-                // 70-T6: cf_needed / cf_unavailable 必須在 success / else 之前（順序不可錯）
-                if (data && data.cf_needed) {
-                    this.rescrapeCfWaiting = true;
-                    this._pollCfThenRetry(this.rescrapeNumber.trim());
-                } else if (data && data.cf_unavailable) {
-                    this.showToast(window.t('showcase.rescrape.jl_desktop_only'), 'warning');
-                } else if (data && data.success) {
+                // （cf_needed / cf_unavailable 已在上方統一提前處理，此處不再重複）
+                if (data && data.success) {
                     this.rescrapePreview = { ...data, sourceName: this._resolveSourceName(sourceId) };
                     this._rescrapeCommitSource = sourceId;
                     this.rescrapeStep = 'preview';

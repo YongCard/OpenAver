@@ -9980,6 +9980,42 @@ class TestJavlibraryCfFlowT6Guard:
             assert "jl_cf_timeout" in content, \
                 f"70-T6 違規：locales/{lang}.json 缺 notif.jl_cf_timeout"
 
+    # (9) P2 fix: cf_needed / cf_unavailable 必須在 switch-source 分支之前（字串位置守衛）
+    # 防回歸：確保 cf_needed 處理不再被 switch-source 分支攔截而落入 rescrapeNotFound=true
+    def test_cf_needed_before_switch_source_branch(self):
+        """70-T6 P2：cf_needed / cf_unavailable 處理必須在 switch-source 分支之前。
+
+        Codex P2 指出：switch-source 收到 {cf_needed:true} 時，因 data.success falsy
+        落入 rescrapeNotFound=true，CF flow 不觸發。修法：上移 cf_needed/cf_unavailable
+        至所有入口分支（switch-source / showcase）之前統一處理。
+        此守衛確保上移後不回歸（字串位置比對）。
+        """
+        js = _STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+        assert "cf_needed" in js, \
+            "70-T6 P2 違規：state-rescrape.js 未含 cf_needed 處理"
+        assert "rescrapeEntryPoint === 'switch-source'" in js, \
+            "70-T6 P2 違規：state-rescrape.js 未含 switch-source 分支"
+        cf_pos = js.index("cf_needed")
+        sw_pos = js.index("rescrapeEntryPoint === 'switch-source'")
+        assert cf_pos < sw_pos, (
+            f"70-T6 P2 違規：cf_needed 處理（pos={cf_pos}）必須在 switch-source 分支"
+            f"（pos={sw_pos}）之前，否則 switch-source 入口永遠看不到 CF flow"
+        )
+
+    def test_cf_unavailable_before_switch_source_branch(self):
+        """70-T6 P2：cf_unavailable 處理必須在 switch-source 分支之前（與 cf_needed 同理）。"""
+        js = _STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+        assert "cf_unavailable" in js, \
+            "70-T6 P2 違規：state-rescrape.js 未含 cf_unavailable 處理"
+        assert "rescrapeEntryPoint === 'switch-source'" in js, \
+            "70-T6 P2 違規：state-rescrape.js 未含 switch-source 分支"
+        cf_unav_pos = js.index("cf_unavailable")
+        sw_pos = js.index("rescrapeEntryPoint === 'switch-source'")
+        assert cf_unav_pos < sw_pos, (
+            f"70-T6 P2 違規：cf_unavailable 處理（pos={cf_unav_pos}）必須在 switch-source 分支"
+            f"（pos={sw_pos}）之前"
+        )
+
 
 # ── FIX-2 frontend guard: search 入口隱藏 JL pill ──
 
