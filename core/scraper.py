@@ -327,6 +327,9 @@ def search_jav(number: str, source: str = 'auto', proxy_url: str = '', javbus_la
                     all_data[video.source] = video
                     logger.debug(f"[Search] {scraper_name} 找到結果")
             except Exception as e:
+                from core.cf_transport import CfChallengeRequired, CfTransportUnavailable
+                if isinstance(e, (CfChallengeRequired, CfTransportUnavailable)):
+                    raise          # bubble 給 router，不 continue
                 logger.debug(f"[Search] {scraper_name} 錯誤: {e}")
                 continue
 

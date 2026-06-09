@@ -27,7 +27,7 @@
            但實測「拖入檔名解析錯 → 搜尋無結果 → 想在當前卡改正番號重抓」是真實工作流，
            故放開唯讀，讓 🔄 長壓 = 改番號 + 挑來源、只替換當前卡（仍不重設結果列，與 US5 區隔）。 #}
         <input class="rescrape-num-input" type="text" x-model="rescrapeNumber"
-               @input="rescrapeNotFound = false">
+               @input="if (rescrapeCfWaiting) cancelCfPoll(); rescrapeNotFound = false">
         <div class="rescrape-hint">{{ t('showcase.rescrape.filename_hint') }}：<code x-text="rescrapeOriginalFilename"></code></div>
       </div>
 
@@ -93,6 +93,14 @@
         </div>
         {# 空組 note：僅當 metatube 來源為 0 時顯示（B2 無 metatube → 仍顯示；B3 註冊後自動隱） #}
         <div class="rescrape-empty-note" x-show="rescrapeMetatubeSources().length === 0">{{ t('settings.advanced_search.group_metatube_empty') }}</div>
+
+        {# 70-T6: CF waiting 態（JavLibrary CF 解題中） #}
+        <div x-show="rescrapeCfWaiting" class="rescrape-cf-waiting">
+          <span class="pill-spin" aria-hidden="true"></span>
+          <span x-text="window.t('showcase.rescrape.jl_cf_solving')"></span>
+          <button type="button" class="btn btn-ghost btn-sm"
+                  @click="cancelCfPoll()">{{ t('common.action.cancel') }}</button>
+        </div>
 
         {# not-found：留在 pick + inline error（不換頁） #}
         <div class="rescrape-inline-error" x-show="rescrapeNotFound" x-cloak>

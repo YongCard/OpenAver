@@ -598,7 +598,8 @@
       "close": "关闭",
       "success": "已覆盖写入（封面 + NFO）",
       "fail": "重新刮削失败，请稍后再试。",
-      "jl_desktop_only": "仅限桌面应用程序（standalone）可用"
+      "jl_desktop_only": "仅限桌面应用程序（standalone）可用",
+      "jl_cf_solving": "Cloudflare 验证中，请在弹出窗口点击"
     },
     "placeholder": {
       "search": "搜索番号、女优、标题..."
@@ -1084,7 +1085,8 @@
     "batch_enrich_started": "批量补完开始",
     "batch_enrich_done": "批量补完完成",
     "batch_enrich_done_with_errors": "批量补完（部分失败）",
-    "batch_enrich_failed": "批量补完中断"
+    "batch_enrich_failed": "批量补完中断",
+    "jl_cf_timeout": "JavLibrary CF 验证超时"
   },
   "similar_mode": {
     "button_aria_label": "探索相似视频",

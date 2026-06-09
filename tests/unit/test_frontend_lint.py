@@ -9909,3 +9909,73 @@ class TestJavlibraryPickerT5Guard:
             assert "jl_desktop_only" in content, (
                 f"70-T5 違規：locales/{lang}.json 缺 showcase.rescrape.jl_desktop_only key（i18n parity）"
             )
+
+
+# ── TASK-70-T6: CF flow 前端靜態守衛 ──
+
+class TestJavlibraryCfFlowT6Guard:
+    """70-T6: CF flow 前端靜態守衛。"""
+
+    # (1) state-rescrape.js factory 宣告 rescrapeCfWaiting
+    def test_state_rescrape_declares_rescrapeCfWaiting(self):
+        js = _STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+        assert "rescrapeCfWaiting" in js, \
+            "70-T6 違規：state-rescrape.js factory 未宣告 rescrapeCfWaiting"
+
+    # (2) state-rescrape.js factory 宣告 _cfPollHandle
+    def test_state_rescrape_declares_cfPollHandle(self):
+        js = _STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+        assert "_cfPollHandle" in js, \
+            "70-T6 違規：state-rescrape.js factory 未宣告 _cfPollHandle"
+
+    # (3) state-rescrape.js 定義 _pollCfThenRetry
+    def test_state_rescrape_has_pollCfThenRetry(self):
+        js = _STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+        assert "_pollCfThenRetry" in js, \
+            "70-T6 違規：state-rescrape.js 未定義 _pollCfThenRetry"
+
+    # (4) state-rescrape.js 定義 cancelCfPoll
+    def test_state_rescrape_has_cancelCfPoll(self):
+        js = _STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+        assert "cancelCfPoll" in js, \
+            "70-T6 違規：state-rescrape.js 未定義 cancelCfPoll"
+
+    # (5) rescrapeWithSource 含 cf_needed 且在 rescrapeNotFound = true 之前
+    def test_state_rescrape_cf_needed_before_notfound(self):
+        js = _STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+        assert "cf_needed" in js, \
+            "70-T6 違規：state-rescrape.js 未含 cf_needed 處理"
+        cf_pos = js.index("cf_needed")
+        # rescrapeNotFound = true 在 showcase 分支的 else 中（最後一次出現）
+        notfound_pos = js.rindex("rescrapeNotFound = true")
+        assert cf_pos < notfound_pos, \
+            "70-T6 違規：cf_needed check 必須在 rescrapeNotFound = true 之前"
+
+    # (6) closeRescrape 含 clearInterval（清 CF poll）
+    def test_close_rescrape_clears_interval(self):
+        js = _STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+        # 找 closeRescrape 方法定義（定義行含 `closeRescrape() {`）
+        # 用 rindex 找最後一個出現的 closeRescrape()，往後 500 chars 覆蓋方法體
+        close_pos = js.rindex("closeRescrape()")
+        segment = js[close_pos:close_pos + 500]
+        assert "clearInterval" in segment, \
+            "70-T6 違規：closeRescrape 未呼叫 clearInterval 清 CF poll handle"
+
+    # (7) _rescrape_modal.html 含 rescrapeCfWaiting div + jl_cf_solving + cancelCfPoll
+    def test_modal_has_cf_waiting_block(self):
+        html = _MODAL_HTML_70.read_text(encoding="utf-8")
+        assert "rescrapeCfWaiting" in html, \
+            "70-T6 違規：_rescrape_modal.html 缺 rescrapeCfWaiting waiting 區塊"
+        assert "jl_cf_solving" in html, \
+            "70-T6 違規：_rescrape_modal.html 缺 jl_cf_solving i18n key"
+        assert "cancelCfPoll" in html, \
+            "70-T6 違規：_rescrape_modal.html Cancel 鈕缺 cancelCfPoll() 綁定"
+
+    # (8) 4 locale 有 jl_cf_solving + notif.jl_cf_timeout
+    def test_i18n_t6_keys_parity(self):
+        for lang in ("zh_TW", "zh_CN", "en", "ja"):
+            content = (_LOCALES_ROOT_70 / f"{lang}.json").read_text(encoding="utf-8")
+            assert "jl_cf_solving" in content, \
+                f"70-T6 違規：locales/{lang}.json 缺 jl_cf_solving"
+            assert "jl_cf_timeout" in content, \
+                f"70-T6 違規：locales/{lang}.json 缺 notif.jl_cf_timeout"

@@ -593,7 +593,8 @@
     "batch_enrich_started": "批次補完開始",
     "batch_enrich_done": "批次補完完成",
     "batch_enrich_done_with_errors": "批次補完（部分失敗）",
-    "batch_enrich_failed": "批次補完中斷"
+    "batch_enrich_failed": "批次補完中斷",
+    "jl_cf_timeout": "JavLibrary CF 驗證逾時"
   },
   "similar_mode": {
     "button_aria_label": "探索相似影片",
@@ -619,7 +620,8 @@
       "close": "關閉",
       "success": "已覆蓋寫入（封面 + NFO）",
       "fail": "重新刮削失敗，請稍後再試。",
-      "jl_desktop_only": "僅限桌面應用程式（standalone）可用"
+      "jl_desktop_only": "僅限桌面應用程式（standalone）可用",
+      "jl_cf_solving": "Cloudflare 驗證中，請在跳出的視窗點一下"
     },
     "placeholder": {
       "search": "搜尋番號、女優、標題..."

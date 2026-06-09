@@ -34,6 +34,8 @@ export function rescrapeState() {
         rescrapeLoadingSource: null,       // string | null（明確，:disabled 純 boolean）
         rescrapePreview: null,             // transient（CD-62-2）
         rescrapeNotFound: false,
+        rescrapeCfWaiting: false,          // 70-T6: CF 等待態（polling 中）
+        _cfPollHandle: null,               // 70-T6: setInterval handle；null = 未 polling
 
         // ── private ──
         _rescraping: false,                // commit 連點 guard（鏡像 _enriching）
@@ -157,6 +159,7 @@ export function rescrapeState() {
          */
         async rescrapeWithSource(sourceId) {
             if (this.rescrapeLoadingSource !== null) return;          // 連點防護
+            if (this.rescrapeCfWaiting) return;                       // 等待態不可重入（防 re-entry + UX）
             if (!this.rescrapeNumber.trim()) { this.rescrapeNotFound = true; return; }
             // Search 入口（62c-1）：無預覽卡，繞過 /api/rescrape/preview，直接走 B1 advancedSearch
             // 整包贏（GET /api/search?...&source=），結果進正常結果區，彈窗關閉（spec US5）。
@@ -213,7 +216,13 @@ export function rescrapeState() {
                 }
                 // Showcase（lightbox / enrich）：找到 → 換頁 preview；找不到 → 留 pick
                 // （Search 入口已在函式開頭提早分流到 advancedSearch，不走到這裡）
-                if (data && data.success) {
+                // 70-T6: cf_needed / cf_unavailable 必須在 success / else 之前（順序不可錯）
+                if (data && data.cf_needed) {
+                    this.rescrapeCfWaiting = true;
+                    this._pollCfThenRetry(this.rescrapeNumber.trim());
+                } else if (data && data.cf_unavailable) {
+                    this.showToast(window.t('showcase.rescrape.jl_desktop_only'), 'warning');
+                } else if (data && data.success) {
                     this.rescrapePreview = { ...data, sourceName: this._resolveSourceName(sourceId) };
                     this._rescrapeCommitSource = sourceId;
                     this.rescrapeStep = 'preview';
@@ -274,9 +283,61 @@ export function rescrapeState() {
         },
 
         /**
+         * 70-T6: poll /api/cf/status 直到就緒，再 auto-retry 同番號。
+         * MAX_POLLS=150（150 × 2s = 300s = 5 分鐘）。
+         */
+        _pollCfThenRetry(number) {
+            if (this._cfPollHandle !== null) {   // 防覆寫洩漏：清掉任何既有 poll
+                clearInterval(this._cfPollHandle);
+                this._cfPollHandle = null;
+            }
+            const MAX_POLLS = 150;          // 150 × 2s = 300s = 5 分鐘
+            let pollCount = 0;
+            this._cfPollHandle = setInterval(async () => {
+                pollCount++;
+                if (pollCount >= MAX_POLLS) {
+                    this.cancelCfPoll();    // 逾時走 cancel 流程
+                    return;
+                }
+                try {
+                    const resp = await fetch('/api/cf/status?key=javlibrary');
+                    const data = await resp.json();
+                    if (data && data.ready) {
+                        clearInterval(this._cfPollHandle);
+                        this._cfPollHandle = null;
+                        this.rescrapeCfWaiting = false;
+                        // retry 同番號
+                        await this.rescrapeWithSource('javlibrary');
+                    }
+                } catch (_) { /* network 暫時失敗，繼續 poll */ }
+            }, 2000);
+        },
+
+        /**
+         * 70-T6: 取消 CF poll（clearInterval + POST /api/cf/abandon）。
+         * 用於：逾時、用戶點 Cancel 鈕、番號 input 改動。
+         * 注意：closeRescrape 只做 clearInterval，不 POST abandon（關窗 ≠ 顯式取消）。
+         */
+        cancelCfPoll() {
+            if (this._cfPollHandle !== null) {
+                clearInterval(this._cfPollHandle);
+                this._cfPollHandle = null;
+            }
+            this.rescrapeCfWaiting = false;
+            // POST /api/cf/abandon（非阻塞 fire-and-forget；通知中心由後端寫）
+            fetch('/api/cf/abandon?key=javlibrary', { method: 'POST' }).catch(() => {});
+        },
+
+        /**
          * 關閉彈窗（reset transient；_rescrapeVideo/_rescrapeCommitSource 下次 open 覆寫）。
          */
         closeRescrape() {
+            // 70-T6: 清 CF poll handle（關窗不 POST abandon，語意不同）
+            if (this._cfPollHandle !== null) {
+                clearInterval(this._cfPollHandle);
+                this._cfPollHandle = null;
+                this.rescrapeCfWaiting = false;
+            }
             this.rescrapeOpen = false;
             this.rescrapeStep = 'pick';
             this.rescrapePreview = null;

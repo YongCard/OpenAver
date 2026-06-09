@@ -598,7 +598,8 @@
       "close": "閉じる",
       "success": "上書きしました（カバー + NFO）",
       "fail": "再スクレイプに失敗しました。後でもう一度お試しください。",
-      "jl_desktop_only": "デスクトップアプリ（standalone）のみ利用可能"
+      "jl_desktop_only": "デスクトップアプリ（standalone）のみ利用可能",
+      "jl_cf_solving": "ポップアップでCloudflare認証を完了してください"
     },
     "placeholder": {
       "search": "番号・女優名・タイトルを検索..."
@@ -1084,7 +1085,8 @@
     "batch_enrich_started": "一括補完開始",
     "batch_enrich_done": "一括補完完了",
     "batch_enrich_done_with_errors": "一括補完（一部失敗）",
-    "batch_enrich_failed": "一括補完中断"
+    "batch_enrich_failed": "一括補完中断",
+    "jl_cf_timeout": "JavLibrary CF認証タイムアウト"
   },
   "similar_mode": {
     "button_aria_label": "類似動画を探索",

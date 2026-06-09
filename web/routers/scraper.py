@@ -22,6 +22,8 @@ from core.organizer import organize_file
 from core.path_utils import to_file_uri, uri_to_fs_path
 from core.scraper import search_jav, search_jav_single_source, strip_internal_nfo_keys
 from core.source_config import validate_source_id
+from core.cf_transport import get_cf_transport, CfChallengeRequired, CfTransportUnavailable
+from core.scrapers.javlibrary import JAVLIBRARY_ORIGIN
 from core.logger import get_logger
 from core.config import load_config
 from web.routers.notifications import emit_notification as _emit_notif
@@ -195,6 +197,13 @@ def rescrape_preview_endpoint(request: RescrapePreviewRequest) -> dict:
         if result is None:
             return {"success": False}
         return {"success": True, **strip_internal_nfo_keys(result)}
+    except CfChallengeRequired:
+        t = get_cf_transport()
+        if t:
+            t.begin_solve(JAVLIBRARY_ORIGIN, 'javlibrary')  # 非阻塞
+        return {"success": False, "cf_needed": True}
+    except CfTransportUnavailable:
+        return {"success": False, "cf_unavailable": True}
     except Exception:
         logger.exception("rescrape_preview_endpoint 失敗")
         return {"success": False, "error": "預覽搜尋失敗，請查閱日誌"}

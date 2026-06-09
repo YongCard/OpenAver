@@ -598,7 +598,8 @@
       "close": "Close",
       "success": "Overwritten (cover + NFO)",
       "fail": "Re-scrape failed, please try again later.",
-      "jl_desktop_only": "Available in standalone desktop app only"
+      "jl_desktop_only": "Available in standalone desktop app only",
+      "jl_cf_solving": "Solving Cloudflare challenge in popup window"
     },
     "placeholder": {
       "search": "Search ID, actress, title..."
@@ -1084,7 +1085,8 @@
     "batch_enrich_started": "Batch enrich started",
     "batch_enrich_done": "Batch enrich complete",
     "batch_enrich_done_with_errors": "Batch enrich (some failures)",
-    "batch_enrich_failed": "Batch enrich interrupted"
+    "batch_enrich_failed": "Batch enrich interrupted",
+    "jl_cf_timeout": "JavLibrary CF challenge timed out"
   },
   "similar_mode": {
     "button_aria_label": "Explore similar videos",
