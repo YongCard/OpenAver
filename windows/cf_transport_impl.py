@@ -23,9 +23,11 @@ from __future__ import annotations
 
 import json
 import queue
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-import webview
+if TYPE_CHECKING:
+    import webview
+
 from bs4 import BeautifulSoup
 
 from core.cf_transport import CfChallengeRequired, CfTransport
@@ -173,6 +175,11 @@ class PyWebViewCfTransport:
         ) or ""
 
         # 4. Evaluate readiness.
+        # Positive "loaded-page" guard: real JavLibrary pages always have a
+        #   non-empty <title>.  An empty title means the page is still
+        #   navigating (evaluate_js returned None/""  before the DOM is ready),
+        #   so we keep the window open and let the poll loop retry rather than
+        #   misreporting ready and hiding the window prematurely.
         # CF challenge: never ready, user must wait for Turnstile.
         # Age-gate (agreeBtn): not ready, window stays visible so user can click
         #   the agree button. over18 cookie (step 1) prevents re-appearance in
@@ -180,7 +187,7 @@ class PyWebViewCfTransport:
         #   only, narrow) catches it and keeps the window open. Normal content
         #   pages that contain "利用規約"/"18歳"/"over18" in the footer are NOT
         #   caught because the narrowed _is_age_gate only matches agreeBtn.
-        ready = not _is_cf_challenge(title, head) and not _is_age_gate(head)
+        ready = bool(title.strip()) and not _is_cf_challenge(title, head) and not _is_age_gate(head)
 
         # 5. Auto-hide when first ready
         if ready:

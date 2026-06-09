@@ -330,6 +330,21 @@ class TestIsReady:
         hide_calls = [c for c in win.calls if c[0] == 'hide']
         assert len(hide_calls) == 0, "age-gate 時不應 hide()，彈窗須保留"
 
+    def test_blank_or_navigating_page_returns_false_no_hide(self):
+        """
+        FIX-P2A: 導航中頁面（document.title 回空字串）→ is_ready() 回 False，
+        視窗不 hide，避免慢載入時誤判 ready 並提前關閉彈窗。
+        """
+        # Empty title simulates page still navigating (evaluate_js returns "" or None)
+        win = FakeWindowIsReady("", READY_HEAD)
+        transport = PyWebViewCfTransport(win)
+        result = transport.is_ready()
+        assert result is False, (
+            "導航中/空 title 頁面 is_ready() 應回 False（loaded-page guard）"
+        )
+        hide_calls = [c for c in win.calls if c[0] == 'hide']
+        assert len(hide_calls) == 0, "空 title 時不應 hide()，視窗須保留"
+
     def test_every_call_sets_over18_cookie(self):
         """Every is_ready() call sets over18 cookie (idempotent)."""
         win = FakeWindowIsReady(READY_TITLE, READY_HEAD)

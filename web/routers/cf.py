@@ -10,7 +10,10 @@ CF transport 控制端點（與 scraper router 語意正交）。
 from fastapi import APIRouter
 
 from core.cf_transport import get_cf_transport
+from core.logger import get_logger
 from web.routers.notifications import emit_notification
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/cf", tags=["cf"])
 
@@ -24,6 +27,7 @@ def cf_status(key: str = "javlibrary") -> dict:
     try:
         return {"ready": bool(t.is_ready(key))}
     except Exception:
+        logger.exception("cf_status: is_ready(key=%s) 失敗", key)
         return {"ready": False}
 
 
