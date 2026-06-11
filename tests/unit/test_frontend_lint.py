@@ -1764,6 +1764,56 @@ class TestShowcaseLightboxSentinel:
         assert "showFavoriteActresses" in surrounding, \
             "showcase.html removeActress button missing: 'showFavoriteActresses' guard"
 
+    # ----- 71-T7: video delete trash button + delete modal + x-trap（element-bound）-----
+
+    def test_t7_delete_trash_button_in_video_cover_actions(self):
+        """垃圾桶鈕必須是影片 cover-actions 內的 danger button，綁 openDeleteVideoModal()。"""
+        html = self._html()
+        # 抽影片 cover-actions 區塊（x-show 限定有 path 的影片 lightbox）
+        m = re.search(
+            r'<div class="cover-actions" x-show="!!currentLightboxVideo\?\.path">(.*?)</div>',
+            html, re.DOTALL,
+        )
+        assert m, '影片 cover-actions（x-show="!!currentLightboxVideo?.path"）區塊不存在'
+        block = m.group(1)
+        # 垃圾桶 button：抽出綁 openDeleteVideoModal() 的 <button> tag，三要素同 tag
+        btn = re.search(r'<button\b[^>]*openDeleteVideoModal\(\)[^>]*>.*?</button>',
+                        block, re.DOTALL)
+        assert btn, '影片 cover-actions 內缺綁 openDeleteVideoModal() 的垃圾桶 button'
+        btn_html = btn.group(0)
+        assert 'lb-action-btn--danger' in btn_html, \
+            f'垃圾桶 button 缺 danger class: {btn_html!r}'
+        assert 'bi-trash' in btn_html, f'垃圾桶 button 缺 bi-trash icon: {btn_html!r}'
+        assert "t('showcase.video.delete')" in btn_html, \
+            f'垃圾桶 button 缺 i18n showcase.video.delete: {btn_html!r}'
+
+    def test_t7_delete_modal_contract(self):
+        """delete-video modal：deleteVideoModalOpen + 標題 i18n + confirm/cancel handler 綁同一 dialog。"""
+        html = self._html()
+        # 抽 deleteVideoModalOpen 綁定的 <dialog> ... </dialog>
+        m = re.search(
+            r'<dialog\b[^>]*deleteVideoModalOpen[^>]*>(.*?)</dialog>',
+            html, re.DOTALL,
+        )
+        assert m, 'delete-video <dialog>（綁 deleteVideoModalOpen）不存在'
+        dialog_open_tag = m.group(0)[:m.group(0).find('>') + 1]
+        block = m.group(1)
+        assert 'fluent-modal' in dialog_open_tag, \
+            f'delete modal 缺 fluent-modal class: {dialog_open_tag!r}'
+        assert "showcase.video.delete_modal.title" in block, \
+            'delete modal 缺 i18n delete_modal.title'
+        assert 'confirmDeleteVideo()' in block, 'delete modal 缺 confirmDeleteVideo() 確認 handler'
+        assert 'cancelDeleteVideo()' in block, 'delete modal 缺 cancelDeleteVideo() 取消 handler'
+
+    def test_t7_xtrap_releases_on_delete_modal(self):
+        """燈箱 x-trap 行必須含 deleteVideoModalOpen（modal 開時釋放 trap 給 modal）。"""
+        html = self._html()
+        m = re.search(r'x-trap\.inert="([^"]*)"', html)
+        assert m, 'showcase.html 缺 x-trap.inert 行'
+        expr = m.group(1)
+        assert 'deleteVideoModalOpen' in expr, \
+            f'x-trap.inert 未含 deleteVideoModalOpen（delete modal 開時 trap 未釋放）: {expr!r}'
+
 
 class TestShowcaseHeroCard:
     """Phase 44b-T6: Showcase Hero Card guards (method folded)"""

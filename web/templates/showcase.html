@@ -549,7 +549,7 @@
         <!-- Lightbox (M3a) -->
         <div class="showcase-lightbox"
              :class="{ 'show': lightboxOpen }"
-             x-trap.inert="lightboxOpen && !sampleGalleryOpen && !removeActressModalOpen && !rescrapeOpen"
+             x-trap.inert="lightboxOpen && !sampleGalleryOpen && !removeActressModalOpen && !rescrapeOpen && !deleteVideoModalOpen"
              @click="handleLightboxBackdropClick($event)">
 
             <div class="lightbox-content" @click.stop>
@@ -732,6 +732,13 @@
                                         data-tooltip="{{ t('showcase.action.enrich') }}"
                                         :aria-label="t('showcase.action.enrich')">
                                     <i class="bi" :class="_enriching ? 'bi-arrow-clockwise spin' : 'bi-search'"></i>
+                                </button>
+                                <!-- 71-T7: 從收藏移除（破壞性，只刪 DB row + thumb，不碰磁碟影片/封面）-->
+                                <button class="lb-action-btn lb-action-btn--danger"
+                                        @click.stop="openDeleteVideoModal()"
+                                        :data-tooltip="t('showcase.video.delete')"
+                                        :aria-label="t('showcase.video.delete')">
+                                    <i class="bi bi-trash"></i>
                                 </button>
                             </div>
                         </div>
@@ -1215,6 +1222,34 @@
                     <span x-show="_removeActressLoading" class="loading loading-spinner loading-xs"></span>
                     <span x-show="!_removeActressLoading"><i class="bi bi-trash3"></i></span>
                     {{ t('showcase.actress.remove_modal.confirm') }}
+                </button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- 71-T7: Delete Video fluent-modal（破壞性確認；只移 DB row + thumb，不刪磁碟檔）-->
+    <dialog class="modal fluent-modal"
+            :class="{ 'modal-open': deleteVideoModalOpen }"
+            @click.self="cancelDeleteVideo()"
+            @keydown.escape.window="deleteVideoModalOpen && cancelDeleteVideo()">
+        <div class="modal-box fluent-modal-box">
+            <h3 class="fluent-modal-title">
+                <i class="bi bi-exclamation-triangle text-warning"></i>
+                {{ t('showcase.video.delete_modal.title') }}
+            </h3>
+            <p class="fluent-modal-body"
+               x-text="t('showcase.video.delete_modal.body').replace('{number}', _pendingDeleteNumber || '')">
+            </p>
+            <div class="modal-action fluent-modal-actions">
+                <button type="button" class="btn btn-ghost" @click="cancelDeleteVideo()">
+                    {{ t('showcase.video.delete_modal.cancel') }}
+                </button>
+                <button type="button" class="btn btn-error"
+                        @click="confirmDeleteVideo()"
+                        :disabled="_deleteLoading">
+                    <span x-show="_deleteLoading" class="loading loading-spinner loading-xs"></span>
+                    <span x-show="!_deleteLoading"><i class="bi bi-trash3"></i></span>
+                    {{ t('showcase.video.delete_modal.confirm') }}
                 </button>
             </div>
         </div>

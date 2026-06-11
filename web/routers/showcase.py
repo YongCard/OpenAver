@@ -15,6 +15,7 @@ from core.database import VideoRepository, get_db_path, init_db
 from core.path_utils import to_file_uri, is_path_under_dir, uri_to_fs_path
 from core.logger import get_logger
 from core.config import load_config
+from core import thumbnail_cache
 
 logger = get_logger(__name__)
 
@@ -154,3 +155,30 @@ def get_video(path: str = Query(..., description="file:/// URI")):
     except Exception as e:
         logger.error("取得單筆影片失敗: %s", e)
         return JSONResponse({"success": False, "error": "取得影片資料失敗"}, status_code=500)
+
+
+@router.delete("/video")
+def delete_video(path: str = Query(..., description="file:/// URI")):
+    """從收藏移除單筆影片（71-T7，CD-10 / §1.6）。
+
+    只刪 DB row（repo.delete_by_paths，DB-only）+ 砍衍生縮圖 WebP
+    （thumbnail_cache.invalidate）。**絕不 unlink 影片檔或原始封面檔。**
+
+    刻意「無 scope guard」：issue #57 要刪的正是已移出 gallery 設定資料夾的
+    stale DB row，那些 path 依定義不在任何 configured dir 下，scope guard 會
+    擋掉正當用例。未知 path → delete_by_paths rowcount=0，安全 no-op。
+
+    `def`（非 async）→ Starlette threadpool，body 內 DB / unlink 在 worker thread。
+    不進 capabilities（D9）。
+    """
+    db_path = get_db_path()
+    if not db_path.exists():
+        return JSONResponse({"deleted": 0})
+
+    init_db(db_path)
+    repo = VideoRepository(db_path)
+
+    n = repo.delete_by_paths([path])
+    thumbnail_cache.invalidate(path)
+
+    return JSONResponse({"deleted": n})

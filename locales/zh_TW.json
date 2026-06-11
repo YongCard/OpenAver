@@ -752,6 +752,17 @@
       "success": "補資料完成",
       "failed": "補資料失敗，請稍後再試"
     },
+    "video": {
+      "delete": "從收藏移除",
+      "delete_modal": {
+        "title": "從收藏移除這部影片",
+        "body": "只會從資料庫移除「{number}」這筆紀錄。影片檔會保留在磁碟，不會被刪除；若該檔仍在掃描目錄內，下次掃描會重新被加回。",
+        "cancel": "取消",
+        "confirm": "確認移除"
+      },
+      "delete_success": "已從收藏移除",
+      "delete_failed": "移除失敗，請稍後再試"
+    },
     "actress": {
       "add": "+ 新增女優",
       "addPlaceholder": "輸入女優名稱...",
