@@ -9,6 +9,7 @@ export function stateConfig() {
             searchFavoriteFolder: '',
             proxyUrl: '',
             advancedSearchEnabled: true,  // 進階搜尋 picker（TASK-61c-7，top-level config 欄位）；預設開啟（v0.9.x）
+            thumbnailCacheEnabled: false,  // 縮圖快取開關（feature/71 T2，top-level config 欄位）；預設關閉
 
             // Translate
             translateEnabled: false,
@@ -379,6 +380,7 @@ export function stateConfig() {
                     this.form.proxyUrl = config.search?.proxy_url || '';
                     // 進階搜尋（TASK-61c-7）：top-level bool 欄位
                     this.form.advancedSearchEnabled = config.advanced_search_enabled || false;
+                    this.form.thumbnailCacheEnabled = config.thumbnail_cache_enabled || false;
 
                     // Translate
                     this.form.translateEnabled = config.translate.enabled;
@@ -544,6 +546,7 @@ export function stateConfig() {
 
                 // 進階搜尋（TASK-61c-7）：top-level bool 欄位（與 nested 區塊並列）
                 config.advanced_search_enabled = this.form.advancedSearchEnabled;
+                config.thumbnail_cache_enabled = this.form.thumbnailCacheEnabled;
 
                 // 更新 translate
                 config.translate = {
