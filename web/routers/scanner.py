@@ -837,8 +837,11 @@ def get_thumb(request: Request, path: str = Query(..., description="影片路徑
     """縮圖 serve（feature/71 T3）：hit 零 DB/NAS、miss 生成、失敗 fallback 原圖。
 
     sync def → 跑在 Starlette threadpool worker thread。
+
+    P2-A（TASK-71c）：不呼叫 unquote(path)。FastAPI 已自動 decode query string 一次；
+    再 unquote 造成 double-decode → 檔名含字面 % 的影片 key 失配 → 404。
+    get_image / get_video 的 unquote 是 pre-existing 不同建構鏈，留作 follow-up。
     """
-    path = unquote(path)
     tf = thumbnail_cache.thumb_file_for(path)
 
     # hit：零 DB、零 NAS（只一次本地 stat）— 驗收 4.A 核心
@@ -867,7 +870,15 @@ def get_thumb(request: Request, path: str = Query(..., description="影片路徑
     if not repo.is_known_cover_path(cover_fs):
         return Response(status_code=404, content="封面不在快取記錄中")
 
-    if thumbnail_cache.generate(cover_fs, tf):
+    # P2-B（TASK-71c）：miss 路徑 gate disabled，不重生 WebP。
+    # 用戶關閉快取 + clear 後，stale 分頁的 miss 請求不應重建剛清的目錄。
+    # disabled → fall through 到下方 fallback 原圖（D6 不破圖）。
+    # load_config() 無 lru_cache，每次讀 disk（與 _prewarm_worker:945 同 pattern）。
+    # hit 路徑（tf.exists() → _serve_thumb_file）不 gate：已存在直接 serve 是 harmless。
+    if not load_config().get("thumbnail_cache_enabled", False):
+        # disabled：跳過 generate，fall through 到 fallback 原圖
+        pass
+    elif thumbnail_cache.generate(cover_fs, tf):
         # Codex P1（round-1 + round-2）：generate 用的 cover_fs 是 miss 進來時的 DB 值。
         # 生成期間若 enrich/rescrape 並發換封面，剛寫的 thumb 可能是 stale。re-read DB 一次
         # （miss 路徑本就碰本地 DB，不違反 D4「serve hit 不碰 NAS」）：

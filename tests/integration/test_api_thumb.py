@@ -10,7 +10,6 @@
 """
 import pytest
 from pathlib import Path
-from urllib.parse import quote
 
 from PIL import Image
 
@@ -41,6 +40,15 @@ def thumb_dir(tmp_path, mocker):
     d.mkdir()
     mocker.patch("core.thumbnail_cache._thumb_dir", return_value=d)
     return d
+
+
+@pytest.fixture
+def thumb_enabled(mocker):
+    """把 thumbnail_cache_enabled 設 True（P2-B gate：預設 False，generate 測試需啟用）。"""
+    mocker.patch(
+        "web.routers.scanner.load_config",
+        return_value={"thumbnail_cache_enabled": True},
+    )
 
 
 @pytest.fixture
@@ -105,7 +113,7 @@ class TestGetThumbHit:
 
 
 class TestGetThumbMiss:
-    def test_miss_generates_webp(self, client, thumb_dir, temp_db, tmp_path):
+    def test_miss_generates_webp(self, client, thumb_dir, thumb_enabled, temp_db, tmp_path):
         """邊界4：miss + DB 有 video + cover 真小圖 → 200 image/webp，thumb 檔被建立。"""
         from core.database import Video
         _, repo = temp_db
@@ -198,7 +206,7 @@ class TestGetThumbMissServeConcurrentUnlinkRace:
     FileNotFoundError → 應降級 fallback（200 原圖 / 404），不得 500。
     """
 
-    def test_miss_serve_oserror_does_not_500(self, client, thumb_dir, temp_db, tmp_path, mocker):
+    def test_miss_serve_oserror_does_not_500(self, client, thumb_dir, thumb_enabled, temp_db, tmp_path, mocker):
         """miss→generate True，但 miss-serve 拋 FileNotFoundError → 降級 fallback 原圖 200（非 500）。"""
         from core.database import Video
         _, repo = temp_db
@@ -238,7 +246,7 @@ class TestGetThumbFreshNoneAfterGenerate:
     視為 stale，invalidate 丟棄剛寫 thumb 並回 404，不 serve 剛生成的 stale thumb。
     """
 
-    def test_fresh_none_invalidates_and_404(self, client, thumb_dir, temp_db, tmp_path, mocker):
+    def test_fresh_none_invalidates_and_404(self, client, thumb_dir, thumb_enabled, temp_db, tmp_path, mocker):
         from core.database import Video
         _, repo = temp_db
         cover = _make_small_jpg(tmp_path / "cover.jpg")
@@ -283,7 +291,7 @@ class TestGetThumbStaleCoverAfterGenerate:
     """
 
     def test_stale_cover_invalidates_and_serves_current_cover(
-        self, client, thumb_dir, temp_db, tmp_path, mocker
+        self, client, thumb_dir, thumb_enabled, temp_db, tmp_path, mocker
     ):
         from core.database import Video
         _, repo = temp_db
@@ -389,7 +397,7 @@ class TestThumbHitConcurrentUnlinkRace:
     thumb 被並發 invalidate(unlink) → 不得 500（降級走 miss 重生或 404）。
     """
 
-    def test_stat_filenotfound_does_not_500(self, client, thumb_dir, temp_db, tmp_path, mocker):
+    def test_stat_filenotfound_does_not_500(self, client, thumb_dir, thumb_enabled, temp_db, tmp_path, mocker):
         """hit 後 stat 拋 FileNotFoundError：DB 有 video+cover → 降級重生 200（非 500）。"""
         from core.database import Video
         _, repo = temp_db
@@ -756,3 +764,83 @@ class TestThumbClear:
         resp = client.post("/api/gallery/thumb/clear")
         assert resp.status_code == 200
         assert resp.json() == {"cleared": True}
+
+
+# ============ TASK-71c P2-A：double-decode（字面 % 路徑 miss → 404）============
+
+class TestGetThumbDoubleDecodeP2A:
+    """P2-A：get_thumb 對 FastAPI 已 decode 的 path 再 unquote → double-decode。
+    路徑含字面 % 字元（如 file:///nas/Test%20File.mp4）→ key 失配 → miss 404。
+    修法：移除 get_thumb 內的 path = unquote(path)，信任 FastAPI 已 decode。
+    """
+
+    def test_miss_with_literal_percent_in_path(self, client, thumb_dir, temp_db, tmp_path):
+        """P2-A RED → GREEN：path 含字面 %，FastAPI 已 decode，handler 不應再 unquote。
+        TestClient 走真 FastAPI decode pipeline（quote → ASGI → FastAPI decode → handler）。
+        修前 double-decode → key 失配 → 404（RED）。修後 200（GREEN）。
+        """
+        from core.database import Video
+
+        _, repo = temp_db
+        # path 含字面 %（不是 URL encode 序列，而是檔名本身含 % 的字串）
+        v_path = to_file_uri("/nas/Test%20File.mp4")  # 字面 % 在 URI 中
+        cover = _make_small_jpg(tmp_path / "cover_percent.jpg")
+        repo.upsert_batch([
+            Video(path=v_path, mtime=100.0, cover_path=to_file_uri(str(cover))),
+        ])
+
+        # TestClient(httpx) 自動 percent-encode params → FastAPI decode 一次 → handler 收到的
+        # path 應等於原始 v_path（含字面 %）。修前多餘 unquote 會再 decode 一次 → key 失配。
+        resp = client.get("/api/gallery/thumb", params={"path": v_path})
+
+        # 修前：double-decode → key 失配 → 404（RED）
+        # 修後：handler 直接用 FastAPI decode 後的值 → key 命中 → 不是 404（GREEN）
+        assert resp.status_code != 404, (
+            f"path 含字面 % 不應 double-decode 導致 key 失配 404，實際 {resp.status_code}\n"
+            f"v_path={v_path!r}"
+        )
+
+
+# ============ TASK-71c P2-B：miss 路徑無 disabled gate ============
+
+class TestGetThumbMissDisabledGateP2B:
+    """P2-B：get_thumb miss 路徑未先檢查 thumbnail_cache_enabled，
+    用戶關閉快取後仍重生 WebP → 「關閉並清除」無效。
+    修法：generate 前加 gate，disabled → fall through 到 fallback 原圖。
+    """
+
+    def test_miss_disabled_does_not_generate(
+        self, client, thumb_dir, temp_db, tmp_path, mocker
+    ):
+        """P2-B RED → GREEN：快取關閉時 miss 路徑不應呼叫 generate。
+        修前：generate 被呼叫（RED）。修後：generate 未被呼叫 + 200 fallback 原圖（GREEN）。
+        """
+        from core.database import Video
+
+        _, repo = temp_db
+        cover = _make_small_jpg(tmp_path / "cover_disabled.jpg")
+        uri = to_file_uri("/movies/disabled_test.mp4")
+        repo.upsert_batch([
+            Video(path=uri, mtime=100.0, cover_path=to_file_uri(str(cover))),
+        ])
+
+        # 快取關閉
+        mocker.patch(
+            "web.routers.scanner.load_config",
+            return_value={"thumbnail_cache_enabled": False},
+        )
+        gen_spy = mocker.patch("web.routers.scanner.thumbnail_cache.generate")
+
+        # thumb_dir 空（模擬 clear 後 miss），不預建 thumb
+
+        resp = client.get("/api/gallery/thumb", params={"path": uri})
+
+        # generate 不得被呼叫（快取已關閉）
+        gen_spy.assert_not_called()
+        # fallback 原圖：200 image/jpeg（不是 404、不是 image/webp）
+        assert resp.status_code == 200, (
+            f"disabled miss 應 fallback 原圖 200，實際 {resp.status_code}"
+        )
+        assert resp.headers["content-type"] == "image/jpeg", (
+            f"fallback 應是原圖 jpeg，實際 {resp.headers['content-type']}"
+        )
