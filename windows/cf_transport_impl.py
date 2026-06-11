@@ -223,7 +223,7 @@ class PyWebViewCfTransport:
             logger.info("[CF-DIAG] fetch → _dead=True, raising unavailable (url=%s)", url)
             raise CfTransportUnavailable("JavLibrary CF window was unexpectedly destroyed (crash / forced close); restart OpenAver to use JavLibrary again")
 
-        logger.info("[CF-DIAG] fetch start %s (url=%s)", self._event_states(), url)
+        logger.debug("[CF-DIAG] fetch start %s (url=%s)", self._event_states(), url)
 
         # Bridge gate (0.9.9c): if pywebview's JS bridge is not ready, evaluate_js
         # would block ~20s on _pywebviewready.wait(20) then raise WebViewException
@@ -271,7 +271,7 @@ class PyWebViewCfTransport:
             logger.info("[CF-DIAG] fetch → age gate persisted despite over18 cookie (url=%s)", url)
             raise CfChallengeRequired(f'age gate detected (cookie did not suppress) for {url}')
 
-        logger.info("[CF-DIAG] fetch ok (status=%s, len=%d, url=%s)", status, len(html), url)
+        logger.debug("[CF-DIAG] fetch ok (status=%s, len=%d, url=%s)", status, len(html), url)
         return html
 
     def begin_solve(self, origin_url: str, cache_key: str = 'javlibrary') -> None:
@@ -323,7 +323,7 @@ class PyWebViewCfTransport:
         # on CF / loading. evaluate_js would block ~20s and throw → report not-ready
         # without blocking.
         if not self._bridge_ready():
-            logger.info("[CF-DIAG] is_ready=False (bridge not ready) %s", self._event_states())
+            logger.debug("[CF-DIAG] is_ready=False (bridge not ready) %s", self._event_states())
             return False
 
         # 1. Set over18 cookie every time (idempotent)
@@ -361,7 +361,8 @@ class PyWebViewCfTransport:
         # for minutes (the user already solved), that's the aged-session CF-loop
         # from premise-revision §A — distinct from a dead window (which raises
         # CfTransportUnavailable above instead of reaching here).
-        logger.info("[CF-DIAG] is_ready=%s (cf=%s, age_gate=%s, title=%r) %s", ready, cf, ag, (title or "")[:80], self._event_states())
+        _lvl = logger.info if (ready or cf) else logger.debug
+        _lvl("[CF-DIAG] is_ready=%s (cf=%s, age_gate=%s, title=%r) %s", ready, cf, ag, (title or "")[:80], self._event_states())
 
         # 5. Auto-hide when first ready
         if ready:
