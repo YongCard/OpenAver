@@ -419,6 +419,48 @@ class TestFetch:
             "Second evaluate_js must be the _wv_fetch call (has callback)"
         )
 
+    def test_fetch_bridge_not_ready_raises_cf_no_side_effects(self, monkeypatch):
+        """
+        Bridge gate (0.9.9c): when _pywebviewready is unset (bridge not ready),
+        fetch() must:
+          - raise CfChallengeRequired immediately
+          - NOT call _wv_fetch (no JS fetch attempted on broken bridge)
+          - NOT call evaluate_js (over18 cookie NOT set — bridge gate fires first)
+          - record _cf_url = url (so begin_solve can navigate to the right page)
+        """
+        wv_fetch_calls = []
+
+        def spy_wv_fetch(window, url, **kwargs):
+            wv_fetch_calls.append(url)
+            return (url, 200, NORMAL_HTML)
+
+        monkeypatch.setattr(cf_transport_impl, '_wv_fetch', spy_wv_fetch)
+
+        win = FakeWindow()
+        # Bridge not ready: clear the _pywebviewready event
+        win.events._pywebviewready.clear()
+        transport = PyWebViewCfTransport(win)
+
+        url = 'https://www.javlibrary.com/ja/vl_searchbyid.php?keyword=START-578'
+        with pytest.raises(CfChallengeRequired):
+            transport.fetch(url)
+
+        # _wv_fetch must NOT have been called (bridge gate fires before it)
+        assert wv_fetch_calls == [], (
+            f"_wv_fetch must not be called when bridge is not ready; got calls: {wv_fetch_calls}"
+        )
+
+        # evaluate_js must NOT have been called (over18 cookie path is after bridge gate)
+        eval_calls = [c for c in win.calls if c[0] == 'evaluate_js']
+        assert eval_calls == [], (
+            f"evaluate_js must not be called when bridge is not ready; got: {eval_calls}"
+        )
+
+        # _cf_url must record the challenged URL for begin_solve
+        assert transport._cf_url == url, (
+            f"_cf_url must be set to {url!r} when bridge not ready; got {transport._cf_url!r}"
+        )
+
 
 # ──────────────────────────────────────────────────────────────
 # Tests: begin_solve()
@@ -607,6 +649,37 @@ class TestIsReady:
         # Should not raise; returns a bool (True or False — both are acceptable)
         result = transport.is_ready()
         assert isinstance(result, bool), "is_ready() must return bool even when evaluate_js returns None"
+
+    def test_is_ready_bridge_not_ready_returns_false_no_evaluate_js(self):
+        """
+        Bridge gate (0.9.9c): when _pywebviewready is unset (bridge not ready),
+        is_ready() must:
+          - return False immediately (no blocking ~20s on evaluate_js)
+          - NOT call evaluate_js at all (bridge gate fires before over18 cookie + title check)
+          - NOT call hide() (window stays visible — CF/loading page still active)
+        """
+        win = FakeWindowIsReady(READY_TITLE, READY_HEAD)
+        # Bridge not ready: clear the _pywebviewready event
+        win.events._pywebviewready.clear()
+        transport = PyWebViewCfTransport(win)
+
+        result = transport.is_ready()
+
+        assert result is False, (
+            "is_ready() must return False when bridge is not ready (bridge gate)"
+        )
+
+        # evaluate_js must NOT have been called
+        eval_calls = [c for c in win.calls if c[0] == 'evaluate_js']
+        assert eval_calls == [], (
+            f"evaluate_js must not be called when bridge is not ready; got: {eval_calls}"
+        )
+
+        # hide() must NOT have been called (window stays visible)
+        hide_calls = [c for c in win.calls if c[0] == 'hide']
+        assert hide_calls == [], (
+            f"hide() must not be called when bridge is not ready; got: {hide_calls}"
+        )
 
 
 # ──────────────────────────────────────────────────────────────
