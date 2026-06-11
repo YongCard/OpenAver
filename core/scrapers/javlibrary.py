@@ -71,8 +71,10 @@ def _is_age_gate(html: str) -> bool:
     也有，broad 比對會 false-positive（is_ready 卡死）。同意閘是用戶必須在
     彈窗手動點過的可恢復步驟，故 is_ready 需辨識它（回 False 讓彈窗保留）。
 
-    [NEEDS CLARIFICATION / T7]：agreeBtn 為既有偵測 id，待 Windows standalone
-    實機確認同意頁 agree 控制的實際 id/結構；若不同，調整此處 marker 即可。
+    正常 fetch 路徑恆 False 是「刻意」的：站台 #adultwarningmask 是 client-side
+    overlay，每頁 server HTML 都有、靠 JS 讀 over18 cookie 才隱藏，從不擋 fetch/parse。
+    若改成偵測 mask 會每頁誤判 age-gate → is_ready 永遠 False / fetch 永遠 raise → 全壞。
+    本函式查 agreeBtn（真同意頁控制項），供 is_ready 偵測「視窗顯示中的真同意頁」異常路徑。
     """
     return 'agreeBtn' in html
 

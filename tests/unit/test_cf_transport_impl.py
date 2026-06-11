@@ -50,8 +50,8 @@ class FakeEvent:
     """Stub for a threading.Event-like pywebview lifecycle event.
 
     Defaults to set=True so `_bridge_ready()` reports ready and existing tests
-    keep their pre-0.9.9c behavior. Tests that exercise the bridge-not-ready /
-    forced-reload paths flip it via .clear()/.set()."""
+    keep their pre-0.9.9c behavior. Tests that exercise the bridge-not-ready
+    path can flip it via .clear()/.set()."""
 
     def __init__(self, initial: bool = True):
         self._set = initial
@@ -432,6 +432,10 @@ class TestBeginSolve:
         after load_url to a CF-challenged origin blocks ~20s on _pywebviewready and
         raises WebViewException, stranding the bridge. over18 is set in
         fetch()/is_ready() instead. begin_solve must stay show + navigate only.
+
+        Note: this test passes `_cf_url=None` (default), so begin_solve falls back to
+        the origin argument; when `_cf_url` is set it takes priority — see
+        TestBeginSolveTargetsCfUrl.
         """
         win = FakeWindow()
         transport = PyWebViewCfTransport(win)

@@ -11,7 +11,7 @@ Design:
     from the GUI thread's perspective.  Only the FastAPI threadpool worker
     blocks on result_q.get(timeout=...).
   - fetch() unpacks the tuple (C1 contract) and detects CF challenge.
-  - begin_solve() is non-blocking: show → load_url → set over18 cookie.
+  - begin_solve() is non-blocking: show → load_url only (no evaluate_js — CF page would block 20s; over18 set in fetch()/is_ready()).
   - is_ready() is a fast non-blocking check: reads title + head HTML slice.
   - No blocking wait loop (C2: POC wait_for_ready is NOT ported here).
 
@@ -168,7 +168,7 @@ class PyWebViewCfTransport:
         # [CF-DIAG] If this line ever appears in the log, edgechromium's `closed`
         # event DID fire (70c's Layer 2). If the window dies but this never logs,
         # Layer 2 is inert and the death only surfaces as a WebViewException /
-        # TimeoutError on the next fetch (the dead-window-hang plan-70d targets).
+        # TimeoutError on the next fetch (caught by the bridge-gate in fetch()/is_ready()).
         logger.info("[CF-DIAG] JL window 'closed' event fired → _dead=True (Layer 2 active)")
         self._dead = True
 
