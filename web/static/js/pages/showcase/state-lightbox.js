@@ -44,6 +44,8 @@ export function stateLightbox() {
 
         currentLightboxVideo: null,
 
+        _lbFullLoaded: false,           // 71-T6 blur-up：原圖（cover_full_url）@load 後翻 true → overlay opacity 淡入
+
         _videoChipsExpanded: false,     // 影片 tag chips +N 展開（T4 使用）
 
         // 49b T4cd: Actress Photo Picker 狀態
@@ -66,6 +68,22 @@ export function stateLightbox() {
 
         // --- helper in return {} ---
 
+        // 71c-P2: helper — blur-up state reset + same-URL complete-check（DRY；供 _setLightboxIndex 與
+        // slip-through 路徑（state-similar.js closeSimilarMode）共用，避免兩處邏輯漂移）。
+        // 呼叫時機：currentLightboxVideo 已更新、Alpine reactive patch 尚未跑完（$nextTick 前）。
+        // $nextTick 後 lightboxCoverFull img.complete && naturalWidth > 0 → 瀏覽器已快取 → 直接翻 true，
+        // 跳過 @load 等待；否則等 @load 觸發翻 true。
+        _refreshLbFullBlurUp() {
+            this._lbFullLoaded = false;
+            var self = this;
+            this.$nextTick(function () {
+                var fullImg = self.$refs && self.$refs.lightboxCoverFull;
+                if (fullImg && fullImg.complete && fullImg.naturalWidth > 0) {
+                    self._lbFullLoaded = true;
+                }
+            });
+        },
+
         // F1: helper — 更新 lightboxIndex + currentLightboxVideo 一致性
         _setLightboxIndex(idx) {
             this.lightboxIndex = idx;
@@ -74,6 +92,8 @@ export function stateLightbox() {
             this.currentLightboxActress = null;   // video setter always clear actress
             this.addingLbTag = false;             // 切換影片時重置輸入框
             this._videoChipsExpanded = false;     // 影片切換時 reset chips 展開
+            // 71c-P2: 抽至 _refreshLbFullBlurUp helper（slip-through 路徑共用）
+            this._refreshLbFullBlurUp();
         },
 
         // --- Lightbox (M3a) ---

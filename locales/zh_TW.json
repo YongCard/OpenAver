@@ -242,6 +242,22 @@
       "metatube_keyword_hint": "metatube 來源不支援女優/關鍵字搜尋，建議輸入完整番號。",
       "group_metatube_empty": "尚無 Metatube 來源"
     },
+    "thumbnail_cache": {
+      "label": "封面縮圖快取",
+      "hint": "在本機產生封面的小圖快取，大幅加快封面牆與燈箱載入（尤其影片檔放在 NAS / HDD 時）。每張約 30KB。",
+      "confirm_modal": {
+        "title": "開啟封面縮圖快取",
+        "body": "將為目前 {count} 部影片建立封面縮圖，約佔 {mb}MB 空間。在傳統硬碟（HDD）上預計約需 {min} 分鐘於背景生成；SSD 會快很多。期間可繼續正常使用，完成後會通知你。（確認後會立即儲存目前設定）",
+        "cancel": "取消",
+        "confirm": "儲存並開始建立"
+      },
+      "disable_modal": {
+        "title": "關閉封面縮圖快取",
+        "body": "將刪除已生成的封面縮圖（釋放約 {mb}MB 空間）；不影響任何影片資料與原始封面。重新開啟需再次於背景生成。",
+        "cancel": "取消",
+        "confirm": "關閉並清除"
+      }
+    },
     "toast": {
       "desktop_only": "此功能需要在桌面應用程式中使用"
     },
@@ -594,7 +610,9 @@
     "batch_enrich_done": "批次補完完成",
     "batch_enrich_done_with_errors": "批次補完（部分失敗）",
     "batch_enrich_failed": "批次補完中斷",
-    "jl_cf_timeout": "JavLibrary CF 驗證逾時"
+    "jl_cf_timeout": "JavLibrary CF 驗證逾時",
+    "thumb_prewarm_start": "開始建立封面縮圖快取",
+    "thumb_prewarm_done": "封面縮圖快取已完成"
   },
   "similar_mode": {
     "button_aria_label": "探索相似影片",
@@ -745,6 +763,17 @@
       "success": "補資料完成",
       "failed": "補資料失敗，請稍後再試"
     },
+    "video": {
+      "delete": "從收藏移除",
+      "delete_modal": {
+        "title": "從收藏移除這部影片",
+        "body": "只會從資料庫移除「{number}」這筆紀錄。影片檔會保留在磁碟，不會被刪除；若該檔仍在掃描目錄內，下次掃描會重新被加回。",
+        "cancel": "取消",
+        "confirm": "確認移除"
+      },
+      "delete_success": "已從收藏移除",
+      "delete_failed": "移除失敗，請稍後再試"
+    },
     "actress": {
       "add": "+ 新增女優",
       "addPlaceholder": "輸入女優名稱...",
@@ -851,8 +880,8 @@
       "grid_detail": "Lightbox 顯示導演、片長、系列、Label 等詳細資訊（有資料時才會出現）",
       "grid_gallery": "點擊「劇照」按鈕可開啟劇照瀏覽，支援鍵盤 <kbd class=\"kbd kbd-sm\">←</kbd> <kbd class=\"kbd kbd-sm\">→</kbd> 切換和觸控滑動",
       "badge_keywords": "檔名含 <code>-4k</code>、<code>-uc</code> 等關鍵字時，結果卡片自動顯示彩色 badge",
-      "h6_advanced_picker": "進階搜尋 Picker（Beta）",
-      "picker_longpress": "① 長壓搜尋鈕可挑選單一來源搜尋（Beta，需在 Settings › 進階開啟）",
+      "h6_advanced_picker": "進階搜尋 Picker",
+      "picker_longpress": "① 長壓搜尋鈕可挑選單一來源搜尋（需在 Settings › 進階開啟）",
       "picker_panel_switch": "② 結果面板中 🔄 長壓可切換來源",
       "picker_showcase_enrich": "③④ 在 Showcase 封面牆或燈箱中，長壓補缺鈕（🔍）→ 重新刮削現有片並指定來源。",
       "picker_lightbox_gear": "⑤ 在 Showcase 燈箱中，點番號旁 ⚙ → 進階重刮現有片（單擊即開，非長壓）。"

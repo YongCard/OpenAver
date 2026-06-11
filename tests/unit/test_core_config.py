@@ -326,6 +326,55 @@ class TestMigrationDownloadSampleImages:
         assert result["scraper"]["download_sample_images"] is True
 
 
+# ============ test_migration_thumbnail_cache_enabled ============
+
+class TestMigrationThumbnailCacheEnabled:
+    """thumbnail_cache_enabled 補齊（feature/71 T2，top-level flag）"""
+
+    def test_thumbnail_cache_enabled_added_when_missing(self, tmp_path, monkeypatch):
+        """舊 config 沒有 thumbnail_cache_enabled → migration 自動補 False"""
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {"scraper": {"create_folder": True}})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert "thumbnail_cache_enabled" in result
+        assert result["thumbnail_cache_enabled"] is False
+        # migration 命中 → 已寫回 config.json
+        written = json.loads(config_path.read_text(encoding="utf-8"))
+        assert written.get("thumbnail_cache_enabled") is False
+
+    def test_thumbnail_cache_enabled_not_overwrite_existing(self, tmp_path, monkeypatch):
+        """已存在的 thumbnail_cache_enabled=True 不被覆蓋"""
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {"thumbnail_cache_enabled": True})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert result["thumbnail_cache_enabled"] is True
+
+    def test_thumbnail_cache_enabled_default_false(self):
+        """fresh AppConfig → thumbnail_cache_enabled 預設 False"""
+        assert AppConfig().model_dump()["thumbnail_cache_enabled"] is False
+
+    def test_thumbnail_cache_enabled_roundtrip(self, tmp_path, monkeypatch):
+        """set True → save_config → load_config 回讀仍為 True"""
+        config_path = tmp_path / "config.json"
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        cfg = AppConfig().model_dump()
+        cfg["thumbnail_cache_enabled"] = True
+        save_config(cfg)
+
+        reloaded = load_config()
+        assert reloaded["thumbnail_cache_enabled"] is True
+
+
 # ============ test_save_config_roundtrip ============
 
 class TestSaveConfigRoundtrip:

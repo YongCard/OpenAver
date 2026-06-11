@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.10] - 2026-06-12
+
+本版主軸：**本地 WebP 縮圖快取（opt-in）+ 燈箱單筆刪除**（feature/71）。部署主場景是 app 跑在 PC(SSD)、影片/圖片放在區網 Synology NAS(HDD)，封面牆一頁 90 張每張都直接打 NAS 原圖、HDD 隨機 seek + idle 喚醒 → 一張張慢慢冒。本版讓你在 Settings 手動開啟「封面縮圖快取」後，在本機把封面預先壓成集中極小的 WebP（每張約 32KB），瀏覽時從 SSD（或 OS page cache）出圖、**根本不碰 NAS**；燈箱點進去採 blur-up（小圖秒出 → 原圖載入後就地變清）。**來源真理仍在 NAS**（原圖／NFO 不動），本地只放可回收的衍生快取。另含 issue #57 的燈箱單筆刪除（只移除 DB 紀錄＋它的快取縮圖，**絕不刪你的影片檔或原始封面**），以及進階搜尋畢業移除 Beta 標記。
+
+*This release's main theme: **local WebP thumbnail cache (opt-in) + per-item lightbox delete** (feature/71). The primary deployment is the app on a PC (SSD) with videos/images on a LAN Synology NAS (HDD): a 90-cover page hits the NAS original for every cover, and HDD random-seek + idle spin-up makes them trickle in one by one. After you opt in via Settings, OpenAver pre-compresses covers into a centralized, tiny local WebP cache (~32KB each) and serves them from SSD (or OS page cache) **without touching the NAS at all**; the lightbox uses blur-up (tiny image instantly → original fades in sharp once loaded). **The source of truth stays on the NAS** (originals/NFO untouched); the local side only holds reclaimable derived cache. Also includes issue #57's per-item lightbox delete (removes only the DB record + its cached thumbnail — **never your video files or original covers**) and advanced-search graduating out of Beta.*
+
+### Added
+#### 🖼️ 本地 WebP 縮圖快取（opt-in，預設關閉）/ Local WebP thumbnail cache
+- **Settings「下載劇照」同層級新增「封面縮圖快取」開關**：手動開啟；開啟前依目前片數即時估算空間（每張 ~32KB × 片數）＋ HDD 首次生成時間估算，跳確認 modal 才開始。關閉時行為與現狀完全一致（直接出原圖、不產 WebP）。
+- **首次開啟背景全量生成**：開啟後在背景把整庫封面慢慢全部壓成 WebP（一次性、不卡 UI、期間可繼續用）；完成後瀏覽全程零等待。
+- **Showcase grid 封面 + 相似探索節點縮圖改用本地 WebP**：一次刷一整頁而非一張張慢慢冒；serve 已存在的 WebP 時**完全不觸發任何 NAS 原圖 stat／read**（NAS 斷線仍能出已快取縮圖）。
+- **燈箱 blur-up（模糊變清晰）**：大圖框先放大已快取的小 WebP（秒出、略糊）→ 原始大圖背景載入完成後就地淡入變清。
+- **持續跟上新片**：凡影片進 DB（掃描／enrich／重刮）自動生成／更新該片縮圖；漏網的 lazy on-miss 即時補；封面被重刮／enrich 換新後，對應 WebP 就地以新封面重生（不顯示舊圖）。
+- **WebP 放 `output/thumb/`**（DB 同層）扁平 hash 分桶、400px 寬 q80、零新依賴（用既有 Pillow）、零 ZIP 體積影響。
+
+#### 🗑️ 燈箱單筆刪除（issue #57）/ Per-item lightbox delete
+- **燈箱 metadata 行末新增常駐 muted 垃圾桶 icon**：點擊跳破壞性確認 modal，誠實說明「只從資料庫移除這筆紀錄，影片檔保留在磁碟、不會被刪除；若仍在掃描目錄內，下次掃描會重新被加回」。
+- **確認後**：DB 該筆消失 + 它的快取 WebP 一併刪、grid 即時移除那張卡（Alpine splice，無整頁重載）、成功 toast。**磁碟上的影片檔與原始封面圖完全不動**；此刪除能力不揭露給 AI（human-only）。
+
+### Changed
+- **進階搜尋畢業、移除 Beta 標記**：自 v0.9.0 推出、歷經多版打磨並於 v0.9.8 起預設開啟，已長期穩定 → Settings quick-toggle 與 Help 文案的「Beta」標記移除（JavLibrary 的 BETA 不受影響，它仍是 beta）。
+- **「清除所有影片快取」連動清縮圖**：清空 DB videos 表時連同清整個 `output/thumb/`；移除加入資料夾→其影片被掃描 prune 出 DB 時順手刪它們的 WebP（不留孤兒）。
+
+### Fixed
+- **關閉縮圖快取 → 確認 modal → 一律清除**：關閉 toggle 彈確認 modal，確認後**先存檔成功才**清空 `output/thumb/`（新增 DB-safe `POST /api/gallery/thumb/clear`，僅 rmtree、絕不碰 videos DB）；取消則維持啟用、快取保留。
+- **prewarm／disable race 硬化**：背景預熱進行中若用戶關閉並清除快取，worker 每筆重讀設定→立即停止，不再把剛清掉的目錄重建回來；被中止時也不送誤導的「完成 N 張」通知（涵蓋 generate 成功與失敗兩種收尾）。
+- **燈箱開關 flip「兩張圖重影」**：blur-up 引入的原圖 overlay 層在 grid↔燈箱飛行期間未被隱藏 → 與飛行 ghost 重疊成重影；改為飛行期隱藏整個封面容器（一次蓋住底圖＋原圖兩層）、OPEN/CLOSE 對稱還原。
+- **刪除確認 modal 被燈箱蓋住**：root-fix `.fluent-modal` z-index 拉高至燈箱之上（removeActress 確認框同步受惠）。
+
+### Internal
+- 縮圖核心模組 `core/thumbnail_cache.py`（hash 命名 / 原子寫 temp+os.replace / generate 失敗 fallback 原圖 / invalidate / clear_all）、`thumbnail_cache_enabled` config plumbing、serve 端點 + lazy 生成 + prewarm 端點、showcase/similar serializer 切 thumb url、失效掛鉤（掃描/enrich/重刮/單筆刪除/清快取）+ serve race 硬化、多輪 Codex review（並發正確性 / prewarm-clear race / disable-skip-done / generate-fail edge，皆 RED→GREEN 實證）。
+
+### Non-Goals（明確不做）
+- 不與 Jellyfin/Emby 共用縮圖（hash-keyed 私有 WebP，與既有 `generate_jellyfin_images()` 正交）、不偵測「手動偷換磁碟封面」（失效走事件驅動，重掃/清快取即可）、不鏡像加入資料夾目錄結構（扁平 hash 分桶）、不刪任何磁碟檔（只動 DB row + 衍生 WebP）、不做「刪除後永久不再加回」的 tombstone、不改 Search 頁封面來源、不導 virtual scroll / HTTP2。
+
+### 測試
+- 全套 pytest **3845 passed, 2 skipped**（unit + integration，排除 smoke / e2e）+ `npm run lint`（eslint + stylelint）綠。
+- 新增：`test_thumbnail_cache`（核心模組）/ `test_api_thumb`（serve / prewarm / clear / prewarm-clear race 5 案）+ async-offload 正斷言（get_thumb / thumb_prewarm / thumb_clear / delete_video 皆 def）+ 前端守衛（縮圖開關 / blur-up / 單筆刪除 element-bound / disable modal / ghost-fly both-restore / z-index contract）。
+- **transient-guard**：71b-T1 燈箱刪除鈕位置守衛 `test_t7_delete_trash_button_in_lightbox_details_row` 標 `[transient-guard]`（搬位 relayout 一次性，下個 milestone 評估移除）。
+
 ## [0.9.9] - 2026-06-11
 
 本版單一主軸：**新增 JavLibrary 來源（BETA，桌面專屬）**（feature/70）。JavLibrary 是社群索引站，metatube 聯邦 30+ 來源都沒收錄——它擁有別處拿不到的最豐富社群標籤、用戶評分、以及冷門/長尾番號。但全站受 Cloudflare 人機驗證保護、純自動抓一律失敗。OpenAver 的解法：借桌面版 PyWebView 彈出真實瀏覽器視窗，讓你手動點一次驗證，之後在「已過驗證的分頁」裡抓取。因此 JavLibrary **只在桌面 standalone 可用**、**只能在進階搜尋／重刮來源選單以精確番號查詢**、並標示 BETA。

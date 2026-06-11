@@ -335,3 +335,85 @@ class TestBatchEnrich:
         })
 
         assert response.status_code == 422
+
+
+class TestBatchEnrichThumbnailInvalidation:
+    """feature/71 T8 邊界5 + PR #60 Codex P2：每筆成功 → invalidate 用 canonical key
+    （輸入 URI 原值，非 double-encoded）；失敗不呼叫；去重後至多一次。
+
+    file_path 為 DB file:/// URI（前端送 v.path）。端點走冪等 coerce_to_file_uri，不可
+    再套 to_file_uri 造成 file:///file:/// double-encode 砍錯 hash → 舊縮圖殘留。舊測餵裸
+    FS path + 斷言 to_file_uri(path, mappings)，是把 bug 行為當合約鎖死，已整套重寫。"""
+
+    @pytest.fixture(autouse=True)
+    def _stub(self, mocker):
+        mocker.patch(
+            "web.routers.scraper.search_jav",
+            return_value={"title": "stub", "source": "javbus"},
+        )
+        mocker.patch(
+            "web.routers.scraper.load_config",
+            return_value={"gallery": {}, "search": {}},
+        )
+
+    def test_each_success_invalidates_canonical(self, client, mocker):
+        """2 筆皆成功 → 各以 canonical key（輸入 URI 原值）invalidate 一次，非 double-encoded；
+        與縮圖 generate 端 thumb_file_for 同 hash（砍到的正是生成的那張）。"""
+        import core.thumbnail_cache as tc
+        mocker.patch("web.routers.scraper.enrich_single", return_value=_ok_result())
+        inval_spy = mocker.patch("web.routers.scraper.thumbnail_cache.invalidate")
+
+        uri_a, uri_b = "file:///nas/a.mp4", "file:///nas/b.mp4"
+        response = client.post("/api/batch-enrich", json={
+            "items": [
+                {"file_path": uri_a, "number": "IPZ-154"},
+                {"file_path": uri_b, "number": "SONE-205"},
+            ],
+            "mode": "refresh_full",
+        })
+
+        assert response.status_code == 200
+        called = [c.args[0] for c in inval_spy.call_args_list]
+        assert uri_a in called and uri_b in called
+        assert len(called) == 2
+        assert all("file:///file:///" not in k for k in called), \
+            f"invalidate key double-encoded: {called!r}"
+        # canonical 一致性：invalidate 的 key hash == generate 端 thumb_file_for 的 hash
+        assert tc.thumb_file_for(uri_a) in {tc.thumb_file_for(k) for k in called}
+
+    def test_failed_item_not_invalidated(self, client, mocker):
+        """1 成功 1 失敗 → 只有成功筆 invalidate（canonical key）。"""
+        mocker.patch(
+            "web.routers.scraper.enrich_single",
+            side_effect=[_ok_result(), _err_result("找不到番號資料")],
+        )
+        inval_spy = mocker.patch("web.routers.scraper.thumbnail_cache.invalidate")
+
+        response = client.post("/api/batch-enrich", json={
+            "items": [
+                {"file_path": "file:///nas/ok.mp4", "number": "IPZ-154"},
+                {"file_path": "file:///nas/bad.mp4", "number": "XXX-999"},
+            ],
+            "mode": "refresh_full",
+        })
+
+        assert response.status_code == 200
+        called = [c.args[0] for c in inval_spy.call_args_list]
+        assert called == ["file:///nas/ok.mp4"]
+
+    def test_duplicate_path_invalidated_once(self, client, mocker):
+        """同 file_path 兩筆 → 去重後成功的唯一 file_path 至多 invalidate 一次（canonical key）。"""
+        mocker.patch("web.routers.scraper.enrich_single", return_value=_ok_result())
+        inval_spy = mocker.patch("web.routers.scraper.thumbnail_cache.invalidate")
+
+        response = client.post("/api/batch-enrich", json={
+            "items": [
+                {"file_path": "file:///nas/dup.mp4", "number": "IPZ-154"},
+                {"file_path": "file:///nas/dup.mp4", "number": "IPZ-154"},
+            ],
+            "mode": "refresh_full",
+        })
+
+        assert response.status_code == 200
+        called = [c.args[0] for c in inval_spy.call_args_list]
+        assert called == ["file:///nas/dup.mp4"]

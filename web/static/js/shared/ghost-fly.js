@@ -404,15 +404,24 @@
             }
 
             var coverSrc = options.coverSrc || lbImg.src;
+            // 71b-T3 (CD-71b-5): 隱/還原對象上移到 .lightbox-cover 容器，一次蓋住
+            // base img + T6 .lb-full overlay 兩層（容器 opacity 與各 img 自身 gate 正交）
+            var coverEl = lbImg.closest('.lightbox-cover') ||
+                lightboxEl.querySelector('.lightbox-cover');
+
+            // C25 順序鐵律：先建 ghost（createCoverGhost 內部 cleanupStaleGhosts() 會還原
+            // 所有 [data-ghost-hidden]），再 hide coverEl，否則剛 hide 立刻被還原
             var ghost = createCoverGhost(coverSrc, fromRect);
             if (!ghost) {
                 if (typeof options.onComplete === 'function') options.onComplete();
                 return null;
             }
 
-            // 隱藏真實 lightbox 封面（ghost 飛行期間）
-            lbImg.setAttribute('data-ghost-hidden', '');
-            gsap.set(lbImg, { opacity: 0 });
+            // 隱藏真實 lightbox 封面容器（ghost 飛行期間，蓋 base + .lb-full 兩層）
+            if (coverEl) {
+                coverEl.setAttribute('data-ghost-hidden', '');
+                gsap.set(coverEl, { opacity: 0 });
+            }
 
             var dur = 0.38;
             var ease = 'power2.inOut';
@@ -424,7 +433,7 @@
                     x: toRect.left, y: toRect.top, width: toRect.width, height: toRect.height,
                     duration: dur, ease: ease,
                     onComplete: function () {
-                        cleanupGhost(ghost, lbImg);
+                        cleanupGhost(ghost, coverEl);
                         if (typeof options.onComplete === 'function') options.onComplete();
                     }
                 }
@@ -454,12 +463,19 @@
 
             if (!fromRect.width || fromRect.width === 0) return null;
 
-            // 隱藏 lightbox 大圖，避免 ghost 縮回過程與原位大圖疊圖（lightbox CSS fade-out 250ms）
+            // 71b-T3 (CD-71b-5): 隱/還原對象上移到 .lightbox-cover 容器，一次蓋住
+            // base img + T6 .lb-full overlay 兩層，避免 ghost 縮回過程與原位大圖疊圖。
             var fromImg = options.fromImg || document.querySelector('.lightbox-cover img');
-            if (fromImg) gsap.set(fromImg, { opacity: 0 });
+            var coverEl = (fromImg && fromImg.closest('.lightbox-cover')) ||
+                document.querySelector('.lightbox-cover');
 
             function abort() {
-                if (fromImg) gsap.set(fromImg, { opacity: 1 });
+                // C25：hide 在 createCoverGhost 之後，abort 在 hide 之前 early-return 時
+                // coverEl 尚未被 hide，gsap.set opacity:1 為 no-op，安全
+                if (coverEl) {
+                    gsap.set(coverEl, { opacity: 1 });
+                    coverEl.removeAttribute('data-ghost-hidden');
+                }
                 return null;
             }
 
@@ -483,8 +499,17 @@
             }
 
             var coverSrc = options.coverSrc || targetImg.src;
+            // C25 順序鐵律：先建 ghost（createCoverGhost 內部 cleanupStaleGhosts() 會還原
+            // 所有 [data-ghost-hidden]），再 hide coverEl，否則剛 hide 立刻被還原
             var ghost = createCoverGhost(coverSrc, fromRect);
             if (!ghost) return null;
+
+            // 隱藏 lightbox 封面容器（蓋 base + .lb-full 兩層），與 OPEN 對稱
+            // 補掛 data-ghost-hidden（舊版漏掛 → stale-cleanup 兜不到）
+            if (coverEl) {
+                coverEl.setAttribute('data-ghost-hidden', '');
+                gsap.set(coverEl, { opacity: 0 });
+            }
 
             // 隱藏 target cover 直到 ghost 到達
             targetImg.setAttribute('data-ghost-hidden', '');
@@ -500,7 +525,9 @@
                     x: toRect.left, y: toRect.top, width: toRect.width, height: toRect.height,
                     duration: dur, ease: ease,
                     onComplete: function () {
-                        cleanupGhost(ghost, targetImg);
+                        // 71b-T3: 多帶 coverEl，與 OPEN 對稱還原來源 .lightbox-cover 容器
+                        // （修舊不對稱：CLOSE 從不還原來源容器 → 殘 opacity:0，Codex P1）
+                        cleanupGhost(ghost, targetImg, coverEl);
                         gsap.fromTo(targetCardEl,
                             { scale: 1.02 },
                             { scale: 1, duration: 0.18, ease: 'power2.out' }

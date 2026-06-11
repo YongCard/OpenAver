@@ -15,6 +15,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query
 
+from core.config import load_config
 from core.database import VideoRepository
 from core.logger import get_logger
 from core.path_utils import uri_to_fs_path
@@ -25,13 +26,30 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["similar"])
 
 
-def _build_cover_url(cover_path: str) -> str:
-    """file:/// URI → /api/gallery/image?path=<URL-encoded local FS path>。
-    邊界：cover_path 為空字串 / None → 回傳空字串。
+def _build_cover_url(video, enabled: bool = False) -> str:
+    """組封面 url（feature/71 T4）。
+
+    - enabled  → /api/gallery/thumb?path=<quote(video.path)>（thumb key = video path，非 cover）。
+    - disabled → 維持現狀 /api/gallery/image?path=<quote(uri_to_fs_path(video.cover_path))>（字節不變）。
+    邊界：video.cover_path 為空字串 / None → 回傳空字串（enabled/disabled 皆然，無 cover 不發 thumb url）。
     """
-    if not cover_path:
+    if not video.cover_path:
         return ""
-    local_path = uri_to_fs_path(cover_path)
+    if enabled:
+        return f"/api/gallery/thumb?path={quote(video.path, safe='')}"
+    local_path = uri_to_fs_path(video.cover_path)
+    return f"/api/gallery/image?path={quote(local_path, safe='')}"
+
+
+def _build_cover_full_url(video) -> str:
+    """組封面原圖 url（71c）。
+
+    恆原圖（不受 thumbnail_cache_enabled 影響），鏡像 showcase._serialize_video 中 cover_full_url 的邏輯。
+    供 燈箱 blur-up .lb-full overlay 使用；similar slip-through 路徑不帶此欄會讓 .lb-full 卡 opacity:0。
+    """
+    if not video.cover_path:
+        return ""
+    local_path = uri_to_fs_path(video.cover_path)
     return f"/api/gallery/image?path={quote(local_path, safe='')}"
 
 
@@ -56,6 +74,9 @@ def _compute_similar_covers(video_id: int, limit: int) -> dict:
     ranker = SimilarRankerCache.get()
     results_videos = ranker.rank(target, top_k=limit)
 
+    # feature/71 T4：讀一次 thumbnail_cache flag，套用於 query_video + 每個 result
+    enabled = load_config().get('thumbnail_cache_enabled', False)
+
     return {
         "video_id": video_id,
         "model_id": "rule-based:v1",
@@ -63,7 +84,7 @@ def _compute_similar_covers(video_id: int, limit: int) -> dict:
             "video_id": target.id,
             "number": target.number,
             "title": target.title,
-            "cover_url": _build_cover_url(target.cover_path),
+            "cover_url": _build_cover_url(target, enabled),
         },
         "results": [
             {
@@ -71,7 +92,8 @@ def _compute_similar_covers(video_id: int, limit: int) -> dict:
                 "number": v.number,
                 "title": v.title,
                 "cover_path": v.cover_path,
-                "cover_url": _build_cover_url(v.cover_path),
+                "cover_url": _build_cover_url(v, enabled),
+                "cover_full_url": _build_cover_full_url(v),  # 71c：恆原圖，供燈箱 blur-up .lb-full overlay
                 "cosine_score": ranker._score(target, v),
                 "penalty_applied": False,  # rule-based 無 penalty 概念，保留 key 為 fixture 相容
                 "actresses": v.actresses if isinstance(v.actresses, list) else [],

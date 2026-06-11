@@ -1020,3 +1020,109 @@ class TestGenerateAvlistCleanupPass:
             "_run_sample_images_cleanup_pass 應在 generate_avlist() 中被呼叫一次。"
             "若未呼叫，Scanner UI 主路徑不會清孤兒（Canonical Decision #4 雙流程覆蓋未達成）"
         )
+
+
+class TestClearCacheThumbnailInvalidation:
+    """feature/71 T8 邊界1：clear_cache → thumbnail_cache.clear_all() 連動清整個 thumb/。"""
+
+    def test_clear_cache_calls_clear_all(self, client, tmp_path, mocker):
+        """DB 存在 → repo.clear_all() 後 thumbnail_cache.clear_all() 被呼叫一次；回應正常。"""
+        from core.database import init_db
+        db_path = tmp_path / "test.db"
+        init_db(db_path)
+        mocker.patch("web.routers.scanner.get_db_path", return_value=db_path)
+
+        clear_all_spy = mocker.patch(
+            "web.routers.scanner.thumbnail_cache.clear_all"
+        )
+
+        resp = client.delete("/api/gallery/cache")
+
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        clear_all_spy.assert_called_once()
+
+    def test_clear_cache_db_missing_does_not_call_clear_all(self, client, tmp_path, mocker):
+        """DB 不存在（早退）→ clear_all 不被呼叫（放在 repo.clear_all() 之後）。"""
+        missing = tmp_path / "nonexistent.db"
+        mocker.patch("web.routers.scanner.get_db_path", return_value=missing)
+
+        clear_all_spy = mocker.patch(
+            "web.routers.scanner.thumbnail_cache.clear_all"
+        )
+
+        resp = client.delete("/api/gallery/cache")
+
+        assert resp.status_code == 200
+        clear_all_spy.assert_not_called()
+
+
+class TestScanPruneThumbnailInvalidation:
+    """feature/71 T8 邊界2：scan prune → 每個 deleted_paths 被 invalidate（原樣 DB URI）。"""
+
+    def test_prune_invalidates_each_deleted_path_raw_uri(
+        self, client, tmp_path, monkeypatch, mocker, parse_sse_events
+    ):
+        """DB 有一筆位於掃描目錄下的 row、current scan 不含之 → prune 觸發；
+        spy invalidate 對該 deleted_path 以「原樣 DB URI」（未經 to_file_uri）呼叫一次。
+        """
+        from core.database import init_db, VideoRepository, Video
+
+        scan_dir = tmp_path / "videos"
+        scan_dir.mkdir()
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        db_path = tmp_path / "test.db"
+        init_db(db_path)
+        repo = VideoRepository(db_path)
+
+        # row 位於 scan_dir 下，但 scan 不會掃到它（目錄空）→ 應被 prune
+        deleted_fs = str(scan_dir / "deleted_video.mp4")
+        deleted_uri = to_file_uri(deleted_fs)
+        repo.upsert(Video(
+            path=deleted_uri,
+            number="DEL-001",
+            title="待刪影片",
+            mtime=1000000.0,
+            nfo_mtime=0.0,
+        ))
+
+        # 掃到一個「現存」檔案（≠ deleted row），無 skipped → 走 else 分支 prune。
+        # all_files 非空才不會在 "沒有影片檔案" 早退（scanner.py:187），prune 才會跑。
+        kept_fs = str(scan_dir / "kept_video.mp4")
+        Path(kept_fs).write_bytes(b"x" * 1024)
+
+        def stub_fast_scan(directory, extensions, min_size_bytes, on_skip=None):
+            return [{"path": kept_fs, "size": 1024, "mtime": 2000000.0}]
+
+        monkeypatch.setattr("web.routers.scanner.fast_scan_directory", stub_fast_scan)
+        monkeypatch.setattr("web.routers.scanner.load_config", lambda: {
+            "gallery": {
+                "directories": [str(scan_dir)],
+                "output_dir": str(output_dir),
+                "path_mappings": {},
+                "min_size_mb": 0,
+            },
+            "general": {"theme": "light"},
+            "scraper": {"video_extensions": [".mp4"]},
+        })
+
+        invalidate_spy = mocker.patch(
+            "web.routers.scanner.thumbnail_cache.invalidate"
+        )
+
+        mocker.patch("web.routers.scanner.get_db_path", return_value=db_path)
+        response = client.get("/api/gallery/generate")
+        assert response.status_code == 200
+        events = parse_sse_events(response.text)
+        assert [e for e in events if e.get("type") == "done"], "未收到 done event"
+
+        # 該 row 已被刪
+        assert deleted_uri not in repo.get_mtime_index()
+        # invalidate 以原樣 DB URI 呼叫
+        invalidate_spy.assert_any_call(deleted_uri)
+        called_args = [c.args[0] for c in invalidate_spy.call_args_list]
+        assert deleted_uri in called_args
+        # 原樣 URI：未被再次包一層 to_file_uri（否則會變 file:////... 之類）
+        assert to_file_uri(deleted_uri) not in called_args or to_file_uri(deleted_uri) == deleted_uri

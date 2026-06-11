@@ -22,6 +22,7 @@ import base64
 import json
 import os
 import sys
+import threading
 import time
 import requests
 from datetime import datetime
@@ -40,6 +41,7 @@ from core.nfo_updater import check_cache_needs_update, update_videos_generator
 from core.database import VideoRepository, Video, init_db, get_db_path, migrate_json_to_sqlite
 from core.organizer import generate_jellyfin_images, HEADERS as _EMBED_HEADERS
 from core.config import load_config
+from core import thumbnail_cache
 from core.scraper import smart_search
 from core.source_settings import is_uncensored_mode_effective
 from pydantic import BaseModel
@@ -231,6 +233,10 @@ def generate_avlist() -> Generator[str, None, None]:
                     deleted_paths = [p for p in db_index.keys() if is_path_under_dir(p, normalized_dir_uri) and p not in current_paths]
                     if deleted_paths:
                         deleted_count = repo.delete_by_paths(deleted_paths)
+                        # feature/71 T8: prune 連動失效縮圖。deleted_paths 已是 DB URI
+                        # （db_index.keys()）→ 原樣傳入、不過 to_file_uri、不疊轉換（plan §0.1）。
+                        for p in deleted_paths:
+                            thumbnail_cache.invalidate(p)
                         total_deleted += deleted_count
                         yield _sse_event({"type": "log", "level": "info", "message": f"  清理 {deleted_count} 個已刪除檔案"})
 
@@ -481,6 +487,8 @@ def clear_cache():  # noqa: ranker-invalidate (DELETE FROM videos only in docstr
 
         repo = VideoRepository(db_path)
         deleted = repo.clear_all()
+        # feature/71 T8: 清空整個縮圖快取目錄（CD-11 / spec 2.A.9）
+        thumbnail_cache.clear_all()
         # T3(40c): 清空 jellyfin check 快取
         global _jellyfin_cache_result, _jellyfin_cache_time
         _jellyfin_cache_result = None
@@ -784,6 +792,241 @@ def get_image(path: str = Query(..., description="圖片路徑")):
         media_type=media_type,
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+# ── feature/71 T3: 縮圖快取端點 ────────────────────────────────────────────────
+# prewarm 單例鎖（背景 daemon thread，fire-and-forget；sync def → 無 event loop）
+_prewarm_lock = threading.Lock()
+_prewarming = False
+
+# fallback 原圖用副檔名 → mime（thumb 端點不抄 get_image 的安全鏈，用 DB 背書）
+_THUMB_FALLBACK_MIME = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.bmp': 'image/bmp',
+}
+
+
+def _serve_thumb_file(tf: Path, request: Request) -> Response:
+    """serve 一個已存在的 thumb webp：強 ETag + no-cache + If-None-Match → 304。
+
+    本地一次 stat（零 DB / 零 NAS）。CD-4 明令不可用 max-age。
+
+    Codex P2(b)：200 路徑改 read_bytes() 在 handler try 內把整檔讀進記憶體，**不再用
+    FileResponse**。FileResponse 會把 stat/open 延到 ASGI send 階段（在 handler try 外），
+    若此時 thumb 被並發 invalidate(unlink)，Starlette 內部 stat 失敗會冒成 500。
+    在此同步讀 bytes → send 階段已不碰磁碟；read 期間的並發 unlink 會在這裡拋 OSError，
+    由呼叫端 get_thumb 既有的 try/except OSError 接住降級 miss 重生（與 M1 一致）。
+    """
+    etag = f'"{tf.stat().st_mtime_ns}"'
+    if request.headers.get("If-None-Match") == etag:
+        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
+    data = tf.read_bytes()  # 並發 unlink → OSError 上拋給 get_thumb 降級重生
+    return Response(
+        content=data,
+        media_type="image/webp",
+        headers={"Cache-Control": "no-cache", "ETag": etag},
+    )
+
+
+@router.get("/thumb")
+def get_thumb(request: Request, path: str = Query(..., description="影片路徑 URI")):
+    """縮圖 serve（feature/71 T3）：hit 零 DB/NAS、miss 生成、失敗 fallback 原圖。
+
+    sync def → 跑在 Starlette threadpool worker thread。
+
+    P2-A（TASK-71c）：不呼叫 unquote(path)。FastAPI 已自動 decode query string 一次；
+    再 unquote 造成 double-decode → 檔名含字面 % 的影片 key 失配 → 404。
+    get_image / get_video 的 unquote 是 pre-existing 不同建構鏈，留作 follow-up。
+    """
+    tf = thumbnail_cache.thumb_file_for(path)
+
+    # hit：零 DB、零 NAS（只一次本地 stat）— 驗收 4.A 核心
+    # feature/71 T8 M1（+ Codex P2(b)）：hit 判定（tf.exists()）通過後、_serve_thumb_file
+    # 內讀 thumb（stat / read_bytes）期間，thumb 可能被並發 invalidate(unlink) → 拋 OSError
+    # （含 FileNotFoundError）。整個 serve 在此 try 內把 bytes 讀完（send 時不再碰磁碟），
+    # 拋出時降級 fall through 到下方 miss 重生路徑（DB 有 cover → 重生；無 → 404），不 500。
+    if tf.exists():
+        try:
+            return _serve_thumb_file(tf, request)
+        except OSError as e:
+            logger.warning("thumb hit 後並發失效，降級重生: path=%s err=%s", path, e)
+
+    # miss：DB 背書取 cover
+    db_path = get_db_path()
+    if not db_path.exists():
+        return Response(status_code=404, content="無快取")
+
+    repo = VideoRepository(db_path)
+    video = repo.get_by_path(path)
+    if video is None or not video.cover_path:
+        return Response(status_code=404, content="無封面")
+
+    # 路徑轉換一步（不疊 normalize_path）；DB 背書取代 realpath 安全鏈
+    cover_fs = uri_to_fs_path(video.cover_path)
+    if not repo.is_known_cover_path(cover_fs):
+        return Response(status_code=404, content="封面不在快取記錄中")
+
+    # P2-B（TASK-71c）：miss 路徑 gate disabled，不重生 WebP。
+    # 用戶關閉快取 + clear 後，stale 分頁的 miss 請求不應重建剛清的目錄。
+    # disabled → fall through 到下方 fallback 原圖（D6 不破圖）。
+    # load_config() 無 lru_cache，每次讀 disk（與 _prewarm_worker:945 同 pattern）。
+    # hit 路徑（tf.exists() → _serve_thumb_file）不 gate：已存在直接 serve 是 harmless。
+    if not load_config().get("thumbnail_cache_enabled", False):
+        # disabled：跳過 generate，fall through 到 fallback 原圖
+        pass
+    elif thumbnail_cache.generate(cover_fs, tf):
+        # Codex P1（round-1 + round-2）：generate 用的 cover_fs 是 miss 進來時的 DB 值。
+        # 生成期間若 enrich/rescrape 並發換封面，剛寫的 thumb 可能是 stale。re-read DB 一次
+        # （miss 路徑本就碰本地 DB，不違反 D4「serve hit 不碰 NAS」）：
+        #   - fresh is None / cover_path 空（並發刪除）→ stale，invalidate 丟棄剛寫 thumb + 404，
+        #     不 serve 剛生成的 stale thumb（round-2 P1 補強）。
+        #   - cover_path 換了不同 path → invalidate 丟棄 + 把 cover_fs 重指當前封面，
+        #     fall through 到下方 P2(a)-guarded fallback serve 當前封面（下次 view lazy 重生）。
+        #   - 同路徑原地覆寫競態 → 已由 core per-thumb 鎖（修法 A）關閉，web 不再 stat 比對，
+        #     直接 safe-serve（OSError → fall through 重指/fallback，round-2 P2）。
+        fresh = repo.get_by_path(path)
+        if not fresh or not fresh.cover_path:
+            thumbnail_cache.invalidate(path)
+            return Response(status_code=404, content="影片已不存在")
+        fresh_fs = uri_to_fs_path(fresh.cover_path)
+        if fresh_fs != cover_fs:
+            thumbnail_cache.invalidate(path)
+            cover_fs = fresh_fs
+            # fall through 到 fallback：serve 當前封面（cover_fs 已重指）
+        else:
+            # 同路徑：原地覆寫競態已由 core per-thumb 鎖關閉 → 集中 safe-serve。
+            # generate 後 thumb 被並發刪（DB row 刪除 + invalidate）→ OSError，fall through
+            # 到 fallback（round-2 P2：此 serve 過去在 try 外，會冒成 500）。
+            try:
+                return _serve_thumb_file(tf, request)
+            except OSError as e:
+                logger.warning("thumb miss→generate 後並發失效，降級 fallback: path=%s err=%s", path, e)
+
+    # generate 失敗 → fallback 原圖（D6 不破圖；非 404）
+    # Codex P2(a)：fallback 前先確認 cover 原圖存在；不存在（並發刪/搬移）→ 回 404，
+    # 讓前端破圖三態接手，而非讓 FileResponse 在 send 階段 stat 失敗冒成 500。
+    if not os.path.isfile(cover_fs):
+        return Response(status_code=404, content="封面檔不存在")
+    ext = os.path.splitext(cover_fs)[1].lower()
+    media_type = _THUMB_FALLBACK_MIME.get(ext, "application/octet-stream")
+    return FileResponse(
+        cover_fs,
+        media_type=media_type,
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+def _prewarm_worker():
+    """背景預熱 daemon thread：對 DB 全部影片補缺縮圖。
+
+    自包 try/except（不冒泡 → 沒包就靜默死 + flag 卡死）+ finally 清 flag。
+    絕不碰 event loop（sync thread 無 running loop）。notification center 跨 thread 安全。
+    """
+    global _prewarming
+    try:
+        _emit_notif("info", "notif.thumb_prewarm_start", task_type="thumb_prewarm")
+        db_path = get_db_path()
+        if not db_path.exists():
+            return
+        repo = VideoRepository(db_path)
+        n = 0
+        stopped_disabled = False  # Codex P3：被 disable 中止時跳過 done 通知
+        # round-3 P2：snapshot（iter_missing 吃 repo.get_all()）取得後，用戶可能按
+        # 「清除所有影片快取」→ clear_cache 跑 repo.clear_all()（清空 DB）+
+        # thumbnail_cache.clear_all()（rmtree thumb 目錄）；單筆刪除 / prune 亦同理。
+        # clear_all 只是 rmtree，不 fence 後續生成，故 worker 從 stale snapshot 繼續
+        # generate 會在已清空目錄重建 orphan webp（DB 空 thumb 在）。
+        # surgical fence：逐項用「同一個 repo」re-check get_by_path（reuse，不每筆新建），
+        # 只跳過/清理被移除的那部，存活影片照常完成預熱（不像 generation token 會 abort
+        # 整個 prewarm，也不需 clear_cache cancel/join 背景 thread 卡住同步請求）。
+        # round-4 P2：snapshot 的 cover 只用來「列出待補項」，不用於 generate。enrich /
+        # rescrape 可能在 snapshot 後換封面（video 還在但 cover_path 變），故一律從
+        # fresh DB 讀「當前」cover 生成（與 get_thumb miss 路徑對稱：fresh re-read +
+        # path-change 偵測）；before/after re-check 收 video 消失 / 無 cover / cover 換掉
+        # 三種期間變動（≤1 generate-期間-變動窗口，與 get_thumb 同級）。
+        for video_uri, _stale_cover_fs in thumbnail_cache.iter_missing(repo.get_all()):
+            # Codex P2 race：用戶可在 prewarm 進行中關閉快取（toggle false → save →
+            # clear）。worker 每筆重讀 load_config()（無 lru_cache，每次讀 disk）拿前端
+            # 剛 PUT 的 false → 立即 break，不再 generate 後續 item（否則在 clear 已
+            # rmtree 的目錄重建 orphan webp）。before-check：關閉即停。
+            if not load_config().get("thumbnail_cache_enabled", False):
+                stopped_disabled = True
+                break
+            # before-check：影片已從 DB 移除（clear / prune / 單筆刪除）或無 cover → 不生成孤兒
+            fresh = repo.get_by_path(video_uri)
+            if fresh is None or not fresh.cover_path:
+                continue
+            cover_fs = uri_to_fs_path(fresh.cover_path)  # 用當前 cover，忽略 stale snapshot
+            ok = thumbnail_cache.generate(cover_fs, thumbnail_cache.thumb_file_for(video_uri))
+            # after-check：generate 期間影片被清 / cover 又換 / 快取被關閉（≤1 窗口）→
+            # 丟棄剛寫的 stale thumb。disabled_after：再讀一次 load_config，若快取已關閉
+            # → invalidate 剛生成的 webp + break（關掉 generate-in-flight 的最後殘留窗口）。
+            # 正確性依賴前端契約「先 save(false) 才 clear」（config.json 寫 false 早於
+            # clear fetch）；若未來改成「先清才存」會破此假設。
+            disabled_after = not load_config().get("thumbnail_cache_enabled", False)
+            after = repo.get_by_path(video_uri)
+            # disabled-after 拉到 ok 判斷外（Codex P3-2）：generate 期間被關閉時，無論這筆
+            # 成功或失敗都要停止且不送 done 通知。成功才需 invalidate（清剛寫的殘留 thumb）；
+            # 失敗無 thumb 可清。否則「最後一筆 generate 失敗 + 同時關閉」會漏 break → 誤送 done。
+            if disabled_after:
+                if ok:
+                    thumbnail_cache.invalidate(video_uri)
+                stopped_disabled = True
+                break
+            # 既有孤兒處理：generate 成功但影片消失 / 無 cover / cover 換掉 → 丟棄 stale thumb
+            if ok and (after is None or not after.cover_path
+                       or uri_to_fs_path(after.cover_path) != cover_fs):
+                thumbnail_cache.invalidate(video_uri)
+                continue
+            if ok:
+                n += 1
+        # Codex P3：若被 disable 中止（用戶「關閉並清除」），跳過「完成 N 張」通知——那些
+        # 縮圖已被 clear 刪除 / invalidate，顯示完成數會誤導且與「關閉並清除」UX 打架。
+        # disable 流程自身有確認 modal + saveConfig 回饋，無需 done 通知。
+        if not stopped_disabled:
+            _emit_notif("success", "notif.thumb_prewarm_done",
+                        message=f"{n} 張", task_type="thumb_prewarm")
+    except Exception:
+        logger.exception("縮圖預熱背景任務失敗")
+    finally:
+        with _prewarm_lock:
+            _prewarming = False
+
+
+@router.post("/thumb/prewarm")
+def thumb_prewarm():
+    """背景預熱縮圖快取（feature/71 T3）：後端自 gate + 單例鎖，fire-and-forget。
+
+    sync def。前端兩觸發點（toggle-on / scan-done）可無條件 POST，由此 gate。
+    """
+    global _prewarming
+    config = load_config()
+    if not config.get("thumbnail_cache_enabled", False):
+        return {"status": "disabled"}
+
+    with _prewarm_lock:
+        if _prewarming:
+            return {"status": "already_running"}
+        _prewarming = True
+
+    threading.Thread(target=_prewarm_worker, daemon=True).start()
+    return {"status": "started"}
+
+
+@router.post("/thumb/clear")
+def thumb_clear():
+    """DB-safe 清空封面縮圖快取（feature/71b T2）。
+
+    僅 rmtree output/thumb/（CD-71b-3）——**絕不碰 videos DB**。前端在
+    「關閉縮圖快取 toggle 且存檔成功」後才 fire-and-forget POST 此端點（先存才清）。
+    冪等：clear_all() 對缺目錄 no-op。sync def → Starlette threadpool。
+    """
+    thumbnail_cache.clear_all()
+    return {"cleared": True}
 
 
 @router.get("/video")

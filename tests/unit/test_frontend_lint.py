@@ -1764,6 +1764,58 @@ class TestShowcaseLightboxSentinel:
         assert "showFavoriteActresses" in surrounding, \
             "showcase.html removeActress button missing: 'showFavoriteActresses' guard"
 
+    # ----- 71-T7: video delete trash button + delete modal + x-trap（element-bound）-----
+
+    def test_t7_delete_trash_button_in_lightbox_details_row(self):
+        """[transient-guard] 71b-T1：垃圾桶鈕在 info panel 的 `.lb-details`（番號·片商·日期·size
+        那一行）行末，靠右常駐 muted icon，綁 openDeleteVideoModal()。搬位 / relayout 是一次性 —
+        舊斷言（鈕在 .cover-actions / .lb-delete-strip 內）失效屬預期。"""
+        html = self._html()
+        # 抽 .lb-details 區塊（內部僅 span/a/button，無巢狀 div → 第一個 </div> 即其收尾）
+        m = re.search(
+            r'<div class="lb-details">(.*?)</div>',
+            html, re.DOTALL,
+        )
+        assert m, '.lb-details（metadata 行）區塊不存在'
+        block = m.group(1)
+        # 垃圾桶 button：抽出綁 openDeleteVideoModal() 的 <button> tag，三要素同 tag
+        btn = re.search(r'<button\b[^>]*openDeleteVideoModal\(\)[^>]*>.*?</button>',
+                        block, re.DOTALL)
+        assert btn, '.lb-details 行末缺綁 openDeleteVideoModal() 的垃圾桶 button'
+        btn_html = btn.group(0)
+        assert 'lb-delete-btn' in btn_html, \
+            f'垃圾桶 button 缺 .lb-delete-btn class（muted info-panel 樣式）: {btn_html!r}'
+        assert 'bi-trash' in btn_html, f'垃圾桶 button 缺 bi-trash icon: {btn_html!r}'
+        assert "t('showcase.video.delete')" in btn_html, \
+            f'垃圾桶 button 缺 i18n showcase.video.delete: {btn_html!r}'
+
+    def test_t7_delete_modal_contract(self):
+        """delete-video modal：deleteVideoModalOpen + 標題 i18n + confirm/cancel handler 綁同一 dialog。"""
+        html = self._html()
+        # 抽 deleteVideoModalOpen 綁定的 <dialog> ... </dialog>
+        m = re.search(
+            r'<dialog\b[^>]*deleteVideoModalOpen[^>]*>(.*?)</dialog>',
+            html, re.DOTALL,
+        )
+        assert m, 'delete-video <dialog>（綁 deleteVideoModalOpen）不存在'
+        dialog_open_tag = m.group(0)[:m.group(0).find('>') + 1]
+        block = m.group(1)
+        assert 'fluent-modal' in dialog_open_tag, \
+            f'delete modal 缺 fluent-modal class: {dialog_open_tag!r}'
+        assert "showcase.video.delete_modal.title" in block, \
+            'delete modal 缺 i18n delete_modal.title'
+        assert 'confirmDeleteVideo()' in block, 'delete modal 缺 confirmDeleteVideo() 確認 handler'
+        assert 'cancelDeleteVideo()' in block, 'delete modal 缺 cancelDeleteVideo() 取消 handler'
+
+    def test_t7_xtrap_releases_on_delete_modal(self):
+        """燈箱 x-trap 行必須含 deleteVideoModalOpen（modal 開時釋放 trap 給 modal）。"""
+        html = self._html()
+        m = re.search(r'x-trap\.inert="([^"]*)"', html)
+        assert m, 'showcase.html 缺 x-trap.inert 行'
+        expr = m.group(1)
+        assert 'deleteVideoModalOpen' in expr, \
+            f'x-trap.inert 未含 deleteVideoModalOpen（delete modal 開時 trap 未釋放）: {expr!r}'
+
 
 class TestShowcaseHeroCard:
     """Phase 44b-T6: Showcase Hero Card guards (method folded)"""
@@ -2222,6 +2274,76 @@ class TestGhostFlyGuards:
             assert idx_open > 0, f"state-lightbox.js {fn_name} missing: 'lightboxOpen = true'"
             assert idx_animating < idx_open, \
                 f"state-lightbox.js {fn_name}: gsap-animating must precede lightboxOpen = true"
+
+    # ── 71b-T3: both-restore guard（hide/restore 目標皆為 .lightbox-cover 容器）──
+    # element-bound：regex 抽 OPEN(playGridToLightbox) / CLOSE(playLightboxToGrid)
+    # 各自 function body，斷言兩路 hide + restore 都指向 coverEl 容器（非僅單一 img）。
+    # 非檔案層級的 '.lightbox-cover' 字串存在性檢查（comment 留字串無法騙過）。
+
+    GHOST_FLY_JS = Path("web/static/js/shared/ghost-fly.js")
+
+    def _extract_method_body(self, js, method_name):
+        """抓 `methodName: function (...) {` 物件方法的 body（大括號平衡匹配）。"""
+        pattern = re.compile(
+            re.escape(method_name) + r'\s*:\s*function\s*\([^)]*\)\s*\{',
+            re.DOTALL,
+        )
+        m = pattern.search(js)
+        assert m is not None, f"ghost-fly.js 找不到 {method_name} 方法"
+        start = m.end()  # 位於 { 之後
+        depth = 1
+        i = start
+        while i < len(js) and depth > 0:
+            c = js[i]
+            if c == '{':
+                depth += 1
+            elif c == '}':
+                depth -= 1
+            i += 1
+        return js[start:i - 1]
+
+    def test_open_hide_and_restore_target_is_cover_container(self):
+        """OPEN(playGridToLightbox) body：coverEl 取自 .lightbox-cover 容器，
+        hide（data-ghost-hidden + opacity:0）與 cleanupGhost restore 皆指向 coverEl，
+        而非僅單一 lbImg。"""
+        js = self.GHOST_FLY_JS.read_text(encoding="utf-8")
+        body = self._extract_method_body(js, "playGridToLightbox")
+        # coverEl 由 .lightbox-cover 容器取得（closest / querySelector 任一）
+        assert re.search(r'var\s+coverEl\s*=', body), \
+            "playGridToLightbox body 缺少 coverEl 宣告（應隱 .lightbox-cover 容器而非單一 img）"
+        assert "closest('.lightbox-cover')" in body or "querySelector('.lightbox-cover')" in body, \
+            "playGridToLightbox coverEl 必須取自 .lightbox-cover 容器"
+        # hide 目標是 coverEl（attribute + opacity:0）
+        assert re.search(r"coverEl\.setAttribute\(\s*'data-ghost-hidden'", body), \
+            "playGridToLightbox hide 必須對 coverEl 掛 data-ghost-hidden（容器，非僅 lbImg）"
+        assert re.search(r"gsap\.set\(\s*coverEl\s*,\s*\{\s*opacity:\s*0", body), \
+            "playGridToLightbox hide 必須對 coverEl 設 opacity:0（容器，非僅 lbImg）"
+        # restore 目標是 coverEl（cleanupGhost 帶 coverEl）
+        assert re.search(r"cleanupGhost\(\s*ghost\s*,\s*coverEl", body), \
+            "playGridToLightbox cleanupGhost restore 必須帶 coverEl（容器），非僅 lbImg"
+
+    def test_close_hide_and_restore_target_is_cover_container(self):
+        """CLOSE(playLightboxToGrid) body：coverEl 取自 .lightbox-cover 容器，
+        hide 補掛 data-ghost-hidden + opacity:0，abort 還原 coverEl，
+        normal-complete 的 cleanupGhost restore 參數含 coverEl（與 OPEN 對稱）。"""
+        js = self.GHOST_FLY_JS.read_text(encoding="utf-8")
+        body = self._extract_method_body(js, "playLightboxToGrid")
+        # coverEl 由 .lightbox-cover 容器取得
+        assert re.search(r'var\s+coverEl\s*=', body), \
+            "playLightboxToGrid body 缺少 coverEl 宣告（應隱 .lightbox-cover 容器而非單一 fromImg）"
+        assert "closest('.lightbox-cover')" in body or "querySelector('.lightbox-cover')" in body, \
+            "playLightboxToGrid coverEl 必須取自 .lightbox-cover 容器"
+        # hide 目標是 coverEl（補上 attribute，舊版漏掛）+ opacity:0
+        assert re.search(r"coverEl\.setAttribute\(\s*'data-ghost-hidden'", body), \
+            "playLightboxToGrid hide 必須對 coverEl 掛 data-ghost-hidden（舊版漏掛 → stale-cleanup 兜不到）"
+        assert re.search(r"gsap\.set\(\s*coverEl\s*,\s*\{\s*opacity:\s*0", body), \
+            "playLightboxToGrid hide 必須對 coverEl 設 opacity:0（容器，非僅 fromImg）"
+        # abort 還原 coverEl
+        assert re.search(r"gsap\.set\(\s*coverEl\s*,\s*\{\s*opacity:\s*1", body), \
+            "playLightboxToGrid abort 必須還原 coverEl opacity:1（容器，非僅 fromImg）"
+        # normal-complete restore 含 coverEl（對稱還原來源容器，修舊不對稱）
+        assert re.search(r"cleanupGhost\(\s*ghost\s*,\s*targetImg\s*,\s*coverEl", body), \
+            "playLightboxToGrid cleanupGhost restore 參數必須含 coverEl（對稱還原來源容器，非僅 targetImg）"
 
 
 class TestTutorialExpandGuard:
@@ -7752,6 +7874,17 @@ class TestRescrapeModalGuard:
             f".fluent-toast-container {toast_z}（成功 toast 會被彈窗蓋住）"
         )
 
+    def test_fluent_modal_zindex_above_showcase_lightbox(self):
+        """71b-T1 (CD-71b-2) root-fix：base .fluent-modal z-index 必須 > .showcase-lightbox(1000)，
+        讓 lightbox-triggered confirm modal（delete / removeActress）不被燈箱蓋住。
+        把 rescrape 的 scoped 1600 升級為全 fluent-modal 通用。實際數字 regex 抽出，調低就紅。"""
+        fluent_modal_z = self._zindex_of(self._theme_css(), ".fluent-modal")
+        lightbox_z = self._zindex_of(self._showcase_css(), ".showcase-lightbox")
+        assert fluent_modal_z > lightbox_z, (
+            f"71b-T1 違規：base .fluent-modal z-index {fluent_modal_z} 未高於 "
+            f".showcase-lightbox {lightbox_z}（確認 modal 會渲染在燈箱下方）"
+        )
+
     def test_fluent_modal_class_open_backdrop_uses_tokens(self):
         """.fluent-modal.modal-open glass backdrop：12px blur 走 --fluent-blur-light token
         （非硬編碼 blur(Npx)）、dim 走 --overlay-modal、且有 -webkit- 配對 fallback。
@@ -9431,6 +9564,157 @@ class TestSettingsQuickToggleGuard:
         assert 'help-popover' in row_block, \
             "64e-1 違規：quick-toggle 列內進階搜尋區塊缺少 help-popover 元件"
 
+    def test_thumbnail_cache_enabled_in_quick_toggle_row(self):
+        """71-T5：封面縮圖快取 toggle（form.thumbnailCacheEnabled）必須在 quick-toggle 列內"""
+        html = self._html()
+        row_start = html.index('class="settings-quick-toggle-row"')
+        sec_search_pos = html.index('id="sec-search"')
+        row_block = html[row_start:sec_search_pos]
+        assert 'x-model="form.thumbnailCacheEnabled"' in row_block, \
+            "71-T5 違規：form.thumbnailCacheEnabled x-model 必須在 .settings-quick-toggle-row 內"
+
+    def test_thumbnail_cache_has_help_popover_state(self):
+        """71-T5：封面縮圖快取區塊必須有 showThumbCacheHelp state binding（Alpine↔HTML API contract）"""
+        html = self._html()
+        row_start = html.index('class="settings-quick-toggle-row"')
+        sec_search_pos = html.index('id="sec-search"')
+        row_block = html[row_start:sec_search_pos]
+        assert 'showThumbCacheHelp' in row_block, \
+            "71-T5 違規：quick-toggle 列內封面縮圖快取區塊缺少 showThumbCacheHelp state binding"
+
+    # ── 71-T11: 估算搬出 help-popover → confirm modal ──────────────────
+    def test_thumbnail_cache_help_popover_no_longer_has_hint_estimate(self):
+        """71-T11：help-popover（quick-toggle 列內）不得再含動態估算 hint_estimate x-text（已搬入 confirm modal）"""
+        html = self._html()
+        row_start = html.index('class="settings-quick-toggle-row"')
+        sec_search_pos = html.index('id="sec-search"')
+        row_block = html[row_start:sec_search_pos]
+        assert 'hint_estimate' not in row_block, \
+            "71-T11 違規：估算 hint_estimate 必須搬出 help-popover（不得留在 quick-toggle 列內）"
+
+    def test_thumbnail_cache_toggle_has_change_interceptor(self):
+        """71-T11：thumbnailCacheEnabled toggle 必須有 @change="onThumbCacheToggleChange()" 攔截（鏡像 metatube）"""
+        html = self._html()
+        row_start = html.index('class="settings-quick-toggle-row"')
+        sec_search_pos = html.index('id="sec-search"')
+        row_block = html[row_start:sec_search_pos]
+        m = re.search(
+            r'<input\b[^>]*x-model="form\.thumbnailCacheEnabled"[^>]*>',
+            row_block, re.DOTALL,
+        )
+        assert m, "71-T11 違規：找不到 form.thumbnailCacheEnabled toggle input"
+        tag = m.group(0)
+        assert 'onThumbCacheToggleChange()' in tag, \
+            "71-T11 違規：thumbnailCacheEnabled toggle 必須在同一 input 上綁 @change=onThumbCacheToggleChange()"
+        assert 'x-model="form.thumbnailCacheEnabled"' in tag, \
+            "71-T11 違規：thumbnailCacheEnabled toggle 必須保留 x-model（@change 攔截不取代 x-model）"
+
+    def test_thumbnail_cache_confirm_modal_exists(self):
+        """71-T11：confirm fluent-modal 存在 + 綁 thumbCacheConfirmOpen + confirm/cancel handler"""
+        html = self._html()
+        idx = html.find('thumbCacheConfirmOpen')
+        assert idx != -1, \
+            "71-T11 違規：settings.html 缺少 thumbCacheConfirmOpen confirm modal binding"
+        # 抽 thumbCacheConfirmOpen 首次出現的鄰域（modal 區塊）
+        block = html[idx - 200: idx + 1200]
+        assert 'fluent-modal' in block, \
+            "71-T11 違規：thumbCacheConfirmOpen 必須綁在 fluent-modal 上"
+        assert 'confirmThumbCacheEnable()' in block, \
+            "71-T11 違規：confirm modal 缺少 confirmThumbCacheEnable() 確認 handler"
+        assert 'cancelThumbCacheConfirm()' in block, \
+            "71-T11 違規：confirm modal 缺少 cancelThumbCacheConfirm() 取消 handler"
+
+    def test_thumbnail_cache_confirm_modal_body_is_dynamic(self):
+        """71-T11：confirm modal body 用 x-text 動態替換 {count}/{mb}/{min}（非靜態 SSR）"""
+        html = self._html()
+        idx = html.find('thumbCacheConfirmOpen')
+        assert idx != -1, \
+            "71-T11 違規：settings.html 缺少 thumbCacheConfirmOpen confirm modal binding"
+        block = html[idx - 200: idx + 1200]
+        assert 'confirm_modal.body' in block, \
+            "71-T11 違規：confirm modal body 必須引用 settings.thumbnail_cache.confirm_modal.body"
+        for token in ("'{count}'", "'{mb}'", "'{min}'"):
+            assert token in block, \
+                f"71-T11 違規：confirm modal body 必須 .replace({token}, ...) 動態填值"
+        assert '_thumbEstimateMin' in block, \
+            "71-T11 違規：confirm modal body 必須用 _thumbEstimateMin（HDD 時間估算）"
+
+    # ===== 71b-T2: disable confirm modal contract =====
+    STATE_CONFIG_JS = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "settings" / "state-config.js"
+    STATE_UI_JS = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "settings" / "state-ui.js"
+    LOCALES_ROOT = Path(__file__).parent.parent.parent / "locales"
+
+    def test_thumb_cache_disable_modal_contract(self):
+        """71b-T2：disable fluent-modal 綁 thumbCacheDisableConfirmOpen + i18n title + confirm/cancel handler（element-bound）。"""
+        html = self._html()
+        # 抽 thumbCacheDisableConfirmOpen 綁定的 <dialog> ... </dialog>
+        m = re.search(
+            r'<dialog\b[^>]*thumbCacheDisableConfirmOpen[^>]*>(.*?)</dialog>',
+            html, re.DOTALL,
+        )
+        assert m, "71b-T2 違規：缺少綁 thumbCacheDisableConfirmOpen 的 disable <dialog>"
+        dialog_open_tag = m.group(0)[:m.group(0).find('>') + 1]
+        block = m.group(1)
+        assert 'fluent-modal' in dialog_open_tag, \
+            f"71b-T2 違規：disable modal 缺 fluent-modal class: {dialog_open_tag!r}"
+        assert 'settings.thumbnail_cache.disable_modal.title' in block, \
+            "71b-T2 違規：disable modal 缺 i18n disable_modal.title"
+        assert 'confirmThumbCacheDisable()' in block, \
+            "71b-T2 違規：disable modal 缺 confirmThumbCacheDisable() 確認 handler"
+        assert 'cancelThumbCacheDisable()' in block, \
+            "71b-T2 違規：disable modal 缺 cancelThumbCacheDisable() 取消 handler"
+
+    def test_thumb_cache_disable_modal_body_releases_mb(self):
+        """71b-T2：disable modal body 引用 disable_modal.body 並動態替換 {mb} 釋放估算。"""
+        html = self._html()
+        m = re.search(
+            r'<dialog\b[^>]*thumbCacheDisableConfirmOpen[^>]*>(.*?)</dialog>',
+            html, re.DOTALL,
+        )
+        assert m, "71b-T2 違規：缺少 disable <dialog>"
+        block = m.group(1)
+        assert 'settings.thumbnail_cache.disable_modal.body' in block, \
+            "71b-T2 違規：disable modal body 必須引用 disable_modal.body"
+        assert "'{mb}'" in block, \
+            "71b-T2 違規：disable modal body 必須 .replace('{mb}', ...) 顯示釋放估算"
+
+    def test_thumb_cache_disable_state_stub_declared(self):
+        """71b-T2：state-ui.js 必須先宣告 thumbCacheDisableConfirmOpen stub（Alpine 3 ReferenceError 防護）。"""
+        js = self.STATE_UI_JS.read_text(encoding="utf-8")
+        assert 'thumbCacheDisableConfirmOpen' in js, \
+            "71b-T2 違規：state-ui.js 缺 thumbCacheDisableConfirmOpen state stub"
+
+    def test_thumb_cache_disable_handlers_in_state_config(self):
+        """71b-T2：state-config.js 含 disable 流程三件（trigger clear + cancel + confirm handler）。"""
+        js = self.STATE_CONFIG_JS.read_text(encoding="utf-8")
+        assert '_triggerThumbClear' in js, \
+            "71b-T2 違規：state-config.js 缺 _triggerThumbClear()（fire-and-forget POST clear）"
+        assert '/api/gallery/thumb/clear' in js, \
+            "71b-T2 違規：_triggerThumbClear 必須 POST /api/gallery/thumb/clear"
+        assert 'cancelThumbCacheDisable' in js, \
+            "71b-T2 違規：state-config.js 缺 cancelThumbCacheDisable()"
+        assert 'confirmThumbCacheDisable' in js, \
+            "71b-T2 違規：state-config.js 缺 confirmThumbCacheDisable()"
+
+    def test_thumb_cache_disable_clear_gated_on_save_success(self):
+        """71b-T2：clear trigger 必綁在 saveConfig 成功分支（prevThumbEnabled true→false 才清，先存才清）。"""
+        js = self.STATE_CONFIG_JS.read_text(encoding="utf-8")
+        # prevThumbEnabled 與 false 的轉換條件 + _triggerThumbClear 同時出現
+        assert re.search(
+            r'prevThumbEnabled\b.*thumbnailCacheEnabled\s*===\s*false',
+            js, re.DOTALL,
+        ), "71b-T2 違規：缺 prevThumbEnabled && thumbnailCacheEnabled===false 的 clear 觸發條件"
+
+    def test_thumb_cache_disable_modal_title_key_in_zh_tw(self):
+        """71b-T2：zh_TW.json 含 thumbnail_cache.disable_modal 四鍵（其餘 3 語系留 milestone）。"""
+        data = json.loads((self.LOCALES_ROOT / "zh_TW.json").read_text(encoding="utf-8"))
+        dm = data.get("settings", {}).get("thumbnail_cache", {}).get("disable_modal", {})
+        for key in ("title", "body", "cancel", "confirm"):
+            assert dm.get(key), \
+                f"71b-T2 違規：zh_TW.json settings.thumbnail_cache.disable_modal.{key} 缺或空"
+        assert "{mb}" in dm["body"], \
+            "71b-T2 違規：disable_modal.body 必須含 {mb} 釋放估算占位"
+
 
 class TestSettingsDmmProxyContract:
     """64b-3: DMM 灰化 + proxy binding contract 驗證（CD-64-B4）"""
@@ -9707,6 +9991,95 @@ class TestCoverLoadingUx67Guard:
         assert "persisted" in body, \
             ("pagehide handler 未檢查 event.persisted（Codex P2 bfcache）：進 bfcache 時無條件 cleanup "
              "會讓 Back 還原的頁面缺 listener/resource。需 `if (e.persisted) return;`")
+
+    # ---- 71-T6: 燈箱封面 blur-up（thumb 底層秒出 → 原圖淡入）----
+
+    def _lightbox_cover_block(self):
+        """抽出燈箱封面 <div class=\"lightbox-cover\">…</div> 區塊（element-bound，避免整檔裸 grep）"""
+        html = self._html()
+        m = re.search(r'<div class="lightbox-cover">.*?</div>\s*<!-- Metadata Panel', html, re.S)
+        assert m, "showcase.html: <div class=\"lightbox-cover\"> 區塊不存在"
+        return m.group(0)
+
+    def _lb_overlay_img(self):
+        """抽出燈箱封面 overlay <img class=\"lb-full\" …>（blur-up 原圖層）"""
+        block = self._lightbox_cover_block()
+        m = re.search(r'<img class="lb-full"[^>]*>', block, re.S)
+        assert m, "showcase.html .lightbox-cover 內缺 overlay <img class=\"lb-full\">（blur-up 原圖層）"
+        return m.group(0)
+
+    def test_lb_base_img_keeps_cover_url_and_error(self):
+        """71-T6: 底層 <img> 保留 x-ref/cover_url/@error 三態（base 撐容器 + 破圖偵測沿用 base）"""
+        block = self._lightbox_cover_block()
+        m = re.search(r'<img x-ref="lightboxCoverImg"[^>]*>', block, re.S)
+        assert m, "showcase.html .lightbox-cover 缺 base <img x-ref=\"lightboxCoverImg\">"
+        base = m.group(0)
+        assert ':src="currentLightboxVideo?.cover_url"' in base, \
+            "base <img> 須綁 :src=\"currentLightboxVideo?.cover_url\"（快取開啟=小 webp 秒出）"
+        assert '@error="handleCoverError(currentLightboxVideo, $event)"' in base, \
+            "base <img> 須保留 @error=\"handleCoverError\"（破圖三態留 base，不移 overlay）"
+
+    def test_lb_overlay_img_binds_cover_full_url(self):
+        """71-T6: overlay <img class=\"lb-full\"> 須綁 :src=\"currentLightboxVideo?.cover_full_url\"（原圖層）"""
+        overlay = self._lb_overlay_img()
+        assert ':src="currentLightboxVideo?.cover_full_url"' in overlay, \
+            "overlay <img class=\"lb-full\"> 須綁 :src=\"currentLightboxVideo?.cover_full_url\"（原圖載完淡入）"
+
+    def test_lb_overlay_img_load_sets_flag(self):
+        """71-T6: overlay <img> 須含 @load=\"_lbFullLoaded=true\"（原圖載完翻旗標觸發淡入）"""
+        overlay = self._lb_overlay_img()
+        assert re.search(r'@load="_lbFullLoaded\s*=\s*true"', overlay), \
+            "overlay <img class=\"lb-full\"> 須含 @load=\"_lbFullLoaded=true\"（原圖載完觸發淡入）"
+
+    def test_lb_overlay_img_class_binds_shown(self):
+        """71-T6: overlay <img> 須 :class 綁 lb-full-shown（opacity 0→1 淡入，非 x-show/display:none）"""
+        overlay = self._lb_overlay_img()
+        assert re.search(r":class=\"\{\s*'lb-full-shown'\s*:\s*_lbFullLoaded\s*\}\"", overlay), \
+            "overlay <img class=\"lb-full\"> 須 :class=\"{'lb-full-shown':_lbFullLoaded}\"（CSS opacity 淡入）"
+        assert "x-show" not in overlay, \
+            "overlay <img class=\"lb-full\"> 不得用 x-show（display:none 的 img 不載入、@load 永不 fire）"
+
+    def test_lb_full_css_opacity_transition_with_token(self):
+        """71-T6: showcase.css .lb-full 用 opacity:0 + fluent token transition（非裸 .3s）；.lb-full-shown opacity:1"""
+        css = self._css()
+        m = re.search(r'\.lb-full\s*\{([^}]*)\}', css)
+        assert m, "showcase.css 缺 .lb-full 規則"
+        body = m.group(1)
+        assert "position: absolute" in body and "opacity: 0" in body, \
+            ".lb-full 須 position:absolute + opacity:0（疊在 base 上、預設隱藏）"
+        assert "pointer-events: none" in body, \
+            ".lb-full 須 pointer-events:none（overlay 不擋 cover-actions/sparkle 點擊）"
+        assert re.search(r'transition:\s*opacity\s+var\(--fluent-duration-', body), \
+            ".lb-full transition 須用 fluent duration token（不寫裸 .3s magic number）"
+        assert re.search(r'var\(--fluent-ease-(decel|standard)\)', body), \
+            ".lb-full transition 須用 fluent ease token（decel/standard）"
+        shown = re.search(r'\.lb-full-shown\s*\{([^}]*)\}', css)
+        assert shown and "opacity: 1" in shown.group(1), \
+            "showcase.css 缺 .lb-full-shown { opacity: 1 }（淡入終態）"
+
+    def test_lb_full_reduced_motion_no_transition(self):
+        """71-T6: prefers-reduced-motion 內 .lb-full { transition: none }（瞬切，鏡像既有 PRM 範式）"""
+        css = self._css()
+        prm_blocks = re.findall(r'@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{(.*?)\n\}', css, re.S)
+        assert any(re.search(r'\.lb-full\s*\{[^}]*transition:\s*none', b) for b in prm_blocks), \
+            "showcase.css 缺 @media (prefers-reduced-motion: reduce) .lb-full { transition: none }（reduced-motion 瞬切）"
+
+    def test_lightbox_js_declares_and_resets_lbfullloaded(self):
+        """71-T6/71c-P2: state-lightbox.js 宣告 _lbFullLoaded stub（Alpine 3 ReferenceError 防護）+
+        _refreshLbFullBlurUp helper 含 reset（71c-P2 抽 helper 後邏輯在 helper 而非 inline _setLightboxIndex）"""
+        src = SHOWCASE_LIGHTBOX_JS.read_text(encoding="utf-8")
+        assert "_lbFullLoaded: false" in src, \
+            "state-lightbox.js 缺 _lbFullLoaded: false 宣告（Alpine 3 未宣告丟 ReferenceError，x||fallback 擋不住）"
+        # 71c-P2：reset 邏輯抽至 _refreshLbFullBlurUp helper，確認 helper 含 this._lbFullLoaded = false
+        helper_m = re.search(r'_refreshLbFullBlurUp\(\)\s*\{(.*?)\n\s{8}\}', src, re.S)
+        assert helper_m, "state-lightbox.js 找不到 _refreshLbFullBlurUp() helper（71c-P2 blur-up 共用 helper）"
+        assert "this._lbFullLoaded = false" in helper_m.group(1), \
+            "_refreshLbFullBlurUp helper 缺 this._lbFullLoaded = false（開燈箱/prev-next/slip-through 每次重走 blur-up）"
+        # _setLightboxIndex 仍須委託 helper（不可 inline 走樣）
+        set_m = re.search(r'_setLightboxIndex\(idx\)\s*\{(.*?)\n\s{8}\}', src, re.S)
+        assert set_m, "state-lightbox.js: 找不到 _setLightboxIndex(idx) 方法"
+        assert "_refreshLbFullBlurUp" in set_m.group(1), \
+            "_setLightboxIndex 未委託 _refreshLbFullBlurUp（71c-P2 抽 helper 後應呼叫 helper 不可 inline）"
 
 
 class TestPartsBinStagedAffordanceGuard:
@@ -10163,4 +10536,120 @@ class TestCfPollUnavailableGuard:
         assert "cancelCfPoll" in snippet, (
             "cancelCfPoll() call not found inside _pollCfThenRetry() definition — "
             "must be called when data.unavailable is true"
+        )
+
+
+SHOWCASE_CSS = Path(__file__).parent.parent.parent / "web" / "static" / "css" / "pages" / "showcase.css"
+SHOWCASE_SIMILAR_JS = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "showcase" / "state-similar.js"
+
+
+class TestLightboxCoverSizeGuards:
+    """71c: 守衛 lightbox 封面縮水修復（thumb 放大填滿 + blur-up 鏡像 + same-URL complete-check）
+
+    四條 element-bound 守衛：
+    G1 — .lightbox-cover img 有明確 height:（非僅 max-height），確保 400px thumb 放大到 60vh
+    G2 — .lb-full 有明確 height:（非僅 max-height），確保 overlay 與 base 尺寸鏡像
+    G3 — state-lightbox.js 含 _refreshLbFullBlurUp helper（same-URL complete-check 抽出共用），
+         且 _setLightboxIndex 與 slip-through 兩處均呼叫該 helper（防回歸繞過）
+    G4 — state-similar.js similarExitVideo 含 cover_full_url 欄位
+    """
+
+    def _css(self):
+        return SHOWCASE_CSS.read_text(encoding="utf-8")
+
+    def _lightbox_js(self):
+        return SHOWCASE_LIGHTBOX_JS.read_text(encoding="utf-8")
+
+    def _similar_js(self):
+        return SHOWCASE_SIMILAR_JS.read_text(encoding="utf-8")
+
+    def _html(self):
+        return SHOWCASE_HTML.read_text(encoding="utf-8")
+
+    def test_lightbox_cover_img_has_explicit_height(self):
+        """G1: .lightbox-cover img 含明確 height: 規則（非僅 max-height），讓 thumb 放大填滿"""
+        css = self._css()
+        import re
+        # 找到 .lightbox-cover img { ... } 區塊
+        block_match = re.search(r'\.lightbox-cover\s+img\s*\{([^}]+)\}', css, re.DOTALL)
+        assert block_match, ".lightbox-cover img 規則在 showcase.css 找不到"
+        block = block_match.group(1)
+        # 確認有明確的 height:（不只是 max-height:）
+        assert re.search(r'(?<!\w)height\s*:', block), (
+            ".lightbox-cover img 缺少明確 height: 規則（只有 max-height 不足以放大小 thumb）"
+        )
+
+    def test_lb_full_has_explicit_height(self):
+        """G2: .lb-full 含明確 height: 規則（非僅 max-height），與 base img 鏡像對齊"""
+        css = self._css()
+        import re
+        block_match = re.search(r'\.lb-full\s*\{([^}]+)\}', css, re.DOTALL)
+        assert block_match, ".lb-full 規則在 showcase.css 找不到"
+        block = block_match.group(1)
+        assert re.search(r'(?<!\w)height\s*:', block), (
+            ".lb-full 缺少明確 height: 規則（overlay 需與 base img 尺寸完全鏡像）"
+        )
+
+    def test_lightbox_js_has_sameurl_complete_check(self):
+        """G3: state-lightbox.js 抽出 _refreshLbFullBlurUp helper 含 same-URL complete-check，
+        且 _setLightboxIndex 與 state-similar.js slip-through 均呼叫該 helper（71c-P2 防回歸）"""
+        import re
+        js = self._lightbox_js()
+        similar_js = self._similar_js()
+
+        # (a) helper 函數體必須存在於 state-lightbox.js，且含 complete-check 三要素
+        helper_idx = js.find("_refreshLbFullBlurUp(")
+        assert helper_idx != -1, (
+            "state-lightbox.js 找不到 _refreshLbFullBlurUp helper"
+            "（71c-P2：blur-up reset + same-URL complete-check 應抽成共用 helper）"
+        )
+        # 截取 helper 函數體（含至 closing brace，取 600 字元已足夠）
+        helper_snippet = js[helper_idx: helper_idx + 600]
+        assert "lightboxCoverFull" in helper_snippet, (
+            "_refreshLbFullBlurUp helper 缺少 lightboxCoverFull x-ref 取用"
+            "（same-URL complete-check 需 $refs.lightboxCoverFull）"
+        )
+        # 鎖 runtime 表達式（非註解）
+        assert "fullImg.complete" in helper_snippet and "fullImg.naturalWidth" in helper_snippet, (
+            "_refreshLbFullBlurUp helper 缺少 fullImg.complete && fullImg.naturalWidth 檢查"
+            "（same-URL 時瀏覽器不重新 fire @load，需手動偵測 complete）"
+        )
+        assert "_lbFullLoaded" in helper_snippet, (
+            "_refreshLbFullBlurUp helper 缺少 _lbFullLoaded 賦值"
+        )
+
+        # (b) _setLightboxIndex 必須呼叫 _refreshLbFullBlurUp（不再 inline）
+        set_idx = js.find("_setLightboxIndex(")
+        assert set_idx != -1, "state-lightbox.js 找不到 _setLightboxIndex 函數"
+        set_snippet = js[set_idx: set_idx + 800]
+        assert "_refreshLbFullBlurUp" in set_snippet, (
+            "state-lightbox.js _setLightboxIndex 未呼叫 _refreshLbFullBlurUp"
+            "（抽 helper 後 _setLightboxIndex 應委託 helper，避免邏輯漂移）"
+        )
+
+        # (c) slip-through 路徑（state-similar.js）必須在 currentLightboxVideo = similarExitVideo 之後
+        #     呼叫 _refreshLbFullBlurUp（防止繞過 _setLightboxIndex 殘留舊 _lbFullLoaded）
+        slip_idx = similar_js.find("this.currentLightboxVideo = this.similarExitVideo")
+        assert slip_idx != -1, (
+            "state-similar.js 找不到 currentLightboxVideo = similarExitVideo 指派"
+            "（slip-through 路徑應設 currentLightboxVideo 後呼叫 _refreshLbFullBlurUp）"
+        )
+        # 截取指派後 300 字元（應含 helper 呼叫）
+        after_assign = similar_js[slip_idx: slip_idx + 300]
+        assert "_refreshLbFullBlurUp" in after_assign, (
+            "state-similar.js slip-through（currentLightboxVideo = similarExitVideo）後缺少 _refreshLbFullBlurUp 呼叫"
+            "（71c-P2：slip-through 繞過 _setLightboxIndex，舊 _lbFullLoaded true → 跳過 blur-up；"
+            "false + same-URL → @load 不 fire → opacity:0 卡死）"
+        )
+
+    def test_similar_exit_video_has_cover_full_url(self):
+        """G4（JS contract）: state-similar.js similarExitVideo 含 cover_full_url 欄位"""
+        js = self._similar_js()
+        # 找 similarExitVideo = { ... } 構建區塊
+        idx = js.find("this.similarExitVideo = {")
+        assert idx != -1, "state-similar.js 找不到 similarExitVideo = { 構建"
+        snippet = js[idx: idx + 600]
+        assert "cover_full_url" in snippet, (
+            "state-similar.js similarExitVideo 缺少 cover_full_url 欄位"
+            "（slip-through 路徑缺此欄 → .lb-full src=undefined → @load 永不 fire → opacity:0 卡死）"
         )

@@ -182,6 +182,7 @@
     }
   ],
   "advanced_search_enabled": true,
+  "thumbnail_cache_enabled": false,
   "metatube": {
     "enabled": false,
     "url": "",

@@ -152,6 +152,7 @@ class AppConfig(BaseModel):
     general: GeneralConfig = GeneralConfig()
     sources: list[SourceConfig] = Field(default_factory=get_builtin_sources)
     advanced_search_enabled: bool = True  # 進階搜尋 picker（TASK-61c-7）；預設開啟（v0.9.x）；Pydantic default 自動補缺漏
+    thumbnail_cache_enabled: bool = False  # 縮圖快取開關（feature/71 T2）；預設關閉；top-level additive migration 補缺漏
     metatube: MetatubeConfig = MetatubeConfig()  # CD-63b-3；Pydantic default 自動補缺漏（no migration needed）
 
 
@@ -382,6 +383,13 @@ def _load_config_unlocked() -> dict:
                     need_save = True
         except Exception as exc:
             logger.warning("[Config] javlibrary additive migration 發生例外，略過：%s", exc)
+
+        # Additive migration（feature/71 T2）：top-level thumbnail_cache_enabled 補預設。
+        # load_config() 直接 return raw dict（不 model_validate），故舊 config.json 缺此 key
+        # 時 Pydantic default 不會在 GET /api/config 補上 → 顯式補 False（作用於 raw_config 本身）。
+        if 'thumbnail_cache_enabled' not in raw_config:
+            raw_config['thumbnail_cache_enabled'] = False
+            need_save = True
 
         # Save migrated config（已持鎖 → 用 unlocked 版避免自我死鎖）
         if need_save:

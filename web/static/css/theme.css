@@ -2075,6 +2075,17 @@ body {
 
 /* ========== Components: Fluent Modal (D.10) ========== */
 
+/* Fluent Modal - z-index root-fix (71b-T1, CD-71b-2).
+ * UNLAYERED on purpose (same precedence intent as .fluent-modal.modal-open below):
+ * DaisyUI's layered `.modal` gives z-index 999 < .showcase-lightbox 1000, so any
+ * confirm modal opened FROM the lightbox (delete / removeActress) renders UNDER it.
+ * Lift the whole .fluent-modal (backdrop + box) to 1600 — above lightbox(1000) /
+ * sample-gallery(1500) / similar-stage(1501), below toast(2000). Generalizes the
+ * earlier rescrape-modal.css scoped 1600 fix to every fluent-modal at once. */
+.fluent-modal {
+    z-index: 1600;
+}
+
 /* Fluent Modal - Smoke Backdrop Override.
  * NOTE: ::backdrop only fires for native dialog.showModal(). All fluent-modals
  * in this codebase open via Alpine `:class="{ 'modal-open': ... }"` (CD-62-1, no

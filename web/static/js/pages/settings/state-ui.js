@@ -6,6 +6,7 @@ export function stateUI() {
         showSampleImagesHelp: false,
         showAdvancedSearchHelp: false,
         showCounterHelp: false,
+        showThumbCacheHelp: false,
 
         // 64b-1: 進階摺疊開關（x-collapse 驅動）
         scraperAdvanced: false,
@@ -21,6 +22,12 @@ export function stateUI() {
         // Reset Config Modal State (T3.4)
         resetConfigModalOpen: false,
         _resetConfigLoading: false,
+
+        // 71-T11: 開啟封面縮圖快取 Confirm Modal State
+        thumbCacheConfirmOpen: false,
+
+        // 71b-T2: 關閉封面縮圖快取 Confirm Modal State
+        thumbCacheDisableConfirmOpen: false,
 
         // B1: Scanner directory link state
         favoriteScannerLink: null,   // null=隱藏, {linked, matched_directory}=已查

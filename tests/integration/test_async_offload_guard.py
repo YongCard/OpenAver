@@ -277,6 +277,22 @@ class TestConvertedHandlersAreDef:
     def test_t2_get_local_status_is_def(self):
         assert self._func_type("search.py", "get_local_status") is ast.FunctionDef
 
+    # T3 (71) — thumbnail cache 端點（sync def → Starlette threadpool）
+    def test_t3_71_get_thumb_is_def(self):
+        assert self._func_type("scanner.py", "get_thumb") is ast.FunctionDef
+
+    def test_t3_71_thumb_prewarm_is_def(self):
+        assert self._func_type("scanner.py", "thumb_prewarm") is ast.FunctionDef
+
+    def test_t3_71_thumb_clear_is_def(self):
+        # 71b-T2：DB-safe 清空端點。def → Starlette threadpool（rmtree 不阻塞 loop）。
+        assert self._func_type("scanner.py", "thumb_clear") is ast.FunctionDef
+
+    # T7 (71) — DELETE /api/showcase/video（sync def → Starlette threadpool；
+    # body 內 repo.delete_by_paths / thumbnail_cache.invalidate 在 worker thread）
+    def test_t7_71_delete_video_is_def(self):
+        assert self._func_type("showcase.py", "delete_video") is ast.FunctionDef
+
     def test_t2_motion_lab_data_is_def(self):
         assert self._func_type("motion_lab.py", "motion_lab_data") is ast.FunctionDef
 

@@ -627,10 +627,45 @@
 }
 
 .lightbox-cover img {
+    /* 71c：height 明確（非僅 max-height），讓 400px thumb 放大撐滿 60vh；
+       width:auto + max-width:100% 保持比例且不超容器寬；object-fit:contain 絕不裁切。
+       T4 前原圖靠自然尺寸填滿，T4 後 thumb 自然 400px < 60vh → 用 max-* 無法放大，
+       需 height 明確才能撐高（瀏覽器按 height 限制縮放比例，object-fit:contain 補完）。 */
+    height: 60vh;
+    width: auto;
     max-width: 100%;
-    max-height: 60vh;
     object-fit: contain;
     border-radius: var(--radius-sm);
+}
+
+/* 71-T6 blur-up overlay：原圖（cover_full_url）疊在 base（cover_url 小圖）之上。
+   sizing 鏡像 .lightbox-cover img 使兩層精準對齊；預設 opacity:0、@load 後翻 .lb-full-shown 淡入。
+   pointer-events:none → overlay 永不攔截 cover-actions / sparkle 的點擊。
+   transition 用 fluent token（不寫裸 .3s）；duration-slow=300ms（= plan .3s）、ease-decel 為進場/淡入角色。
+   71c：height/width/object-fit 完全鏡像 base img，確保原圖淡入時尺寸不偏移（兩層像素對齊）。 */
+.lb-full {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    height: 60vh;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--fluent-duration-slow) var(--fluent-ease-decel);
+}
+
+.lb-full-shown {
+    opacity: 1;
+}
+
+/* 71-T6 blur-up：reduced-motion 下原圖瞬切（無漸變），仍正確蓋上（鏡像既有 PRM 範式）。 */
+@media (prefers-reduced-motion: reduce) {
+    .lb-full {
+        transition: none;
+    }
 }
 
 /* Metadata Panel — 緊湊版（匹配原版 gallery） */
@@ -701,6 +736,7 @@
     margin-bottom: 0.5rem;
     display: flex;
     flex-wrap: wrap;
+    align-items: center;          /* 讓行末 muted icon 鈕（垃圾桶）與 metadata 文字垂直置中 */
 }
 
 /* 分隔符由 HTML 中各 span 內部開頭的 " · " 控制，隨 x-show 一起顯示/隱藏 */
@@ -1063,6 +1099,47 @@
     outline-offset: 2px;          /* stroke / focus 級（§4）*/
     color: var(--accent);
     box-shadow: 0 0 0 4px var(--glow-subtle);   /* §6 #5 focus 4px glow */
+}
+
+/* 71b-T1: 單筆刪除常駐 muted icon（info panel，.lb-details size 行末，margin-left:auto 靠右）。
+ * 從 hover overlay .cover-actions 搬進 metadata 行末，與 .lb-rescrape-gear 同尺寸同語言，
+ * 鏡像其 muted 模式，差別只在 hover → danger（不是 accent）。 */
+.lightbox-metadata .lb-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;                                   /* 與 .lb-rescrape-gear 同尺寸，融入 metadata 行 */
+    height: 1.25rem;
+    margin-left: auto;                                /* 推到 .lb-details flex 行末（靠右）*/
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--fluent-radius-md);           /* 互動小元件 4px（§1）*/
+    background: transparent;
+    color: var(--text-muted);                         /* subtle 常駐態 */
+    font-size: 0.8125rem;                             /* icon optical 對齊 0.75rem metadata 文字 */
+    line-height: 1;
+    cursor: pointer;
+    transition: color var(--fluent-duration-fast) var(--fluent-ease-standard),
+                background var(--fluent-duration-fast) var(--fluent-ease-standard),
+                border-color var(--fluent-duration-fast) var(--fluent-ease-standard);
+}
+
+.lightbox-metadata .lb-delete-btn:hover {
+    color: var(--color-error-hover);                  /* hover → danger 紅（非 accent）*/
+    background: var(--surface-1);
+    border-color: var(--stroke-subtle);
+}
+
+.lightbox-metadata .lb-delete-btn:active {
+    color: var(--color-error-hover);
+    background: var(--surface-1);
+}
+
+.lightbox-metadata .lb-delete-btn:focus-visible {
+    outline: 2px solid var(--color-error-hover);
+    outline-offset: 2px;                              /* stroke / focus 級（§4）*/
+    color: var(--color-error-hover);
+    box-shadow: 0 0 0 4px var(--glow-subtle);         /* §6 #5 focus 4px glow */
 }
 
 /* Responsive: 小螢幕 */

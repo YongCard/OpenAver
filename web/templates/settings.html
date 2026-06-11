@@ -78,6 +78,28 @@
                 </div>
             </div>
 
+            <!-- 封面縮圖快取（71-T5） -->
+            <div class="settings-form-group popover-anchor">
+                <label class="settings-label">
+                    <input type="checkbox" class="toggle toggle-primary"
+                           x-model="form.thumbnailCacheEnabled"
+                           @change="onThumbCacheToggleChange()">
+                    <span class="label-text">{{ t('settings.thumbnail_cache.label') }}</span>
+                    <button type="button" class="help-popover-btn"
+                            @click.prevent="showThumbCacheHelp = !showThumbCacheHelp"
+                            :aria-expanded="showThumbCacheHelp">
+                        <i class="bi bi-question-circle"></i>
+                    </button>
+                </label>
+                <div x-show="showThumbCacheHelp" x-cloak x-transition
+                     @click.outside="showThumbCacheHelp = false"
+                     class="help-popover">
+                    <small class="help-popover__body">
+                        {{ t('settings.thumbnail_cache.hint') }}
+                    </small>
+                </div>
+            </div>
+
             <!-- 進階搜尋（Beta） -->
             <div class="settings-form-group popover-anchor">
                 <label class="settings-label">
@@ -86,7 +108,6 @@
                            x-model="form.advancedSearchEnabled">
                     <span class="label-text">
                         {{ t('settings.advanced_search.toggle_label') }}
-                        <span class="source-pill-badge">Beta</span>
                     </span>
                     <button type="button" class="help-popover-btn"
                             @click.prevent="showAdvancedSearchHelp = !showAdvancedSearchHelp"
@@ -1052,6 +1073,52 @@
                     <span x-show="_resetConfigLoading" class="loading loading-spinner loading-xs"></span>
                     <span x-show="!_resetConfigLoading"><i class="bi bi-arrow-counterclockwise"></i></span>
                     {{ t('settings.reset_modal.confirm') }}
+                </button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- 71-T11: 開啟封面縮圖快取 Confirm Modal（非破壞性 + 動態估算 body）-->
+    <dialog class="modal fluent-modal"
+            :class="{ 'modal-open': thumbCacheConfirmOpen }"
+            @click.self="cancelThumbCacheConfirm()"
+            @keydown.escape.window="thumbCacheConfirmOpen && cancelThumbCacheConfirm()">
+        <div class="modal-box fluent-modal-box">
+            <h3 class="fluent-modal-title">
+                <i class="bi bi-info-circle"></i>
+                {{ t('settings.thumbnail_cache.confirm_modal.title') }}
+            </h3>
+            <p class="fluent-modal-body"
+               x-text="window.t('settings.thumbnail_cache.confirm_modal.body').replace('{count}', videoCount).replace('{mb}', _thumbEstimateMb).replace('{min}', _thumbEstimateMin)"></p>
+            <div class="modal-action fluent-modal-actions">
+                <button type="button" class="btn btn-ghost" @click="cancelThumbCacheConfirm()">
+                    {{ t('settings.thumbnail_cache.confirm_modal.cancel') }}
+                </button>
+                <button type="button" class="btn btn-primary" @click="confirmThumbCacheEnable()">
+                    {{ t('settings.thumbnail_cache.confirm_modal.confirm') }}
+                </button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- 71b-T2: 關閉封面縮圖快取 Confirm Modal（warning 語氣 + 釋放估算 body）-->
+    <dialog class="modal fluent-modal"
+            :class="{ 'modal-open': thumbCacheDisableConfirmOpen }"
+            @click.self="cancelThumbCacheDisable()"
+            @keydown.escape.window="thumbCacheDisableConfirmOpen && cancelThumbCacheDisable()">
+        <div class="modal-box fluent-modal-box">
+            <h3 class="fluent-modal-title">
+                <i class="bi bi-exclamation-triangle text-warning"></i>
+                {{ t('settings.thumbnail_cache.disable_modal.title') }}
+            </h3>
+            <p class="fluent-modal-body"
+               x-text="window.t('settings.thumbnail_cache.disable_modal.body').replace('{mb}', _thumbEstimateMb)"></p>
+            <div class="modal-action fluent-modal-actions">
+                <button type="button" class="btn btn-ghost" @click="cancelThumbCacheDisable()">
+                    {{ t('settings.thumbnail_cache.disable_modal.cancel') }}
+                </button>
+                <button type="button" class="btn btn-error" @click="confirmThumbCacheDisable()">
+                    {{ t('settings.thumbnail_cache.disable_modal.confirm') }}
                 </button>
             </div>
         </div>

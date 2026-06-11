@@ -19,13 +19,14 @@ from core.database import VideoRepository
 from core.db_inflow import try_inflow_upsert
 from core.enricher import enrich_single, fetch_samples_only, resolve_nfo_cover_paths
 from core.organizer import organize_file
-from core.path_utils import to_file_uri, uri_to_fs_path
+from core.path_utils import to_file_uri, uri_to_fs_path, coerce_to_file_uri
 from core.scraper import search_jav, search_jav_single_source, strip_internal_nfo_keys
 from core.source_config import validate_source_id
 from core.cf_transport import get_cf_transport, CfChallengeRequired, CfTransportUnavailable
 from core.scrapers.javlibrary import JAVLIBRARY_ORIGIN
 from core.logger import get_logger
 from core.config import load_config
+from core import thumbnail_cache
 from web.routers.notifications import emit_notification as _emit_notif
 
 logger = get_logger(__name__)
@@ -250,6 +251,14 @@ def enrich_single_endpoint(request: EnrichRequest) -> dict:
             source=request.source,
             javbus_lang=request.javbus_lang,
         )
+        # feature/71 T8: 換封面成功 → 失效舊縮圖（下次 lazy/prewarm 重生，CD-9 / spec 2.A.7）。
+        # request.file_path 已是 DB 的 file:/// URI（前端送 currentLightboxVideo.path /
+        # missing-check items / rescrape，皆 DB v.path）。縮圖 canonical key = v.path 原字串
+        # hash（generate/serve/prewarm 同源），故 invalidate 必須用同一 URI 原值——用冪等
+        # coerce_to_file_uri（已是 URI 就原樣回），不可再套 to_file_uri 造成 file:///file:///
+        # double-encode 砍錯 hash（PR #60 Codex P2）。
+        if result.success:
+            thumbnail_cache.invalidate(coerce_to_file_uri(request.file_path))
         from dataclasses import asdict
         return asdict(result)
     except Exception:
@@ -379,6 +388,10 @@ async def batch_enrich_endpoint(request: BatchEnrichRequest):
                     result_dict = asdict(result)
                     if result.success:
                         success_count += 1
+                        # feature/71 T8: 換封面成功 → 失效舊縮圖（廉價同步 unlink，不需 offload）。
+                        # item.file_path 已是 DB file:/// URI → 冪等 coerce，不可 double-encode
+                        # （同 enrich-single，PR #60 Codex P2）。
+                        thumbnail_cache.invalidate(coerce_to_file_uri(item.file_path))
                     else:
                         failed_count += 1
                     yield f"data: {json.dumps({'type': 'result-item', 'number': item.number, 'file_path': item.file_path, **result_dict})}\n\n"

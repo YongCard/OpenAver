@@ -437,15 +437,20 @@ export function stateSimilar() {
               ? drilledItem.actresses.join(', ')
               : (drilledItem.actresses || '');
             this.similarExitVideo = {
-              number:    drilledItem.number,
-              title:     drilledItem.title,
-              cover_url: drilledItem.cover_url,
-              actresses: actressStr,
+              number:         drilledItem.number,
+              title:          drilledItem.title,
+              cover_url:      drilledItem.cover_url,
+              cover_full_url: drilledItem.cover_full_url || '',  // 71c slip-through fix：帶入原圖 url，
+              // 確保 .lb-full @load fire（缺此欄時 src=undefined → @load 永不 fire → opacity:0 卡死）
+              actresses:      actressStr,
               // path 故意留 undefined — lightbox template 用 ?.path guard，path 缺失時
               // user-tags 區、play/open-folder 按鈕靜默不渲染（方案 1 optional-chaining）
             };
             // currentLightboxVideo 直接指向 similarExitVideo（_silentSwitchLightboxByNumber 不呼叫）
             this.currentLightboxVideo = this.similarExitVideo;
+            // 71c-P2: slip-through 繞過 _setLightboxIndex，需手動重走 blur-up reset + same-URL complete-check
+            // （assignment 先、helper 後，讓 $nextTick 在 Alpine patch DOM 後才讀 lightboxCoverFull.complete）
+            this._refreshLbFullBlurUp();
           } else {
             // similarResults 裡也找不到（理論上不發生）→ 靜默，顯示進場前舊影片（同 no-op 行為）
           }

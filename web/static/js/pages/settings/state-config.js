@@ -9,6 +9,7 @@ export function stateConfig() {
             searchFavoriteFolder: '',
             proxyUrl: '',
             advancedSearchEnabled: true,  // 進階搜尋 picker（TASK-61c-7，top-level config 欄位）；預設開啟（v0.9.x）
+            thumbnailCacheEnabled: false,  // 縮圖快取開關（feature/71 T2，top-level config 欄位）；預設關閉
 
             // Translate
             translateEnabled: false,
@@ -58,6 +59,10 @@ export function stateConfig() {
         savedOpenaiUseCustomModel: false,
         pendingNavigationUrl: '',
         _configLoading: true,  // 初始 true，loadConfig 完成後 false
+
+        // ===== 縮圖快取空間估算（71-T5）=====
+        // 非 config 欄位（不入 saveConfig）；由 loadConfig() fetch /api/gallery/stats 填。
+        videoCount: 0,
 
         // ===== Sources (61c-2) =====
         // 單一 unified scope：sources[] 容 builtin + metatube + manual_only 一個陣列，
@@ -183,6 +188,17 @@ export function stateConfig() {
 
             const folder = folderPreview ? folderPreview + '/' : '';
             return folder + filenamePreview + '.mp4';
+        },
+
+        // 71-T5: 縮圖快取預估空間（MB）。每張封面縮圖 ~32KB；`|| 0` 防 NaN。
+        get _thumbEstimateMb() {
+            return Math.round((this.videoCount || 0) * 32 / 1024);
+        },
+
+        // 71-T11: 縮圖快取 HDD 時間估算（分鐘）。每張 ~0.25s（HDD 常數）→ 分鐘；
+        // Math.ceil 確保非 0 庫至少 1 分鐘（videoCount=0 → 0）；`|| 0` 防 NaN。
+        get _thumbEstimateMin() {
+            return Math.ceil((this.videoCount || 0) * 0.25 / 60);
         },
 
         // ===== Sources computed (61c-2) =====
@@ -311,6 +327,10 @@ export function stateConfig() {
                     this.form.folderLayer1 = '';
                 }
             });
+            // 71-T5 prewarm 觸發點不放 checkbox $watch：Settings 是表單式儲存，
+            // toggle 當下 config.json 尚未寫入，後端 gate（load_config）讀到舊 false → disabled，
+            // 且 hydrate（loadConfig false→true）會每次開 Settings 誤觸。改在 saveConfig() 成功後
+            // 比對「persisted false → 現在 true」才 POST（見 saveConfig）。
 
             // 接入 page lifecycle（取代 window.confirmLeavingSettings）
             if (window.__registerPage) {
@@ -379,6 +399,9 @@ export function stateConfig() {
                     this.form.proxyUrl = config.search?.proxy_url || '';
                     // 進階搜尋（TASK-61c-7）：top-level bool 欄位
                     this.form.advancedSearchEnabled = config.advanced_search_enabled || false;
+                    this.form.thumbnailCacheEnabled = config.thumbnail_cache_enabled || false;
+                    // 71-T5: 載入目前片數供縮圖快取空間估算（失敗降級 0，不阻塞表單）
+                    this._loadVideoCount();
 
                     // Translate
                     this.form.translateEnabled = config.translate.enabled;
@@ -501,6 +524,47 @@ export function stateConfig() {
             }
         },
 
+        // 71-T5: 載入目前片數（供縮圖快取空間估算）。失敗/缺值 → videoCount 維持 0，不阻塞表單。
+        async _loadVideoCount() {
+            try {
+                const r = await fetch('/api/gallery/stats');
+                const j = await r.json();
+                this.videoCount = (j.success && j.data && typeof j.data.total === 'number')
+                    ? j.data.total
+                    : 0;
+            } catch (e) {
+                console.error('[71-T5] 載入片數失敗:', e);
+                this.videoCount = 0;
+            }
+        },
+
+        // 71-T5: 觸發背景全量 prewarm（由 saveConfig 在「剛開啟並已存檔」時呼叫，
+        // 確保此刻 config.json 已 true、後端 gate 放行）。scan-done 亦無條件 POST，同由後端 gate。
+        async _triggerThumbPrewarm() {
+            try {
+                // fire-and-forget：不 await（toast 立即出）；.catch 收 async rejection
+                // 避免 fetch 失敗變 unhandled promise rejection（try/catch 只接同步 throw）。
+                fetch('/api/gallery/thumb/prewarm', { method: 'POST' })
+                    .catch((e) => console.error('[71-T5] 縮圖 prewarm POST 失敗:', e));
+                this.showToast(window.t('notif.thumb_prewarm_start'), 'info');
+            } catch (e) {
+                console.error('[71-T5] 觸發縮圖 prewarm 失敗:', e);
+            }
+        },
+
+        // 71b-T2: DB-safe 清空縮圖快取（由 saveConfig 在「剛關閉並已存檔」時呼叫，
+        // 先存才清——此刻 config.json 已 false）。鏡像 _triggerThumbPrewarm。
+        _triggerThumbClear() {
+            try {
+                // fire-and-forget：不 await；.catch 收 async rejection
+                // （try/catch 只接同步 throw）。端點純 rmtree output/thumb/，不碰 DB。
+                fetch('/api/gallery/thumb/clear', { method: 'POST' })
+                    .catch((e) => console.error('[71b-T2] 縮圖 clear POST 失敗:', e));
+            } catch (e) {
+                console.error('[71b-T2] 觸發縮圖 clear 失敗:', e);
+            }
+        },
+
         async saveConfig() {
             try {
                 // 先載入現有設定
@@ -511,6 +575,9 @@ export function stateConfig() {
                     return;
                 }
                 const config = currentResult.data;
+                // 71-T5: 存檔前的「已持久化」縮圖快取狀態（authoritative：剛從 server GET 的 config.json）。
+                // 用來在 PUT 成功後判定「這次儲存是否剛把它從關打開」→ 才觸發背景 prewarm。
+                const prevThumbEnabled = config.thumbnail_cache_enabled === true;
 
                 // 更新 scraper
                 const folderLayers = [
@@ -544,6 +611,7 @@ export function stateConfig() {
 
                 // 進階搜尋（TASK-61c-7）：top-level bool 欄位（與 nested 區塊並列）
                 config.advanced_search_enabled = this.form.advancedSearchEnabled;
+                config.thumbnail_cache_enabled = this.form.thumbnailCacheEnabled;
 
                 // 更新 translate
                 config.translate = {
@@ -620,6 +688,17 @@ export function stateConfig() {
                     // 更新快照（避免儲存後仍為 dirty）
                     this.savedState = JSON.parse(JSON.stringify(this.form));
                     this.savedOpenaiUseCustomModel = this.openaiUseCustomModel;
+                    // 71-T5: 縮圖快取「剛被開啟」(persisted false → 現在 true) 才觸發背景 prewarm。
+                    // 必在 PUT 成功之後——此刻 config.json 已寫入 true，後端 gate 才會放行（非 disabled）。
+                    if (!prevThumbEnabled && this.form.thumbnailCacheEnabled === true) {
+                        this._triggerThumbPrewarm();
+                    }
+                    // 71b-T2: 縮圖快取「剛被關閉」(persisted true → 現在 false) 才清空 output/thumb/。
+                    // 必在 PUT 成功之後——先存才清（config.json 已寫 false）。confirmThumbCacheDisable
+                    // 自身不 POST clear，統一收斂於此（與 prewarm 對稱）。
+                    if (prevThumbEnabled && this.form.thumbnailCacheEnabled === false) {
+                        this._triggerThumbClear();
+                    }
                 } else {
                     this.showToast('儲存失敗: ' + result.error, 'error');
                 }
@@ -669,6 +748,60 @@ export function stateConfig() {
         async resetConfig() {
             // Thin wrapper：保留向後相容，template @click="resetConfig()" 不需改
             this.openResetConfigModal();
+        },
+
+        // ===== Thumbnail Cache Confirm Modal (71-T11) =====
+        // toggle @change 攔截（鏡像 onMetatubeEnabledChange）。x-model 先翻值，
+        // 故進來時 this.form.thumbnailCacheEnabled 已是使用者撥到的新值。
+        // 只在「真正首次開啟」（persisted 仍 false）攔截開 modal（Codex P2 #1）。
+        onThumbCacheToggleChange() {
+            // x-model 已先翻值 → 進來時 form.thumbnailCacheEnabled 已是使用者撥到的新值。
+            if (this.form.thumbnailCacheEnabled !== true) {
+                // ON→OFF：若「已持久化為啟用」（savedState true，與 enable 豁免同一變數）
+                // → 還原 toggle 回 true（true 留到 confirm 才真正設 false）+ 開 disable modal。
+                if (this.savedState?.thumbnailCacheEnabled === true) {
+                    this.form.thumbnailCacheEnabled = true;
+                    this.thumbCacheDisableConfirmOpen = true;
+                }
+                // 未持久化的 true 撥回 false（savedState 非 true）：照常、不開 modal
+                // （對稱 enable path 的「未存後撥回」豁免）。
+                return;
+            }
+            // persisted 已 true（未存的 OFF 後撥回 ON）：不開 modal，讓 toggle 照常變 true。
+            if (this.savedState?.thumbnailCacheEnabled === true) return;
+            // 真正首次開啟（persisted false）：還原 toggle + 開 confirm modal。
+            // 真正的 true 留到 confirmThumbCacheEnable() 才設。
+            this.form.thumbnailCacheEnabled = false;
+            this.thumbCacheConfirmOpen = true;
+        },
+
+        // 取消 / ESC / backdrop 三路徑統一走此：關 modal，toggle 已在 @change 還原為
+        // false，無需再動；不存檔、不 prewarm。
+        cancelThumbCacheConfirm() {
+            this.thumbCacheConfirmOpen = false;
+        },
+
+        // 71b-T2: 關閉確認取消 → 關 modal、toggle 維持 true（保持啟用）；不存檔、不清快取。
+        cancelThumbCacheDisable() {
+            this.thumbCacheDisableConfirmOpen = false;
+        },
+
+        // 71b-T2: 關閉確認 → 關 modal → set false → saveConfig()
+        //（命中 saveConfig 內 prevThumbEnabled && now false 鏈 → 背景 _triggerThumbClear()；
+        // 自身不 POST clear，先存才清）。
+        async confirmThumbCacheDisable() {
+            this.thumbCacheDisableConfirmOpen = false;
+            this.form.thumbnailCacheEnabled = false;
+            await this.saveConfig();
+        },
+
+        // 確認：先關 modal（移除確認鈕即防雙擊，無需 :disabled / loading flag）→
+        // 設 true → saveConfig()（命中 saveConfig 內 !prevThumbEnabled && now true 鏈
+        // → 背景 _triggerThumbPrewarm() + start bell；非阻塞、無頁面鎖）。
+        async confirmThumbCacheEnable() {
+            this.thumbCacheConfirmOpen = false;
+            this.form.thumbnailCacheEnabled = true;
+            await this.saveConfig();
         },
 
         insertVariable(targetField, varName) {
