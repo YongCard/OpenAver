@@ -869,8 +869,8 @@
       "grid_detail": "Lightbox 顯示導演、片長、系列、Label 等詳細資訊（有資料時才會出現）",
       "grid_gallery": "點擊「劇照」按鈕可開啟劇照瀏覽，支援鍵盤 <kbd class=\"kbd kbd-sm\">←</kbd> <kbd class=\"kbd kbd-sm\">→</kbd> 切換和觸控滑動",
       "badge_keywords": "檔名含 <code>-4k</code>、<code>-uc</code> 等關鍵字時，結果卡片自動顯示彩色 badge",
-      "h6_advanced_picker": "進階搜尋 Picker（Beta）",
-      "picker_longpress": "① 長壓搜尋鈕可挑選單一來源搜尋（Beta，需在 Settings › 進階開啟）",
+      "h6_advanced_picker": "進階搜尋 Picker",
+      "picker_longpress": "① 長壓搜尋鈕可挑選單一來源搜尋（需在 Settings › 進階開啟）",
       "picker_panel_switch": "② 結果面板中 🔄 長壓可切換來源",
       "picker_showcase_enrich": "③④ 在 Showcase 封面牆或燈箱中，長壓補缺鈕（🔍）→ 重新刮削現有片並指定來源。",
       "picker_lightbox_gear": "⑤ 在 Showcase 燈箱中，點番號旁 ⚙ → 進階重刮現有片（單擊即開，非長壓）。"
