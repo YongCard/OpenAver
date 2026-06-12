@@ -406,6 +406,9 @@ export function searchStateBatch() {
                         const fields = result.used_fallbacks.join('、');
                         this.showToast(`⚠️ ${fields} 資訊未取得，已使用預設值`, 'warning');
                     }
+                    if (result.skipped_nfo_multipart) {
+                        this.showToast(window.t('search.toast.skipped_nfo_multipart'), 'info', 4000);
+                    }
                 } else {
                     file.scrapeStatus = 'failed';
                     failCount++;
@@ -487,6 +490,9 @@ export function searchStateBatch() {
                 if (result.used_fallbacks?.length) {
                     const fields = result.used_fallbacks.join('、');
                     this.showToast(`⚠️ ${fields} 資訊未取得，已使用預設值`, 'warning');
+                }
+                if (result.skipped_nfo_multipart) {
+                    this.showToast(window.t('search.toast.skipped_nfo_multipart'), 'info', 4000);
                 }
                 // 動畫：成功 pop-in + row flash
                 this.$nextTick(() => {

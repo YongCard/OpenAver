@@ -10680,3 +10680,37 @@ class TestLightboxCoverSizeGuards:
             "state-similar.js similarExitVideo 缺少 cover_full_url 欄位"
             "（slip-through 路徑缺此欄 → .lb-full src=undefined → @load 永不 fire → opacity:0 卡死）"
         )
+
+
+class TestSkippedNfoMultipartToastGuard:
+    """72b-T9: skipped_nfo_multipart toast consumer 守衛
+
+    確認 batch.js 兩個 consumer（scrapeAll / scrapeSingle）
+    都引用了 skipped_nfo_multipart flag + i18n key。
+    """
+
+    BATCH_JS = (
+        Path(__file__).parent.parent.parent
+        / "web" / "static" / "js" / "pages" / "search" / "state" / "batch.js"
+    )
+
+    def _js(self) -> str:
+        return self.BATCH_JS.read_text(encoding="utf-8")
+
+    def test_skipped_nfo_multipart_flag_referenced(self):
+        """batch.js 引用 skipped_nfo_multipart flag（至少 2 次，對應兩個 consumer）"""
+        js = self._js()
+        count = js.count("skipped_nfo_multipart")
+        assert count >= 2, (
+            f"batch.js skipped_nfo_multipart 出現 {count} 次，期望 >= 2"
+            "（scrapeAll 成功分支 + scrapeSingle 成功分支各一）"
+        )
+
+    def test_skipped_nfo_multipart_i18n_key_referenced(self):
+        """batch.js 引用 search.toast.skipped_nfo_multipart i18n key（至少 2 次）"""
+        js = self._js()
+        count = js.count("search.toast.skipped_nfo_multipart")
+        assert count >= 2, (
+            f"batch.js 'search.toast.skipped_nfo_multipart' 出現 {count} 次，期望 >= 2"
+            "（scrapeAll + scrapeSingle 各一條 showToast 呼叫）"
+        )

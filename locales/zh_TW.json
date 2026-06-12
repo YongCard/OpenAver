@@ -169,7 +169,8 @@
       "load_failed": "載入失敗，請重試",
       "translate_failed": "翻譯失敗，請重試",
       "db_not_synced": "未連動 — 整理完成後不會出現在 Showcase",
-      "db_sync_failed": "DB 同步失敗（檔案已整理但未出現在 Showcase）"
+      "db_sync_failed": "DB 同步失敗（檔案已整理但未出現在 Showcase）",
+      "skipped_nfo_multipart": "已跳過 NFO — 此檔為多段影片的第 2 段以後，由第 1 段的 NFO 管理"
     },
     "duplicate": {
       "title": "檔案重複",
@@ -335,8 +336,6 @@
       "external_manager_off": "關閉（預設）",
       "external_manager_jellyfin_hint": "刮削後 {stem}-poster.jpg 和 {stem}-fanart.jpg 可直接被 Jellyfin/Emby 讀取。NFO 已相容 Kodi schema。",
       "external_manager_kodi_hint": "刮削後 poster.jpg 和 fanart.jpg 可直接被 Kodi 讀取。NFO 已相容 Kodi schema。",
-      "jellyfin_mode_label": "Jellyfin / Emby 圖片模式",
-      "jellyfin_mode_hint": "自動產生 {stem}-poster.jpg + {stem}-fanart.jpg；poster 與 NFO 同時相容 Jellyfin 與 Emby，fanart 僅 Jellyfin 讀取（Emby 不支援此命名）",
       "download_sample_images_label": "下載劇照",
       "download_sample_images_hint": "整理時自動下載劇照至 extrafanart/ 子目錄（需啟用「建立資料夾」）"
     },
@@ -852,7 +851,7 @@
     },
     "power_user": {
       "title": "想要更多控制？",
-      "intro": "喜歡自己掌握每個細節？OpenAver 給你完整的進階入口 — 一片一片精準刮削、自訂命名規則、管理跨語言別名，詳見下方 Search、Settings、Tag 別名管理段落。"
+      "intro": "想要更細的控制？OpenAver 提供完整入口 — 一片一片刮削、自訂命名規則、管理跨語言別名，詳見下方 Search、Settings、Tag 別名管理段落。"
     },
     "tag_alias": {
       "title": "Tag 別名管理",
@@ -878,7 +877,7 @@
       "method_actress": "<strong>女優名</strong>：如 <code>河北彩花</code>，搜尋該演員作品",
       "drag_auto": "將影片檔案拖入視窗，自動提取番號並搜尋",
       "drag_batch": "支援多檔案批次處理（一次 20 個）",
-      "drag_generate": "搜尋成功後可點「整理此片」重命名檔案、下載封面、建立資料夾與 NFO",
+      "drag_generate": "整理歸檔：點「整理此片」會依命名規則改名、搬進歸檔資料夾，並下載封面 + 寫 NFO（想讓 OpenAver 建一個乾淨命名媒體庫用這條）",
       "grid_switch": "搜尋後可切換為封面牆顯示，點擊封面開啟 Lightbox",
       "grid_lightbox": "<strong>Lightbox</strong>：全螢幕檢視封面，<kbd class=\"kbd kbd-sm\">←</kbd> <kbd class=\"kbd kbd-sm\">→</kbd> 鍵導航，<kbd class=\"kbd kbd-sm\">Esc</kbd> 關閉",
       "grid_detail": "Lightbox 顯示導演、片長、系列、Label 等詳細資訊（有資料時才會出現）",
@@ -965,7 +964,7 @@
       "h6_jellyfin": "Jellyfin 圖片模式",
       "feat_scan": "掃描本地影片資料夾，生成精美的 HTML 展示頁",
       "feat_nfo": "自動讀取 NFO 檔案並顯示元數據",
-      "feat_nfo_fill": "支援「NFO 補全」：自動搜尋缺失的 NFO 檔案",
+      "feat_nfo_fill": "「就地補資料」：原地補缺失的 NFO + 封面，不改名、不搬位 — 適合唯讀網盤、已有自己的資料夾結構，或只想瀏覽不被改檔案",
       "feat_terminal": "內建 Mini Terminal 顯示即時處理進度",
       "output_html": "<strong>index.html</strong>：可在瀏覽器開啟的靜態頁面",
       "output_copy": "<strong>自動複製</strong>：封面圖與 NFO 複製到輸出目錄",
@@ -973,8 +972,12 @@
       "subtitle_detect": "整理影片時，自動偵測同目錄下同名的字幕檔（<code>.srt</code>、<code>.ass</code>、<code>.ssa</code>）",
       "subtitle_move": "影片搬移成功後，字幕會一起帶到目標資料夾，保留語言後綴（如 <code>.cht.srt</code>）",
       "subtitle_nfo": "偵測到字幕時，NFO 會自動加上「中文字幕」標記",
-      "jellyfin_enable": "在<strong>設定頁</strong>開啟後，掃描時自動產生 <code>-poster.jpg</code> + <code>-fanart.jpg</code>",
-      "jellyfin_showcase": "掃描完成後可至 <code>/showcase</code> 頁面瀏覽生成結果"
+      "jellyfin_enable": "在<strong>設定頁</strong>的「外部媒體管理器模式」選 Jellyfin/Emby（或 Kodi）後，刮削時自動產生對應的 poster / fanart 圖",
+      "jellyfin_showcase": "掃描完成後可至 <code>/showcase</code> 頁面瀏覽生成結果",
+      "h6_multiversion": "同片多版本（流出 / 4K / 中文字幕）怎麼在 Emby/Jellyfin 合併？",
+      "multiversion_intro": "多版本合併是 Emby 與 Jellyfin 共同支援的原生功能（同一套「資料夾名 - 標籤」規則），不是哪一家獨有。把同一片各版本放進以番號命名的資料夾，檔名都以資料夾名開頭加「 - 標籤」：",
+      "multiversion_rule1": "每個版本檔名<strong>必須以資料夾名開頭</strong> + 「 - 標籤」（空格-連字號-空格）",
+      "multiversion_rule2": "多版本與 cd1/cd2 多段<strong>不能同時用於同一部片</strong>（媒體伺服器官方限制）"
     },
     "showcase": {
       "title": "影片瀏覽 (Showcase)",
