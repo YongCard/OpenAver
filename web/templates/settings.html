@@ -674,6 +674,40 @@
                         </div>
                     </div>
 
+                    <!-- 外部媒體管理器模式（spec F1）— 沿用 .settings-sources-segmented 元件 -->
+                    <div class="settings-form-row settings-form-row--external-manager">
+                        <label class="row-label">{{ t('settings.scraper.external_manager_label') }}</label>
+                        <div class="flex-1 flex flex-col gap-2">
+                            <div class="settings-sources-segmented" role="group"
+                                 aria-label="{{ t('settings.scraper.external_manager_label') }}">
+                                <button type="button"
+                                        :class="{ 'is-on': form.externalManager === 'off' }"
+                                        :aria-pressed="(form.externalManager === 'off') ? 'true' : 'false'"
+                                        @click="form.externalManager = 'off'">
+                                    {{ t('settings.scraper.external_manager_off') }}
+                                </button>
+                                <button type="button"
+                                        :class="{ 'is-on': form.externalManager === 'jellyfin_emby' }"
+                                        :aria-pressed="(form.externalManager === 'jellyfin_emby') ? 'true' : 'false'"
+                                        @click="form.externalManager = 'jellyfin_emby'">
+                                    Jellyfin / Emby
+                                </button>
+                                <button type="button"
+                                        :class="{ 'is-on': form.externalManager === 'kodi' }"
+                                        :aria-pressed="(form.externalManager === 'kodi') ? 'true' : 'false'"
+                                        @click="form.externalManager = 'kodi'">
+                                    Kodi
+                                </button>
+                            </div>
+                            <small class="settings-hint" x-show="form.externalManager === 'jellyfin_emby'">
+                                {{ t('settings.scraper.external_manager_jellyfin_hint') }}
+                            </small>
+                            <small class="settings-hint" x-show="form.externalManager === 'kodi'">
+                                {{ t('settings.scraper.external_manager_kodi_hint') }}
+                            </small>
+                        </div>
+                    </div>
+
                     <!-- 進階刮削摺疊（實填既有欄位）；x-collapse 需 @alpinejs/collapse plugin，已在 base.html 載入 -->
                     <button class="collapsible-trigger" type="button" @click="scraperAdvanced = !scraperAdvanced"
                             :aria-expanded="scraperAdvanced.toString()">
@@ -861,16 +895,6 @@
                             </div>
                         </div>
 
-                        <!-- Jellyfin 模式 toggle（spec §4 歸此摺疊，非 sec-gallery） -->
-                        <div class="settings-form-row">
-                            <label class="row-label">
-                                <input type="checkbox" class="toggle toggle-sm toggle-primary"
-                                       :checked="form.externalManager === 'jellyfin_emby'"
-                                       @change="form.externalManager = $event.target.checked ? 'jellyfin_emby' : 'off'">
-                                {{ t('settings.scraper.jellyfin_mode_label') }}
-                                <small class="settings-hint">{{ t('settings.scraper.jellyfin_mode_hint') }}</small>
-                            </label>
-                        </div>
 
                     </div><!-- /collapsible-content scraperAdvanced -->
 

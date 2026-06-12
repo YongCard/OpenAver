@@ -4900,18 +4900,38 @@ class TestJellyfinFrontend:
     """確認 Jellyfin 前端基礎設施完整"""
 
     def test_jellyfin_toggle_in_settings(self):
-        """settings.html Jellyfin toggle 綁定 externalManager（interim fix，T8 再換 segmented control）
+        """settings.html externalManager segmented control（T8：3 態 segmented，移至可見區塊）
         - 舊的 x-model="form.jellyfinMode" 已移除（dead field）
-        - 新的 :checked / @change 雙向驅動 form.externalManager === 'jellyfin_emby'
+        - 舊的 interim :checked / @change checkbox 綁定已移除
+        - 新的 3 態 segmented control（off / jellyfin_emby / kodi）在 scraperAdvanced 之外可見
         """
         html_file = PROJECT_ROOT / "web" / "templates" / "settings.html"
         content = html_file.read_text(encoding='utf-8')
+        # 舊 dead field 不存在
         assert 'x-model="form.jellyfinMode"' not in content, \
             "settings.html 不應再有 x-model=\"form.jellyfinMode\"（dead field，已由 externalManager 取代）"
-        assert ":checked=\"form.externalManager === 'jellyfin_emby'\"" in content, \
-            "settings.html Jellyfin toggle 缺少 :checked binding（應驅動 externalManager）"
-        assert "@change=\"form.externalManager = $event.target.checked ? 'jellyfin_emby' : 'off'\"" in content, \
-            "settings.html Jellyfin toggle 缺少 @change binding（應驅動 externalManager）"
+        # interim checkbox 綁定已移除（負守衛）
+        assert ":checked=\"form.externalManager === 'jellyfin_emby'\"" not in content, \
+            "settings.html 不應再有 interim :checked binding（T8 已換 segmented control）"
+        assert "@change=\"form.externalManager = $event.target.checked" not in content, \
+            "settings.html 不應再有 interim @change checkbox binding（T8 已換 segmented control）"
+        # segmented 容器存在
+        assert 'class="settings-sources-segmented"' in content, \
+            "settings.html 缺少 .settings-sources-segmented 容器（T8 segmented control）"
+        # 三個 is-on class 綁定
+        assert "'is-on': form.externalManager === 'off'" in content, \
+            "settings.html 缺少 externalManager === 'off' 的 is-on binding"
+        assert "'is-on': form.externalManager === 'jellyfin_emby'" in content, \
+            "settings.html 缺少 externalManager === 'jellyfin_emby' 的 is-on binding"
+        assert "'is-on': form.externalManager === 'kodi'" in content, \
+            "settings.html 缺少 externalManager === 'kodi' 的 is-on binding"
+        # 三個 @click 設值
+        assert "@click=\"form.externalManager = 'off'\"" in content, \
+            "settings.html 缺少 @click 設 externalManager = 'off'"
+        assert "@click=\"form.externalManager = 'jellyfin_emby'\"" in content, \
+            "settings.html 缺少 @click 設 externalManager = 'jellyfin_emby'"
+        assert "@click=\"form.externalManager = 'kodi'\"" in content, \
+            "settings.html 缺少 @click 設 externalManager = 'kodi'"
 
     def test_jellyfin_update_in_scanner(self):
         """scanner/state-scan.js 包含 runJellyfinImageUpdate method"""
