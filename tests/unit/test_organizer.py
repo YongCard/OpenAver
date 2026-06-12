@@ -801,6 +801,7 @@ def _mock_download_image_write_jpeg(url, save_path, referer=''):
 
 
 def _make_jellyfin_config(jellyfin_mode):
+    # T4 遷移：image block 改由 external_manager 控制；jellyfin_mode=True → 'jellyfin_emby'
     return {
         "create_folder": False,
         "filename_format": "[{num}] {title}",
@@ -810,7 +811,7 @@ def _make_jellyfin_config(jellyfin_mode):
         "max_title_length": 50,
         "max_filename_length": 60,
         "suffix_keywords": [],
-        "jellyfin_mode": jellyfin_mode,
+        "external_manager": "jellyfin_emby" if jellyfin_mode else "off",
     }
 
 
@@ -912,6 +913,248 @@ class TestOrganizeJellyfinMode:
         assert result.get("cover_path") is not None, "應產生主封面 cover_path"
         assert result.get("fanart_path") is None, "jellyfin_mode=False 不應產生 fanart_path"
         assert result.get("poster_path") is None, "jellyfin_mode=False 不應產生 poster_path"
+
+
+def _make_ext_config(external_manager: str, create_folder: bool = False,
+                     download_sample_images: bool = False) -> dict:
+    """T4 測試用：依 external_manager 模式建立 config dict"""
+    return {
+        "create_folder": create_folder,
+        "filename_format": "[{num}] {title}",
+        "download_cover": True,
+        "cover_filename": "poster.jpg",
+        "create_nfo": True,
+        "max_title_length": 50,
+        "max_filename_length": 60,
+        "suffix_keywords": [],
+        "external_manager": external_manager,
+        "download_sample_images": download_sample_images,
+    }
+
+
+def _make_ext_metadata(number: str = "SONE-205", cover: str = "http://fake/cover.jpg") -> dict:
+    """T4 測試用：標準 metadata"""
+    return {
+        "number": number,
+        "title": "Test Title",
+        "actors": [],
+        "tags": [],
+        "maker": "S1",
+        "date": "2024-01-15",
+        "cover": cover,
+        "url": "",
+    }
+
+
+class TestExternalManagerImageNaming:
+    """T4：organize_file() external_manager 三態圖片命名分岐"""
+
+    # ── A. jellyfin_emby 模式 ──────────────────────────────────────────────
+
+    def test_jellyfin_emby_produces_stem_poster_fanart(self, tmp_path):
+        """jellyfin_emby → {stem}-poster.jpg + {stem}-fanart.jpg 存在，不存在裸名"""
+        src = tmp_path / "SONE-205.mp4"
+        src.write_bytes(b"fake mp4")
+
+        config = _make_ext_config("jellyfin_emby")
+        metadata = _make_ext_metadata()
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+        assert result.get("cover_path") is not None, "cover_path 應存在"
+        assert result.get("fanart_path") is not None, "jellyfin_emby 應產生 fanart_path"
+        assert result.get("poster_path") is not None, "jellyfin_emby 應產生 poster_path"
+
+        # 確認帶 stem 的命名
+        fanart = Path(result["fanart_path"])
+        poster = Path(result["poster_path"])
+        assert fanart.name.endswith("-fanart.jpg"), f"fanart 應帶 stem 前綴，實際: {fanart.name}"
+        assert poster.name.endswith("-poster.jpg"), f"poster 應帶 stem 前綴，實際: {poster.name}"
+        assert fanart.exists(), "fanart 檔案應存在"
+        assert poster.exists(), "poster 檔案應存在"
+
+        # 確認裸名不存在
+        assert not (tmp_path / "fanart.jpg").exists(), "裸名 fanart.jpg 不應出現（jellyfin_emby）"
+        assert not (tmp_path / "poster.jpg").exists(), "裸名 poster.jpg 不應出現（jellyfin_emby）"
+
+    # ── B. kodi 模式 ──────────────────────────────────────────────────────
+
+    def test_kodi_produces_bare_poster_fanart(self, tmp_path):
+        """kodi → 裸名 fanart.jpg + poster.jpg 存在，不存在帶 stem 版本"""
+        src = tmp_path / "SONE-205.mp4"
+        src.write_bytes(b"fake mp4")
+
+        config = _make_ext_config("kodi")
+        metadata = _make_ext_metadata()
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+        assert result.get("fanart_path") is not None, "kodi 應產生 fanart_path"
+        assert result.get("poster_path") is not None, "kodi 應產生 poster_path"
+
+        # 確認裸名命名
+        fanart = Path(result["fanart_path"])
+        poster = Path(result["poster_path"])
+        assert fanart.name == "fanart.jpg", f"kodi fanart 應為裸名，實際: {fanart.name}"
+        assert poster.name == "poster.jpg", f"kodi poster 應為裸名，實際: {poster.name}"
+        assert fanart.exists(), "fanart.jpg 應存在"
+        assert poster.exists(), "poster.jpg 應存在"
+
+        # 確認帶 stem 版本不存在
+        target_dir = Path(result["cover_path"]).parent
+        assert not (target_dir / "[SONE-205] Test Title-fanart.jpg").exists(), \
+            "帶 stem 的 fanart 不應出現（kodi）"
+        assert not (target_dir / "[SONE-205] Test Title-poster.jpg").exists(), \
+            "帶 stem 的 poster 不應出現（kodi）"
+
+    # ── C. off 模式 ──────────────────────────────────────────────────────
+
+    def test_off_produces_only_cover(self, tmp_path):
+        """off（或 key 不存在）→ 只有主封面，無 poster/fanart"""
+        src = tmp_path / "SONE-205.mp4"
+        src.write_bytes(b"fake mp4")
+
+        config = _make_ext_config("off")
+        metadata = _make_ext_metadata()
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+        assert result.get("cover_path") is not None, "off 模式應產生主封面"
+        assert result.get("fanart_path") is None, "off 模式不應產生 fanart_path"
+        assert result.get("poster_path") is None, "off 模式不應產生 poster_path"
+
+        # target_dir 下只有 {stem}.jpg，無任何 poster/fanart
+        target_dir = Path(result["cover_path"]).parent
+        assert not (target_dir / "fanart.jpg").exists(), "off 模式不應有裸名 fanart.jpg"
+        assert not (target_dir / "poster.jpg").exists(), "off 模式不應有裸名 poster.jpg"
+        stem = Path(result["cover_path"]).stem
+        assert not (target_dir / f"{stem}-fanart.jpg").exists(), "off 模式不應有 stem-fanart.jpg"
+        assert not (target_dir / f"{stem}-poster.jpg").exists(), "off 模式不應有 stem-poster.jpg"
+
+    def test_off_key_missing_defaults_to_off(self, tmp_path):
+        """external_manager key 不存在時預設 off，不產 poster/fanart"""
+        src = tmp_path / "SONE-205.mp4"
+        src.write_bytes(b"fake mp4")
+
+        # 不含 external_manager key
+        config = {
+            "create_folder": False,
+            "filename_format": "[{num}] {title}",
+            "download_cover": True,
+            "cover_filename": "poster.jpg",
+            "create_nfo": True,
+            "max_title_length": 50,
+            "max_filename_length": 60,
+            "suffix_keywords": [],
+        }
+        metadata = _make_ext_metadata()
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+        assert result.get("fanart_path") is None, "key 不存在應預設 off，不產 fanart"
+        assert result.get("poster_path") is None, "key 不存在應預設 off，不產 poster"
+
+    # ── G. cover 下載失敗不 crash ────────────────────────────────────────
+
+    def test_jellyfin_emby_cover_fail_no_crash(self, tmp_path):
+        """jellyfin_emby + cover 下載失敗 → 不進入圖片 block，success 仍 True"""
+        src = tmp_path / "SONE-205.mp4"
+        src.write_bytes(b"fake mp4")
+
+        config = _make_ext_config("jellyfin_emby")
+        metadata = _make_ext_metadata(cover="")  # 無 cover URL
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True, "cover 下載失敗不應 crash"
+        assert result.get("cover_path") is None, "無 cover URL → cover_path 應為 None"
+        assert result.get("fanart_path") is None, "無 cover → 不應產 fanart"
+        assert result.get("poster_path") is None, "無 cover → 不應產 poster"
+
+
+class TestExternalManagerNfoF3:
+    """T4：NFO F3 欄位跟隨 external_manager 模式"""
+
+    def _make_nfo_metadata(self, number: str = "SONE-205") -> dict:
+        return {
+            "number": number,
+            "title": "Test Title",
+            "actors": [],
+            "tags": [],
+            "maker": "S1",
+            "date": "2024-01-15",
+            "cover": "http://fake/cover.jpg",
+            "url": "https://example.com/video",
+        }
+
+    def test_jellyfin_emby_nfo_has_f3_fields(self, tmp_path):
+        """jellyfin_emby → 產出的 NFO 含 F3 欄位（<country>Japan + <lockdata>）"""
+        src = tmp_path / "SONE-205.mp4"
+        src.write_bytes(b"fake mp4")
+
+        config = _make_ext_config("jellyfin_emby")
+        metadata = self._make_nfo_metadata()
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+        assert result.get("nfo_path") is not None, "NFO 應被產出"
+
+        nfo_content = Path(result["nfo_path"]).read_text(encoding="utf-8")
+        assert "<country>Japan</country>" in nfo_content, \
+            "jellyfin_emby NFO 應含 <country>Japan</country>"
+        assert "<lockdata>true</lockdata>" in nfo_content, \
+            "jellyfin_emby NFO 應含 <lockdata>true</lockdata>"
+
+    def test_kodi_nfo_has_f3_fields(self, tmp_path):
+        """kodi → 產出的 NFO 含 F3 欄位（<country>Japan + <lockdata>）"""
+        src = tmp_path / "SONE-205.mp4"
+        src.write_bytes(b"fake mp4")
+
+        config = _make_ext_config("kodi")
+        metadata = self._make_nfo_metadata()
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+        assert result.get("nfo_path") is not None, "NFO 應被產出"
+
+        nfo_content = Path(result["nfo_path"]).read_text(encoding="utf-8")
+        assert "<country>Japan</country>" in nfo_content, \
+            "kodi NFO 應含 <country>Japan</country>"
+        assert "<lockdata>true</lockdata>" in nfo_content, \
+            "kodi NFO 應含 <lockdata>true</lockdata>"
+
+    def test_off_nfo_no_f3_fields(self, tmp_path):
+        """off → 產出的 NFO 不含 F3 欄位（<country> / <lockdata> 不應出現）"""
+        src = tmp_path / "SONE-205.mp4"
+        src.write_bytes(b"fake mp4")
+
+        config = _make_ext_config("off")
+        metadata = self._make_nfo_metadata()
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+        assert result.get("nfo_path") is not None, "NFO 應被產出"
+
+        nfo_content = Path(result["nfo_path"]).read_text(encoding="utf-8")
+        assert "<country>Japan</country>" not in nfo_content, \
+            "off NFO 不應含 <country>Japan</country>"
+        assert "<lockdata>true</lockdata>" not in nfo_content, \
+            "off NFO 不應含 <lockdata>true</lockdata>"
 
 
 class TestNfoPosterTag:
@@ -1276,6 +1519,7 @@ class TestOrganizeExtrafanart:
         # 向後相容：若未指定 download_sample_images，沿用 jellyfin_mode 的值（舊行為）
         if download_sample_images is None:
             download_sample_images = jellyfin_mode
+        # T4 遷移：image block 改由 external_manager 控制；jellyfin_mode=True → 'jellyfin_emby'
         return {
             "create_folder": create_folder,
             "filename_format": "[{num}] {title}",
@@ -1285,7 +1529,7 @@ class TestOrganizeExtrafanart:
             "max_title_length": 50,
             "max_filename_length": 60,
             "suffix_keywords": [],
-            "jellyfin_mode": jellyfin_mode,
+            "external_manager": "jellyfin_emby" if jellyfin_mode else "off",
             "download_sample_images": download_sample_images,
         }
 

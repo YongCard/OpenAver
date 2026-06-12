@@ -886,20 +886,33 @@ def organize_file(
             if download_image(img_url, cover_path):
                 result['cover_path'] = cover_path
 
-        # Jellyfin 模式：產生 poster + fanart
-        if config.get('jellyfin_mode') and result.get('cover_path'):
+        # 外部管理器模式：依 ext_mode 決定 poster/fanart 命名規則
+        ext_mode = config.get('external_manager', 'off')
+        if ext_mode != 'off' and result.get('cover_path'):
             cover_jpg = result['cover_path']
-            # fanart = 原圖複製
-            fanart_path = os.path.join(target_dir, filename_base + '-fanart.jpg')
-            try:
-                shutil.copy2(cover_jpg, fanart_path)
-                result['fanart_path'] = fanart_path
-            except Exception as e:
-                logger.warning(f"[!] Fanart 複製失敗: {e}")
-            # poster = 裁切
-            poster_path = os.path.join(target_dir, filename_base + '-poster.jpg')
-            if crop_to_poster(cover_jpg, poster_path):
-                result['poster_path'] = poster_path
+            if ext_mode == 'jellyfin_emby':
+                # Jellyfin/Emby：帶 stem 前綴（{stem}-fanart.jpg / {stem}-poster.jpg）
+                fanart_path = os.path.join(target_dir, filename_base + '-fanart.jpg')
+                poster_path = os.path.join(target_dir, filename_base + '-poster.jpg')
+            elif ext_mode == 'kodi':
+                # Kodi：獨立命名（不帶 stem）
+                fanart_path = os.path.join(target_dir, 'fanart.jpg')
+                poster_path = os.path.join(target_dir, 'poster.jpg')
+            else:
+                # 未知值防禦：不產圖
+                fanart_path = None
+                poster_path = None
+            if fanart_path:
+                # fanart = 原圖複製
+                try:
+                    shutil.copy2(cover_jpg, fanart_path)
+                    result['fanart_path'] = fanart_path
+                except Exception as e:
+                    logger.warning(f"[!] Fanart 複製失敗: {e}")
+            if poster_path:
+                # poster = 裁切
+                if crop_to_poster(cover_jpg, poster_path):
+                    result['poster_path'] = poster_path
 
         # extrafanart 下載（download_sample_images 控制，需 create_folder=True 才有 per-video 目錄）
         # create_folder=False 時多片共用同一資料夾，fanart1.jpg 會互相覆蓋，故禁用
@@ -945,6 +958,7 @@ def organize_file(
             # （server re-search 路徑帶值；frontend-passed 路徑因 echo strip 無值 → default）
             summary=metadata.get('_summary', ''),
             rating=metadata.get('_rating'),
+            external_manager=ext_mode,
         ):
             result['nfo_path'] = nfo_path
 
