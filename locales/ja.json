@@ -169,7 +169,8 @@
       "load_failed": "読み込みに失敗しました。もう一度お試しください",
       "translate_failed": "翻訳に失敗しました。もう一度お試しください",
       "db_not_synced": "未同期 — 整理完了後も Showcase に表示されません",
-      "db_sync_failed": "DB 同期失敗（ファイルは整理済みですが Showcase に表示されません）"
+      "db_sync_failed": "DB 同期失敗（ファイルは整理済みですが Showcase に表示されません）",
+      "skipped_nfo_multipart": "NFO をスキップ — このファイルは分割動画の 2 本目以降で、1 本目の NFO が管理します"
     },
     "duplicate": {
       "title": "ファイルが重複しています",
@@ -242,6 +243,22 @@
       "metatube_keyword_hint": "Metatube ソースは女優 / キーワード検索に対応していません。完全な番号を入力することをお勧めします。",
       "group_metatube_empty": "Metatube ソースがまだありません"
     },
+    "thumbnail_cache": {
+      "label": "カバーサムネイルキャッシュ",
+      "hint": "カバーの小さなサムネイルをローカルに生成し、カバーウォールと Lightbox の読み込みを大幅に高速化します（特に動画が NAS / HDD にある場合）。1 枚あたり約 30KB。",
+      "confirm_modal": {
+        "title": "カバーサムネイルキャッシュを有効にする",
+        "body": "現在の {count} 本の動画にカバーサムネイルを生成します。約 {mb}MB のスペースが必要です。従来のハードディスク（HDD）では約 {min} 分かかりますがバックグラウンドで実行されるため、通常どおり使い続けられます。完了時に通知します。（確認後、現在の設定がすぐに保存されます）",
+        "cancel": "キャンセル",
+        "confirm": "保存して開始"
+      },
+      "disable_modal": {
+        "title": "カバーサムネイルキャッシュを無効にする",
+        "body": "生成済みのカバーサムネイルを削除します（約 {mb}MB を解放）。動画データや元のカバー画像には影響しません。再有効化するにはバックグラウンドで再生成が必要です。",
+        "cancel": "キャンセル",
+        "confirm": "無効にしてクリア"
+      }
+    },
     "toast": {
       "desktop_only": "この機能はデスクトップアプリで使用する必要があります"
     },
@@ -309,6 +326,12 @@
       "path_length_help_line4": "macOS / Linux にはこの制限はありませんが、macOS/Linux で生成した長いファイル名を LongPathsEnabled が無効な Windows に移動すると失敗する場合があります。",
       "video_extensions_label": "動画拡張子",
       "video_extensions_hint": "カンマ区切り",
+      "external_manager_label": "外部メディアマネージャーモード",
+      "external_manager_off": "オフ（既定）",
+      "external_manager_off_hint": "同名のカバーと NFO（`{品番}.jpg`、`{品番}.nfo`）を生成し、OpenAver の閲覧ページで使用します。NFO はどのメディアサーバーでも読めます。同名カバーを直接認識できるのは Emby のみです。",
+      "external_manager_jellyfin_hint": "`{品番}-poster.jpg`／`{品番}-fanart.jpg` も保存し、NFO にメディアサーバー識別フィールド（品番 ID／ソート／国）を追加します。cd1／cd2／part1 などの分割は 1 本の作品に自動結合されます。",
+      "external_manager_emby_hint": "`{品番}-poster.jpg`／`{品番}-fanart.jpg` を保存し NFO 識別フィールドを追加、分割（cd1／cd2／part1）も自動結合します。整理時にファイル名の VR 投影タグを保持します（DeoVR などのヘッドセットアプリ用）。注意：Emby はポスターと NFO を読みますが、`{品番}-fanart.jpg` という背景画像名は認識しません（fanart は Emby で表示されません。Jellyfin／Kodi は正常）。",
+      "external_manager_kodi_hint": "`{品番}-poster.jpg`／`{品番}-fanart.jpg` を保存し（Kodi は各種フォルダ構成を認識）、NFO 識別フィールドを追加します。cd1／cd2／part1 の分割も自動結合します。",
       "download_sample_images_label": "サンプル画像をダウンロード（extrafanart）",
       "download_sample_images_hint": "整理時にスクリーンショットを extrafanart/ にダウンロード（「フォルダー作成」が必要）"
     },
@@ -575,6 +598,12 @@
         "add_alias_failed": "エイリアス追加失敗: {error}",
         "remove_failed": "削除失敗: {error}"
       }
+    },
+    "leave_warning": {
+      "generating": "生成が進行中です。移動すると中断されます！",
+      "image_check": "画像チェックが進行中です。移動すると中断されます！",
+      "folder_dirty": "保存していないフォルダの変更があります",
+      "confirm": "{message}移動してもよろしいですか？"
     }
   },
   "showcase": {
@@ -716,6 +745,17 @@
     "enrich": {
       "success": "情報補完が完了しました",
       "failed": "情報補完に失敗しました。後ほど再試行してください"
+    },
+    "video": {
+      "delete": "コレクションから削除",
+      "delete_modal": {
+        "title": "この動画をコレクションから削除",
+        "body": "「{number}」のデータベースレコードのみ削除されます。動画ファイルはディスクに残り、削除されません。スキャン対象フォルダ内にある場合は次回スキャン時に再追加されます。",
+        "cancel": "キャンセル",
+        "confirm": "削除を確認"
+      },
+      "delete_success": "コレクションから削除しました",
+      "delete_failed": "削除に失敗しました。後ほど再試行してください"
     },
     "search": {
       "actress": "女優名を検索...",
@@ -917,7 +957,11 @@
       "subtitle_move": "動画の移動成功後、字幕も一緒に移動。言語サフィックスを保持（例：<code>.cht.srt</code>）",
       "subtitle_nfo": "字幕を検出すると NFO に「中国語字幕」タグが自動追加される",
       "jellyfin_enable": "<strong>設定ページ</strong>で有効化後、スキャン時に自動で <code>-poster.jpg</code> + <code>-fanart.jpg</code> を生成",
-      "jellyfin_showcase": "スキャン完了後、<code>/showcase</code> ページで生成結果を閲覧可能"
+      "jellyfin_showcase": "スキャン完了後、<code>/showcase</code> ページで生成結果を閲覧可能",
+      "h6_multiversion": "同一作品の複数版（流出 / 4K / 字幕）を Emby/Jellyfin で結合するには？",
+      "multiversion_intro": "複数版の結合は Emby と Jellyfin がともにネイティブ対応する機能です（同じ「フォルダ名 - ラベル」規則）。各版を品番名のフォルダに入れ、ファイル名をフォルダ名で始め「 - ラベル」を付けます：",
+      "multiversion_rule1": "各版のファイル名は<strong>フォルダ名で始める必要があります</strong> + 「 - ラベル」（半角スペース-ハイフン-半角スペース）",
+      "multiversion_rule2": "複数版と cd1/cd2 分割は<strong>同一作品で併用できません</strong>（メディアサーバーの公式制限）"
     },
     "showcase": {
       "title": "動画ブラウザ（Showcase）",
@@ -1084,7 +1128,9 @@
     "batch_enrich_done": "一括補完完了",
     "batch_enrich_done_with_errors": "一括補完（一部失敗）",
     "batch_enrich_failed": "一括補完中断",
-    "jl_cf_timeout": "JavLibrary CF認証タイムアウト"
+    "jl_cf_timeout": "JavLibrary CF認証タイムアウト",
+    "thumb_prewarm_start": "カバーサムネイルキャッシュの生成を開始しました",
+    "thumb_prewarm_done": "カバーサムネイルキャッシュが完了しました"
   },
   "similar_mode": {
     "button_aria_label": "類似動画を探索",

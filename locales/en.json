@@ -169,7 +169,8 @@
       "load_failed": "Load failed. Please try again.",
       "translate_failed": "Translation failed. Please try again.",
       "db_not_synced": "Not linked — organized files won't appear in Showcase",
-      "db_sync_failed": "DB sync failed (file organized but not showing in Showcase)"
+      "db_sync_failed": "DB sync failed (file organized but not showing in Showcase)",
+      "skipped_nfo_multipart": "NFO skipped — this file is part 2+ of a multipart movie, managed by part 1's NFO"
     },
     "duplicate": {
       "title": "Duplicate File",
@@ -242,6 +243,22 @@
       "metatube_keyword_hint": "Metatube sources do not support actress/keyword search — enter a full ID for best results.",
       "group_metatube_empty": "No Metatube sources yet"
     },
+    "thumbnail_cache": {
+      "label": "Cover Thumbnail Cache",
+      "hint": "Generates small local thumbnail caches for covers, greatly speeding up the cover wall and lightbox (especially when videos are on NAS / HDD). About 30 KB each.",
+      "confirm_modal": {
+        "title": "Enable Cover Thumbnail Cache",
+        "body": "Thumbnails will be generated for the current {count} videos, taking approximately {mb} MB of space. On a traditional hard drive (HDD) this will take about {min} minutes in the background; much faster on SSD. You can continue using the app normally while it runs — you'll be notified when done. (Saving current settings will start immediately upon confirmation.)",
+        "cancel": "Cancel",
+        "confirm": "Save & Start Building"
+      },
+      "disable_modal": {
+        "title": "Disable Cover Thumbnail Cache",
+        "body": "The generated cover thumbnails will be deleted (freeing approximately {mb} MB); no video data or original covers will be affected. Re-enabling will require regeneration in the background.",
+        "cancel": "Cancel",
+        "confirm": "Disable & Clear"
+      }
+    },
     "toast": {
       "desktop_only": "This feature requires the desktop app"
     },
@@ -309,6 +326,12 @@
       "path_length_help_line4": "macOS / Linux have no such limit, but long filenames generated on macOS/Linux may still fail on Windows without LongPathsEnabled.",
       "video_extensions_label": "Video Extensions",
       "video_extensions_hint": "Comma-separated",
+      "external_manager_label": "External media-manager mode",
+      "external_manager_off": "Off (default)",
+      "external_manager_off_hint": "Writes a same-name cover and NFO (`{stem}.jpg`, `{stem}.nfo`) for OpenAver's own browser. The NFO is readable by any media server; the same-name cover is recognized directly only by Emby.",
+      "external_manager_jellyfin_hint": "Also writes `{stem}-poster.jpg` / `{stem}-fanart.jpg` and adds media-server recognition fields to the NFO (number ID / sort title / country); cd1/cd2/part1 multipart auto-merges into one movie.",
+      "external_manager_emby_hint": "Also writes `{stem}-poster.jpg` / `{stem}-fanart.jpg`, adds NFO recognition fields, and auto-merges multipart (cd1/cd2/part1); the filename VR projection tag is preserved on organize (for headset apps like DeoVR). Note: Emby reads the poster and NFO but does not recognize the `{stem}-fanart.jpg` backdrop name (fanart won't show in Emby; Jellyfin/Kodi are fine).",
+      "external_manager_kodi_hint": "Also writes `{stem}-poster.jpg` / `{stem}-fanart.jpg` (Kodi recognizes various folder layouts) and adds NFO recognition fields; cd1/cd2/part1 multipart auto-merges.",
       "download_sample_images_label": "Download Stills (extrafanart)",
       "download_sample_images_hint": "Download stills to extrafanart/ during organize (requires Create Folder enabled)"
     },
@@ -575,6 +598,12 @@
         "add_alias_failed": "Add alias failed: {error}",
         "remove_failed": "Remove failed: {error}"
       }
+    },
+    "leave_warning": {
+      "generating": "Generation is in progress — leaving will abort it!",
+      "image_check": "Image check is in progress — leaving will interrupt it!",
+      "folder_dirty": "You have unsaved folder changes",
+      "confirm": "{message} Leave anyway?"
     }
   },
   "showcase": {
@@ -716,6 +745,17 @@
     "enrich": {
       "success": "Enriched successfully",
       "failed": "Enrich failed, please try again"
+    },
+    "video": {
+      "delete": "Remove from Collection",
+      "delete_modal": {
+        "title": "Remove This Video from Collection",
+        "body": "Only the database record for \"{number}\" will be removed. The video file will remain on disk and will not be deleted; if the file is still in a scanned folder, it will be added back on the next scan.",
+        "cancel": "Cancel",
+        "confirm": "Confirm Remove"
+      },
+      "delete_success": "Removed from collection",
+      "delete_failed": "Remove failed, please try again"
     },
     "search": {
       "actress": "Search actress name...",
@@ -1088,7 +1128,9 @@
     "batch_enrich_done": "Batch enrich complete",
     "batch_enrich_done_with_errors": "Batch enrich (some failures)",
     "batch_enrich_failed": "Batch enrich interrupted",
-    "jl_cf_timeout": "JavLibrary CF challenge timed out"
+    "jl_cf_timeout": "JavLibrary CF challenge timed out",
+    "thumb_prewarm_start": "Starting cover thumbnail cache generation",
+    "thumb_prewarm_done": "Cover thumbnail cache complete"
   },
   "similar_mode": {
     "button_aria_label": "Explore similar videos",

@@ -169,7 +169,8 @@
       "load_failed": "加载失败，请重试",
       "translate_failed": "翻译失败，请重试",
       "db_not_synced": "未联动 — 整理完成后不会出现在 Showcase",
-      "db_sync_failed": "DB 同步失败（文件已整理但未出现在 Showcase）"
+      "db_sync_failed": "DB 同步失败（文件已整理但未出现在 Showcase）",
+      "skipped_nfo_multipart": "已跳过 NFO — 此文件为多段影片的第 2 段以后，由第 1 段的 NFO 管理"
     },
     "duplicate": {
       "title": "文件重复",
@@ -242,6 +243,22 @@
       "metatube_keyword_hint": "metatube 来源不支持女优/关键字搜索，建议输入完整番号。",
       "group_metatube_empty": "尚无 Metatube 来源"
     },
+    "thumbnail_cache": {
+      "label": "封面缩略图缓存",
+      "hint": "在本机生成封面的小图缓存，大幅加快封面墙与灯箱加载（尤其视频文件放在 NAS / HDD 时）。每张约 30KB。",
+      "confirm_modal": {
+        "title": "开启封面缩略图缓存",
+        "body": "将为目前 {count} 部视频建立封面缩略图，约占 {mb}MB 空间。在传统硬盘（HDD）上预计约需 {min} 分钟于后台生成；SSD 会快很多。期间可继续正常使用，完成后会通知你。（确认后会立即保存目前设置）",
+        "cancel": "取消",
+        "confirm": "保存并开始建立"
+      },
+      "disable_modal": {
+        "title": "关闭封面缩略图缓存",
+        "body": "将删除已生成的封面缩略图（释放约 {mb}MB 空间）；不影响任何视频数据与原始封面。重新开启需再次于后台生成。",
+        "cancel": "取消",
+        "confirm": "关闭并清除"
+      }
+    },
     "toast": {
       "desktop_only": "此功能需要在桌面应用程序中使用"
     },
@@ -309,6 +326,12 @@
       "path_length_help_line4": "macOS / Linux 不受此限制，但从 macOS/Linux 生成的长文件名移至未启用 LongPathsEnabled 的 Windows 仍可能失败。",
       "video_extensions_label": "视频扩展名",
       "video_extensions_hint": "以逗号分隔",
+      "external_manager_label": "外部媒体管理器模式",
+      "external_manager_off": "关闭（默认）",
+      "external_manager_off_hint": "生成同名封面与 NFO（`{番号}.jpg`、`{番号}.nfo`），供 OpenAver 浏览页使用。NFO 任何媒体库都读得到；同名封面仅 Emby 能直接识别。",
+      "external_manager_jellyfin_hint": "另存 `{番号}-poster.jpg`／`{番号}-fanart.jpg`，并在 NFO 补上媒体库识别字段（番号 ID／排序／产地）；cd1／cd2／part1 等多段自动合并成一部片。",
+      "external_manager_emby_hint": "另存 `{番号}-poster.jpg`／`{番号}-fanart.jpg` 并补上 NFO 识别字段；多段（cd1／cd2／part1）自动合并；整理后保留文件名 VR 投影标记（供 DeoVR 等头显 App 识别）。注意：Emby 读海报与 NFO，但不认 `{番号}-fanart.jpg` 背景图命名（fanart 在 Emby 不显示，Jellyfin／Kodi 正常）。",
+      "external_manager_kodi_hint": "另存 `{番号}-poster.jpg`／`{番号}-fanart.jpg`（Kodi 各种文件夹结构都识别），并补上 NFO 识别字段；cd1／cd2／part1 多段自动合并。",
       "download_sample_images_label": "下载剧照（extrafanart）",
       "download_sample_images_hint": "整理时自动下载剧照至 extrafanart/ 子目录（需启用「建立文件夹」）"
     },
@@ -575,6 +598,12 @@
         "add_alias_failed": "新增别名失败: {error}",
         "remove_failed": "移除失败: {error}"
       }
+    },
+    "leave_warning": {
+      "generating": "生成正在进行中，离开将会中断操作！",
+      "image_check": "图片检查进行中，离开将会中断！",
+      "folder_dirty": "您有未保存的文件夹变更",
+      "confirm": "{message}确定要离开吗？"
     }
   },
   "showcase": {
@@ -716,6 +745,17 @@
     "enrich": {
       "success": "补资料完成",
       "failed": "补资料失败，请稍后再试"
+    },
+    "video": {
+      "delete": "从收藏移除",
+      "delete_modal": {
+        "title": "从收藏移除这部视频",
+        "body": "只会从数据库移除「{number}」这条记录。视频文件会保留在磁盘，不会被删除；若该文件仍在扫描目录内，下次扫描会重新被加回。",
+        "cancel": "取消",
+        "confirm": "确认移除"
+      },
+      "delete_success": "已从收藏移除",
+      "delete_failed": "移除失败，请稍后再试"
     },
     "search": {
       "actress": "搜索女优名称...",
@@ -917,7 +957,11 @@
       "subtitle_move": "视频移动成功后，字幕会一起带到目标文件夹，保留语言后缀（如 <code>.cht.srt</code>）",
       "subtitle_nfo": "检测到字幕时，NFO 会自动加上「中文字幕」标记",
       "jellyfin_enable": "在<strong>设置页</strong>开启后，扫描时自动生成 <code>-poster.jpg</code> + <code>-fanart.jpg</code>",
-      "jellyfin_showcase": "扫描完成后可至 <code>/showcase</code> 页面浏览生成结果"
+      "jellyfin_showcase": "扫描完成后可至 <code>/showcase</code> 页面浏览生成结果",
+      "h6_multiversion": "同片多版本（流出 / 4K / 中文字幕）怎么在 Emby/Jellyfin 合并？",
+      "multiversion_intro": "多版本合并是 Emby 与 Jellyfin 共同支持的原生功能（同一套「文件夹名 - 标签」规则），不是哪一家独有。把同一片各版本放进以番号命名的文件夹，文件名都以文件夹名开头加「 - 标签」：",
+      "multiversion_rule1": "每个版本文件名<strong>必须以文件夹名开头</strong> + 「 - 标签」（空格-连字号-空格）",
+      "multiversion_rule2": "多版本与 cd1/cd2 多段<strong>不能同时用于同一部片</strong>（媒体服务器官方限制）"
     },
     "showcase": {
       "title": "视频浏览 (Showcase)",
@@ -1084,7 +1128,9 @@
     "batch_enrich_done": "批量补完完成",
     "batch_enrich_done_with_errors": "批量补完（部分失败）",
     "batch_enrich_failed": "批量补完中断",
-    "jl_cf_timeout": "JavLibrary CF 验证超时"
+    "jl_cf_timeout": "JavLibrary CF 验证超时",
+    "thumb_prewarm_start": "开始建立封面缩略图缓存",
+    "thumb_prewarm_done": "封面缩略图缓存已完成"
   },
   "similar_mode": {
     "button_aria_label": "探索相似视频",

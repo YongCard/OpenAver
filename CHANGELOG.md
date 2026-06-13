@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **補圖入口擴及 Kodi**（72d）：掃描頁的「補齊外部封面」工具原本只在 Jellyfin/Emby 模式出現，現擴及 Kodi（Kodi 模式掃描本就產同樣的 sidecar 封面，卻拿不到補圖工具——補上既有缺口）。
 
 ### Changed
-- **F4 — 修正過時/錯誤說明**：移除「Emby 不支援 fanart」的錯誤說明（Emby 同樣支援 `{stem}-fanart.jpg`），README 與 Settings 文案一併更新；Kodi 文案從裸 `poster.jpg` 改正為 `{番號}-poster.jpg`（72c 起 Kodi 也輸出 stem 長格式）。
+- **F4 — 文案修正**：Kodi 文案從裸 `poster.jpg` 改正為 `{番號}-poster.jpg`（72c 起 Kodi 也輸出 stem 長格式）。**保留 v0.9.7 對 Emby 的正確說明**：`{stem}-fanart.jpg` 僅 Jellyfin／Kodi 讀取，Emby 不認此 fanart 命名（海報與 NFO 在 Emby 正常）。
 - **補圖流程文字中性化**（72d，mode-agnostic）：補圖按鈕/提示/通知/log 從寫死「Jellyfin 圖片」改為「外部媒體管理器圖片／封面」，三態（Jellyfin/Emby/Kodi）用戶看到的措辭一致（i18n value 中性化，key 名與端點 path 不變）。
 - **Settings 外部管理器改四格 segmented**：由舊三態「關閉｜Jellyfin / Emby｜Kodi」拆成四格「預設｜Jellyfin｜Emby｜Kodi」，記住用戶選的是 Jellyfin 還是 Emby（重整頁面高亮正確）。
 
@@ -32,10 +32,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   *B1 — when you index videos in-place via the list generator (Scanner) and later "organize" (rename+move) one of them from search, the old path used to linger as an orphan dead card (the same video showed twice, one with a broken cover). Now the organize move carries the DB record to the new path in place (preserving created-at time, browse ordering, and your browse-page tags); you get a single correct card immediately, no rescan needed. Mode-agnostic.*
 - **B2 — 已整理過的檔再整理一次，標題不再疊加**：對 OpenAver 自己整理出來的成品檔（檔名已是 `[番號][廠商] 標題-後綴` 格式）再整理一次，過去會把整段已格式化檔名誤當「標題」塞回去，越疊越長（番號/廠商/後綴重複）。現在會辨識「這是已整理過的成品」而改用刮削/翻譯標題，並把標題開頭多餘的番號前綴剝乾淨（連舊版本已寫進磁碟/資料庫的雙重前綴也一併修好）；真正的原始下載檔名行為不變，中文標題搶救照舊。
   *B2 — re-organizing a file OpenAver already produced (filename already in `[number][maker] title-suffix` form) used to mistake the whole formatted name for the "title" and stack it endlessly (duplicated number/maker/suffix). It now recognizes an already-organized file and uses the scraped/translated title instead, stripping redundant leading number prefixes from the title (repairing even doubled prefixes previously written to disk/DB); genuine raw download filenames are unaffected and Chinese-title rescue still works.*
+- **cd2/part2 整理後 Showcase DB metadata 遺失**：F2 外部模式跳過 cd2 NFO 後，DB 索引改走檔名 parse → actors/tags/date/maker 掉光；B1 repath 還會用此殘缺 row 覆蓋 Scanner 已索引好的紀錄。現整理時把手上的 scraped metadata 直接傳入 upsert，cd2 row 與 cd1 一致；非多段路徑 byte-identical。
+  *cd2/part2 lost scraped metadata in the Showcase DB after organize: when F2 external mode skipped the cd2 NFO, the DB re-index fell back to filename parsing → actors/tags/date/maker were dropped, and B1's repath then overwrote a good Scanner-indexed row with the impoverished one. Organize now passes the scraped metadata straight into the upsert so the cd2 row matches cd1; non-multipart paths are byte-identical.*
 
 #### 🔧 外部管理器相容修正 / External-manager compat fixes
 - **補圖 gate 改正向白名單、fail-closed**（72d Codex P2）：掃描頁補圖入口的開關由「不是 jellyfin_emby 就不出現」改為「是 off 才不出現」（正向白名單），新增的 Kodi/Emby 模式正確觸發、未知值安全地不觸發。
 - **Kodi sidecar 一律 stem 長格式**（72b Codex P1）：Kodi 模式的封面從裸 `poster.jpg`/`fanart.jpg` 改為與 Jellyfin/Emby 相同的 `{stem}-poster.jpg`/`{stem}-fanart.jpg`，避免同資料夾多部片時裸命名互相覆蓋（多片碰撞）。
+- **外部模式單片 refresh 被誤 400**（72d Codex P2-A）：切換外部管理器模式後對單片做「補資料」（refresh_full），400 守衛僅看 `.nfo`/`.jpg` 是否存在、未考慮外部圖補寫機會 → 想補 `{stem}-poster/-fanart` 的 refresh 被拒。加第三條 `will_write_external` 條件（external≠off + 底圖在 + stem 圖缺），off 模式 byte-identical。
+- **Enrich 不認 MDCX/Javinizer 匯入的 `{stem}-poster/-fanart.jpg`**（72d Codex P2-B）：F5 讓 Scanner 能讀外部工具的 stem 圖，但 enrich 的 cover-gate 仍要求 `{stem}.jpg` 存在才動作 → MDCX/Javinizer 匯入夾（只有 `-poster/-fanart`、無裸底圖）enrich 後 NFO 指向不存在的 `{stem}.jpg`。改為先判 `_STEM_IMAGE_MODES`：底圖缺但 stem 圖已在磁碟且 `overwrite=false` → 直接認可現況、不重生；off 模式行為不變。
+
+#### 🔧 封面代理白名單跨格式誤殺 SMB 連線磁碟機（TASK-73）/ Image-proxy whitelist cross-format false-positive
+- **把 NAS 掛成「連線網路磁碟機」（`K:\` → `\\server\share`）或用 DFS／別名 UNC 的 Windows 用戶，Showcase 封面牆整片空白（影片仍正常播）的修復**。根因：封面代理 `get_image`／`get_video` 的目錄白名單比對只對「請求路徑」跑 `realpath`、沒對「config 白名單目錄」跑，而 `realpath` 會**跨格式改寫**（mapped drive→UNC、DFS／別名→真實 target）→ 兩端字串格式不同，casefold＋NFC 跨不過去 → 合法封面被當白名單外路徑 403 擋掉。現改為兩端對稱正規化（請求端 single-form；config 目錄端 dual-form：normpath＋realpath 兩候選，cache-on-success-only），任一掛載格式都對得上；既有 symlink-escape／`..` 穿越防護完整保留不破。**影片本來就走 PyWebView 直開、不受影響。**
+  *Fix for Windows users whose NAS is a "mapped network drive" (`K:\` → `\\server\share`) or a DFS/aliased UNC seeing a blank Showcase cover wall (videos still played fine). Root cause: the image-proxy whitelist check ran `realpath` on the request path but not on the config whitelist dirs; `realpath` rewrites across formats (mapped-drive→UNC, DFS/alias→real target), so the two strings no longer matched and legit covers got 403'd. Now both sides are canonicalized symmetrically (request single-form; config dirs dual-form normpath+realpath, cache-on-success-only) so any mount format matches; existing symlink-escape / `..` traversal protection is fully preserved.*
 
 ### Internal
 - **external_manager 升真四態 config**（`Literal["off","jellyfin","emby","kodi"]`）+ migration（既有存檔 `jellyfin_emby` → load 時就地改寫為 `jellyfin`，idempotent）；圖片命名分支抽共用常數 `_STEM_IMAGE_MODES = ('jellyfin','emby','kodi')`（organizer/enricher 共用，避免 drift）。`!= 'off'` 的 F3 NFO / 多段偵測分支原樣涵蓋三個非 off 值、不動。
@@ -43,14 +51,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 補圖 check/generate 後端本就 generic（只認兩 sidecar、零 Jellyfin 特有邏輯），gate 擴三態後零後端改動；`jellyfin_check` capability 描述/data 文字隨補圖中性化（端點 path 與 schema 不變、contract no-op）。
 
 ### Non-Goals（明確不做）
-- **不支援 Plex**（無原生 NFO 讀取，Settings 不加 Plex）、**不做多版本自動合併**（整個 JAV 生態圈都靠手動結構解決，本版改文檔化手動指引 F6）、**不做 `.actors/` 演員縮圖資料夾**（Kodi-specific、無法共用）、**不做獨立輸出目錄（decoupled output）**（架構改動大、屬獨立 feature）、**不做 NFO 演員名翻譯**（日文名在 Jellyfin/Emby 顯示無問題）、**不讓 Scanner 改名**（維持唯讀原地索引定位，可安全掃唯讀網盤）、**不把版本後綴寫成 tag**、**不做 Scanner 批次整理/一鍵歸檔**（屬未來獨立 feature，本版只先把 F7 措辭換軸做好）。
+- **不支援 Plex**（雖 Plex 1.43.1+ 已有原生 NFO Agent，但 Plex 整合不在本版定位，Settings 不加 Plex）、**不做多版本自動合併**（整個 JAV 生態圈都靠手動結構解決，本版改文檔化手動指引 F6）、**不做 `.actors/` 演員縮圖資料夾**（Kodi-specific、無法共用）、**不做獨立輸出目錄（decoupled output）**（架構改動大、屬獨立 feature）、**不做 NFO 演員名翻譯**（日文名在 Jellyfin/Emby 顯示無問題）、**不讓 Scanner 改名**（維持唯讀原地索引定位，可安全掃唯讀網盤）、**不把版本後綴寫成 tag**、**不做 Scanner 批次整理/一鍵歸檔**（屬未來獨立 feature，本版只先把 F7 措辭換軸做好）。
 
 ### i18n
-- zh_TW 文案本版交付（settings 四段 hint + 補圖中性化 + Help 四模式措辭）。zh_CN/en/ja 對應 key（settings 四段 hint + 補圖中性化）依專案慣例**待 milestone 同步**（執行階段 i18n fallback 到 zh_TW，不顯示 raw key；HELP_KEYS parity 守衛維持綠）。
+- zh_TW 文案本版交付（settings 外部管理器 hint + 補圖中性化 + Help 四模式措辭）；**milestone 已同步 zh_CN／en／ja**（external_manager 六 key + `skipped_nfo_multipart` toast + ja／zh_CN 多版本 Help + 回補 v0.9.10 漏網 19 key）。
+- **Scanner 離頁警告 i18n 化**：3 條硬編碼繁中離頁警告（生成中／圖片檢查中／未存資料夾變更）改走 `window.t()` + 新增 `scanner.leave_warning` 四語系 key——非 zh_TW 用戶離頁提示不再顯示繁中（清 72d Codex P2 deferred 的 pre-existing i18n 債）。
+- **Emby fanart 相容文案修正**：撤回 v0.9.11 早期「Emby 同樣支援 `{stem}-fanart.jpg`」的誤述，回復 v0.9.7 的正確說明（Emby 不認此 fanart 背景圖命名，僅 Jellyfin／Kodi 讀取；Emby 的海報與 NFO 正常）；zh_TW／README／README_EN 一併更正。
 
 ### 測試
-- 全套 pytest **4078 passed, 2 skipped**（unit + integration，排除 smoke / e2e）+ `npm run lint`（eslint + stylelint）綠。
+- 全套 pytest **4089 passed, 2 skipped**（unit + integration，排除 smoke / e2e）+ `npm run lint`（eslint + stylelint）綠。
 - 新增測試：`test_db_inflow`（B1 整理搬檔 DB repath）/ `test_organizer_multipart`（F2 多段 token 偵測 + 尾端）/ `test_organizer_title`（B2 已整理檔不疊加標題）/ `test_enricher`（enrich 路徑外部模式）/ `test_generate_nfo`（F3 補強欄位）/ `test_jellyfin_compat`（smoke harness，CI 排除）+ 前端守衛（settings 四態 segmented / 補圖 gate 三態化 / Kodi stem）。
+- 新增測試（TASK-73 封面代理白名單）：`TestMappedDriveWhitelist`（SMB mapped-drive image/video → 200、DFS 別名 UNC → 200、間歇斷線 dual-form → 200、對稱契約守衛）；既有 symlink-escape／`..` 穿越／WinFsp normpath fallback 安全測試保持綠。
 - **transient-guard**：`test_frontend_lint` 中針對舊 `jellyfin_emby` 字面 / `!= 'off'` 的 negative-fingerprint 斷言標 `[transient-guard]`（四態遷移一次性，下個 milestone 評估移除）。
 
 ## [0.9.10] - 2026-06-12
@@ -81,6 +92,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **prewarm／disable race 硬化**：背景預熱進行中若用戶關閉並清除快取，worker 每筆重讀設定→立即停止，不再把剛清掉的目錄重建回來；被中止時也不送誤導的「完成 N 張」通知（涵蓋 generate 成功與失敗兩種收尾）。
 - **燈箱開關 flip「兩張圖重影」**：blur-up 引入的原圖 overlay 層在 grid↔燈箱飛行期間未被隱藏 → 與飛行 ghost 重疊成重影；改為飛行期隱藏整個封面容器（一次蓋住底圖＋原圖兩層）、OPEN/CLOSE 對稱還原。
 - **刪除確認 modal 被燈箱蓋住**：root-fix `.fluent-modal` z-index 拉高至燈箱之上（removeActress 確認框同步受惠）。
+- **重刮／Enrich 後縮圖快取不更新（舊封面殘留）**：enrich 路徑對已是 `file:///` URI 的路徑重複 encode → invalidate 刪錯 hash → 舊縮圖沒刪掉，換封面後瀏覽頁持續顯示舊封面直到手動清快取。改用冪等的 `coerce_to_file_uri`，與 canonical key 一致。
+- **縮圖 serve 兩處邊界修正**：(1) 檔名含字面 `%` 的影片縮圖 404（`unquote` 二次解碼路徑）；(2) 關閉並清除快取後，舊分頁的 `/thumb` 請求仍重建 WebP（miss 路徑未 gate `thumbnail_cache_enabled`）——「關閉並清除」後現確實不再重生。
+- **燈箱封面縮水 + 切換跳動 + 進星座模式後反覆縮小**：blur-up 引入的 thumb 在燈箱以 400px 原始尺寸渲染（未放大）→ 封面縮水、flip ghost 量到錯誤矩形而跳動；另星座模式退出（slip-through）路徑缺 `cover_full_url` → `@load` 永不觸發 → 多次進出累積縮小。補 similar API `cover_full_url` 欄位 + CSS `height:60vh`；slip-through 路徑亦補 blur-up 狀態 reset（抽 `_refreshLbFullBlurUp` helper，兩入口共用）。
 
 ### Internal
 - 縮圖核心模組 `core/thumbnail_cache.py`（hash 命名 / 原子寫 temp+os.replace / generate 失敗 fallback 原圖 / invalidate / clear_all）、`thumbnail_cache_enabled` config plumbing、serve 端點 + lazy 生成 + prewarm 端點、showcase/similar serializer 切 thumb url、失效掛鉤（掃描/enrich/重刮/單筆刪除/清快取）+ serve race 硬化、多輪 Codex review（並發正確性 / prewarm-clear race / disable-skip-done / generate-fail edge，皆 RED→GREEN 實證）。
@@ -124,6 +138,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   *The 40-minute re-verification went from "permanently broken, restart required" to "one click, auto-completes": after clearance expired, the old flow navigated the hidden window to the homepage (no CF to solve there) and `evaluate_js` blocked ~20s on the CF page, stranding the JS bridge — JavLibrary stayed broken until restart. Now the popup takes you straight to the just-blocked search page; you click the challenge once (or it passes on its own), the window auto-closes in ~9s and results auto-fill — no 18+ consent button, no page clicks.*
 - 18+ 同意閘改用 `over18=18` cookie（站台真值；舊 `over18=1` 不被接受、遮罩不消）；此為視覺正確性，不影響資料抓取（mask 是 client-side overlay，從不擋 fetch/parse）。
   *The 18+ gate now uses the `over18=18` cookie (the site's real value; the old `over18=1` was rejected and the mask stayed); cosmetic only — the mask is a client-side overlay that never blocks fetch/parse.*
+- **CF 驗證等待提示語氣修正**：等待文案從「請點一下人機驗證」改為「驗證中，通過後自動繼續」（四語系）——CF 常自動過關、多數情況不需主動點，提示語氣改為陳述、避免誤導用戶一定要操作。
 
 ### Non-Goals（明確不做）
 - 不支援 server / NAS / Docker（CF 需真人 ＋ 真瀏覽器 ＋ 桌面 GUI）、不做自動繞過 CF、不做模糊／演員搜尋、Transport A（cookie→curl_cffi）結構性死路不實作。

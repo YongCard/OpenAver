@@ -336,7 +336,7 @@
       "external_manager_off": "關閉（預設）",
       "external_manager_off_hint": "產生同名封面與 NFO（`{番號}.jpg`、`{番號}.nfo`），供 OpenAver 瀏覽頁使用。NFO 任何媒體庫都讀得到；同名封面僅 Emby 能直接辨識。",
       "external_manager_jellyfin_hint": "另存 `{番號}-poster.jpg`／`{番號}-fanart.jpg`，並在 NFO 補上媒體庫辨識欄位（番號 ID／排序／產地）；cd1／cd2／part1 等多段自動合併成一部片。",
-      "external_manager_emby_hint": "另存 `{番號}-poster.jpg`／`{番號}-fanart.jpg` 並補上 NFO 辨識欄位；多段（cd1／cd2／part1）自動合併；整理後保留檔名 VR 投影標記，Emby 是少數支援 VR 影片播放的媒體庫。",
+      "external_manager_emby_hint": "另存 `{番號}-poster.jpg`／`{番號}-fanart.jpg` 並補上 NFO 辨識欄位；多段（cd1／cd2／part1）自動合併；整理後保留檔名 VR 投影標記（供 DeoVR 等頭顯 App 辨識）。注意：Emby 讀海報與 NFO，但不認 `{番號}-fanart.jpg` 背景圖命名（fanart 在 Emby 不顯示，Jellyfin／Kodi 正常）。",
       "external_manager_kodi_hint": "另存 `{番號}-poster.jpg`／`{番號}-fanart.jpg`（Kodi 各種資料夾結構都辨識），並補上 NFO 辨識欄位；cd1／cd2／part1 多段自動合併。",
       "download_sample_images_label": "下載劇照",
       "download_sample_images_hint": "整理時自動下載劇照至 extrafanart/ 子目錄（需啟用「建立資料夾」）"
@@ -598,6 +598,12 @@
       "body_suffix": "部），下次需重新掃描才能恢復。確定要清除嗎？",
       "cancel": "取消",
       "confirm": "確認刪除"
+    },
+    "leave_warning": {
+      "generating": "生成正在進行中，離開將會中斷操作！",
+      "image_check": "圖片檢查進行中，離開將會中斷！",
+      "folder_dirty": "您有未儲存的資料夾變更",
+      "confirm": "{message}確定要離開嗎？"
     }
   },
   "notif": {

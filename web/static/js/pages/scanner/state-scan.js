@@ -184,7 +184,7 @@ export function stateScan() {
                                 return false;
                             } else {
                                 // eslint-disable-next-line no-alert -- dirty-check page-leave confirm, backlog migration to fluent-modal, reviewed 2026-05-03
-                                const ok = confirm(guard.message + '確定要離開嗎？');
+                                const ok = confirm(window.t('scanner.leave_warning.confirm', { message: guard.message }));
                                 if (ok) {
                                     // T2(40c): 離頁確認後 abort jellyfin check
                                     if (this._jellyfinCheckController) {
@@ -229,12 +229,10 @@ export function stateScan() {
         // ===== Leave Guard =====
         shouldWarnBeforeLeave() {
             // T7b: 改為讀取 Alpine state，而非全域變數
-            // TODO(milestone i18n): 下方三條 leave-warning message 為硬編碼繁中（pre-existing），
-            // milestone i18n pass 應統一改 window.t() + 加 zh_TW key + 四語系翻譯（72d Codex P2 deferred）。
             if (this.isGenerating) {
                 return {
                     shouldWarn: true,
-                    message: '生成正在進行中，離開將會中斷操作！',
+                    message: window.t('scanner.leave_warning.generating'),
                     useModal: false
                 };
             }
@@ -242,14 +240,14 @@ export function stateScan() {
             if (this.jellyfinCheckState === 'checking') {
                 return {
                     shouldWarn: true,
-                    message: '圖片檢查進行中，離開將會中斷！',
+                    message: window.t('scanner.leave_warning.image_check'),
                     useModal: false
                 };
             }
             if (this.isFolderDirty) {
                 return {
                     shouldWarn: true,
-                    message: '您有未儲存的資料夾變更',
+                    message: window.t('scanner.leave_warning.folder_dirty'),
                     useModal: true
                 };
             }
