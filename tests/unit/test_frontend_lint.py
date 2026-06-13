@@ -4900,11 +4900,13 @@ class TestJellyfinFrontend:
     """確認 Jellyfin 前端基礎設施完整"""
 
     def test_jellyfin_toggle_in_settings(self):
-        """settings.html externalManager segmented control（T8：3 態 segmented，移至可見區塊）
+        """settings.html externalManager segmented control（T-d2：4 態 segmented，off/jellyfin/emby/kodi）
         - 舊的 x-model="form.jellyfinMode" 已移除（dead field）
         - 舊的 interim :checked / @change checkbox 綁定已移除
-        - 新的 3 態 segmented control（off / jellyfin_emby / kodi）在 scraperAdvanced 之外可見
+        - 舊的 jellyfin_emby 合併態已拆為獨立 jellyfin / emby（T-d2）
+        - 新的 4 態 segmented control + trailing hint 版面
         """
+        import re
         html_file = PROJECT_ROOT / "web" / "templates" / "settings.html"
         content = html_file.read_text(encoding='utf-8')
         # 舊 dead field 不存在
@@ -4918,20 +4920,39 @@ class TestJellyfinFrontend:
         # segmented 容器存在
         assert 'class="settings-sources-segmented"' in content, \
             "settings.html 缺少 .settings-sources-segmented 容器（T8 segmented control）"
-        # 三個 is-on class 綁定
-        assert "'is-on': form.externalManager === 'off'" in content, \
-            "settings.html 缺少 externalManager === 'off' 的 is-on binding"
-        assert "'is-on': form.externalManager === 'jellyfin_emby'" in content, \
-            "settings.html 缺少 externalManager === 'jellyfin_emby' 的 is-on binding"
-        assert "'is-on': form.externalManager === 'kodi'" in content, \
-            "settings.html 缺少 externalManager === 'kodi' 的 is-on binding"
-        # 三個 @click 設值
-        assert "@click=\"form.externalManager = 'off'\"" in content, \
-            "settings.html 缺少 @click 設 externalManager = 'off'"
-        assert "@click=\"form.externalManager = 'jellyfin_emby'\"" in content, \
-            "settings.html 缺少 @click 設 externalManager = 'jellyfin_emby'"
-        assert "@click=\"form.externalManager = 'kodi'\"" in content, \
-            "settings.html 缺少 @click 設 externalManager = 'kodi'"
+
+        # ---- 負守衛（forbidden）：舊 jellyfin_emby binding 不得殘留 ----
+        assert "'is-on': form.externalManager === 'jellyfin_emby'" not in content, \
+            "settings.html 不應殘留 jellyfin_emby is-on binding（T-d2 已拆四態）"
+        assert "@click=\"form.externalManager = 'jellyfin_emby'\"" not in content, \
+            "settings.html 不應殘留 @click = 'jellyfin_emby'（T-d2 已拆四態）"
+
+        # ---- 正斷言：四態 is-on（element-bound 到 segmented 區塊）----
+        #   從 content 擷取 settings-form-row--external-manager 區塊後再斷言，
+        #   確保 is-on 綁在外部管理器的 segmented button 而非其他地方（element-bound）
+        seg_match = re.search(
+            r'class="settings-sources-segmented" role="group".*?</div>',
+            content, re.DOTALL
+        )
+        assert seg_match, "settings.html 缺少 .settings-sources-segmented[role=group] 容器（外部管理器）"
+        seg_block = seg_match.group(0)
+
+        for val in ('off', 'jellyfin', 'emby', 'kodi'):
+            assert f"'is-on': form.externalManager === '{val}'" in seg_block, \
+                f"settings.html segmented 缺少 externalManager === '{val}' 的 is-on binding"
+            assert f"@click=\"form.externalManager = '{val}'\"" in seg_block, \
+                f"settings.html segmented 缺少 @click 設 externalManager = '{val}'"
+
+        # ---- 正斷言：四段 hint x-show（trailing） ----
+        for val in ('off', 'jellyfin', 'emby', 'kodi'):
+            assert f"x-show=\"form.externalManager === '{val}'\"" in content, \
+                f"settings.html 缺少 externalManager === '{val}' 的 hint x-show"
+
+        # ---- 正斷言：off hint 的 i18n key（新增，驗證 T-d3 key 已引用） ----
+        assert "external_manager_off_hint" in content, \
+            "settings.html 缺少 external_manager_off_hint i18n key 引用（T-d3 key）"
+        assert "external_manager_emby_hint" in content, \
+            "settings.html 缺少 external_manager_emby_hint i18n key 引用（T-d3 key）"
 
     def test_jellyfin_update_in_scanner(self):
         """scanner/state-scan.js 包含 runJellyfinImageUpdate method"""

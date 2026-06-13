@@ -677,7 +677,7 @@
                     <!-- 外部媒體管理器模式（spec F1）— 沿用 .settings-sources-segmented 元件 -->
                     <div class="settings-form-row settings-form-row--external-manager">
                         <label class="row-label">{{ t('settings.scraper.external_manager_label') }}</label>
-                        <div class="flex-1 flex flex-col gap-2">
+                        <div class="flex-1 flex items-center gap-3 flex-wrap">
                             <div class="settings-sources-segmented" role="group"
                                  aria-label="{{ t('settings.scraper.external_manager_label') }}">
                                 <button type="button"
@@ -687,10 +687,16 @@
                                     {{ t('settings.scraper.external_manager_off') }}
                                 </button>
                                 <button type="button"
-                                        :class="{ 'is-on': form.externalManager === 'jellyfin_emby' }"
-                                        :aria-pressed="(form.externalManager === 'jellyfin_emby') ? 'true' : 'false'"
-                                        @click="form.externalManager = 'jellyfin_emby'">
-                                    Jellyfin / Emby
+                                        :class="{ 'is-on': form.externalManager === 'jellyfin' }"
+                                        :aria-pressed="(form.externalManager === 'jellyfin') ? 'true' : 'false'"
+                                        @click="form.externalManager = 'jellyfin'">
+                                    Jellyfin
+                                </button>
+                                <button type="button"
+                                        :class="{ 'is-on': form.externalManager === 'emby' }"
+                                        :aria-pressed="(form.externalManager === 'emby') ? 'true' : 'false'"
+                                        @click="form.externalManager = 'emby'">
+                                    Emby
                                 </button>
                                 <button type="button"
                                         :class="{ 'is-on': form.externalManager === 'kodi' }"
@@ -699,10 +705,17 @@
                                     Kodi
                                 </button>
                             </div>
-                            <small class="settings-hint" x-show="form.externalManager === 'jellyfin_emby'">
+                            <!-- hint trailing：segmented 右側同列；flex-1 min-w-0 讓窄視窗時 hint 可 wrap 到下一行 -->
+                            <small class="settings-hint flex-1 min-w-0" x-show="form.externalManager === 'off'">
+                                {{ t('settings.scraper.external_manager_off_hint') }}
+                            </small>
+                            <small class="settings-hint flex-1 min-w-0" x-show="form.externalManager === 'jellyfin'">
                                 {{ t('settings.scraper.external_manager_jellyfin_hint') }}
                             </small>
-                            <small class="settings-hint" x-show="form.externalManager === 'kodi'">
+                            <small class="settings-hint flex-1 min-w-0" x-show="form.externalManager === 'emby'">
+                                {{ t('settings.scraper.external_manager_emby_hint') }}
+                            </small>
+                            <small class="settings-hint flex-1 min-w-0" x-show="form.externalManager === 'kodi'">
                                 {{ t('settings.scraper.external_manager_kodi_hint') }}
                             </small>
                         </div>
