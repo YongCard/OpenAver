@@ -20,6 +20,7 @@ logger = get_logger(__name__)
 
 VALID_MODES = {"fill_missing", "db_to_sidecar", "refresh_full"}
 
+
 _FILL_MISSING_REQUIRED = ["title", "actresses", "maker", "director", "series", "label", "tags", "release_date"]
 
 
@@ -241,6 +242,9 @@ def _write_external_images(
 
     gate 規則：以 cover_path.exists()（磁碟真相）為準，不以 cover_written 為準，
     避免 _write_cover skip-but-exists 邊界（.jpg 存在 + overwrite=False）喪失外部圖。
+
+    jellyfin_emby 與 kodi 均使用 stem 長格式（{stem}-poster.jpg / {stem}-fanart.jpg），
+    Kodi 在所有資料夾 layout 下均識別此命名。
     """
     # off 或未知模式：直接 no-op（防呆）
     if external_manager == "off":
@@ -254,14 +258,10 @@ def _write_external_images(
 
     stem = str(cover_path.with_suffix(""))  # 去副檔名的完整路徑前綴
 
-    # 依模式決定目標路徑
-    if external_manager == "jellyfin_emby":
+    # 依模式決定目標路徑（jellyfin_emby 與 kodi 均使用 stem 長格式）
+    if external_manager in ("jellyfin_emby", "kodi"):
         poster_path = Path(stem + "-poster.jpg")
         fanart_path = Path(stem + "-fanart.jpg")
-    elif external_manager == "kodi":
-        parent = cover_path.parent
-        poster_path = parent / "poster.jpg"
-        fanart_path = parent / "fanart.jpg"
     else:
         # 未知 external_manager 值：不產圖、不崩（防呆）
         return {"poster": False, "fanart": False}
@@ -421,6 +421,7 @@ def enrich_single(  # noqa: ranker-invalidate (only updates nfo_mtime, not a cor
     if external_manager != "off":
         # 72b-T6 外部媒體管理器寫序：cover → external images → NFO
         # NFO 必須在圖片後寫入，才能取得 has_poster/has_fanart 真值。
+        # jellyfin_emby 與 kodi 均使用 stem 長格式（無 per-folder 切換邏輯）。
         cover_written = _write_cover(
             fs_path=fs_path,
             cover_url=cover_url,

@@ -981,12 +981,12 @@ class TestExternalManagerImageNaming:
 
     # ── B. kodi 模式 ──────────────────────────────────────────────────────
 
-    def test_kodi_produces_bare_poster_fanart(self, tmp_path):
-        """kodi → 裸名 fanart.jpg + poster.jpg 存在，不存在帶 stem 版本"""
+    def test_kodi_produces_stem_poster_fanart(self, tmp_path):
+        """kodi → stem 命名（{stem}-poster.jpg / {stem}-fanart.jpg），無論 create_folder。"""
         src = tmp_path / "SONE-205.mp4"
         src.write_bytes(b"fake mp4")
 
-        config = _make_ext_config("kodi")
+        config = _make_ext_config("kodi")  # create_folder=False
         metadata = _make_ext_metadata()
 
         with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
@@ -996,20 +996,17 @@ class TestExternalManagerImageNaming:
         assert result.get("fanart_path") is not None, "kodi 應產生 fanart_path"
         assert result.get("poster_path") is not None, "kodi 應產生 poster_path"
 
-        # 確認裸名命名
         fanart = Path(result["fanart_path"])
         poster = Path(result["poster_path"])
-        assert fanart.name == "fanart.jpg", f"kodi fanart 應為裸名，實際: {fanart.name}"
-        assert poster.name == "poster.jpg", f"kodi poster 應為裸名，實際: {poster.name}"
-        assert fanart.exists(), "fanart.jpg 應存在"
-        assert poster.exists(), "poster.jpg 應存在"
+        assert fanart.name.endswith("-fanart.jpg"), f"kodi fanart 應帶 stem，實際: {fanart.name}"
+        assert poster.name.endswith("-poster.jpg"), f"kodi poster 應帶 stem，實際: {poster.name}"
+        assert fanart.exists(), "fanart 檔案應存在"
+        assert poster.exists(), "poster 檔案應存在"
 
-        # 確認帶 stem 版本不存在
+        # 裸名不存在
         target_dir = Path(result["cover_path"]).parent
-        assert not (target_dir / "[SONE-205] Test Title-fanart.jpg").exists(), \
-            "帶 stem 的 fanart 不應出現（kodi）"
-        assert not (target_dir / "[SONE-205] Test Title-poster.jpg").exists(), \
-            "帶 stem 的 poster 不應出現（kodi）"
+        assert not (target_dir / "fanart.jpg").exists(), "裸名 fanart.jpg 不應出現（kodi）"
+        assert not (target_dir / "poster.jpg").exists(), "裸名 poster.jpg 不應出現（kodi）"
 
     # ── C. off 模式 ──────────────────────────────────────────────────────
 
@@ -3483,11 +3480,11 @@ class TestOrganizeMultipart:
     # ---- G: kodi cd2 → 保留封面 ----
 
     def test_kodi_cd2_keep_cover(self, tmp_path):
-        """G：kodi 模式 cd2 → 跳 NFO + 保留 poster.jpg/fanart.jpg"""
+        """G：kodi 模式 cd2 + create_folder=False → 跳 NFO + stem 命名 poster/fanart（72c 修正後）"""
         src = tmp_path / 'MIRD-151-cd2.mp4'
         src.write_bytes(b'kodi cd2')
 
-        config = self._ext_config(ext_mode='kodi')
+        config = self._ext_config(ext_mode='kodi')  # create_folder=False → stem 命名
         metadata = self._base_metadata()
 
         with patch('core.organizer.download_image', side_effect=_mock_download_image_write_jpeg):
@@ -3496,13 +3493,13 @@ class TestOrganizeMultipart:
         assert result['success'] is True, f"organize 失敗: {result.get('error')}"
         assert result['nfo_path'] is None, 'kodi cd2 應跳 NFO'
         assert result.get('skipped_nfo_multipart') is True
-        # kodi poster/fanart 裸名
+        # kodi 固定 stem 命名（collision-free）
         assert result.get('poster_path') is not None, 'kodi cd2 應保留 poster'
         assert result.get('fanart_path') is not None, 'kodi cd2 應保留 fanart'
         poster_name = Path(result['poster_path']).name
         fanart_name = Path(result['fanart_path']).name
-        assert poster_name == 'poster.jpg', f'kodi poster 應為裸名 poster.jpg，實際：{poster_name!r}'
-        assert fanart_name == 'fanart.jpg', f'kodi fanart 應為裸名 fanart.jpg，實際：{fanart_name!r}'
+        assert poster_name.endswith('-poster.jpg'), f'kodi+flat poster 應帶 stem，實際：{poster_name!r}'
+        assert fanart_name.endswith('-fanart.jpg'), f'kodi+flat fanart 應帶 stem，實際：{fanart_name!r}'
 
     # ---- H: 邊界 negative — apartment1 不誤命中 ----
 
@@ -3608,3 +3605,182 @@ class TestOrganizeMultipart:
         assert re.search(r'-cd1$', stem), (
             f'stem 應以 -cd1 結尾，實際：{stem!r}'
         )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 72c-simplify：kodi == jellyfin_emby（stem 長格式，無 per-folder 切換）
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestKodiStemNamingOrganize:
+    """kodi 模式固定使用 stem 長格式，與 jellyfin_emby 行為完全相同"""
+
+    def _make_kodi_config(self, create_folder: bool, folder_layers=None) -> dict:
+        cfg = {
+            "create_folder": create_folder,
+            "filename_format": "[{num}] {title}",
+            "download_cover": True,
+            "cover_filename": "poster.jpg",
+            "create_nfo": True,
+            "max_title_length": 50,
+            "max_filename_length": 60,
+            "suffix_keywords": [],
+            "external_manager": "kodi",
+        }
+        if folder_layers is not None:
+            cfg["folder_layers"] = folder_layers
+        return cfg
+
+    def _make_kodi_metadata(self, number: str = "SONE-205", actors=None) -> dict:
+        return {
+            "number": number,
+            "title": "Test Title",
+            "actors": actors or [],
+            "tags": [],
+            "maker": "S1",
+            "date": "2024-01-15",
+            "cover": "http://fake/cover.jpg",
+            "url": "",
+        }
+
+    def test_O1_kodi_create_folder_false_stem_named(self, tmp_path):
+        """O1：kodi + create_folder=False → stem 命名，NFO <poster> 對得上 stem。"""
+        src = tmp_path / "SONE-205.mp4"
+        src.write_bytes(b"fake mp4")
+
+        config = self._make_kodi_config(create_folder=False)
+        metadata = self._make_kodi_metadata()
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+        fanart = Path(result["fanart_path"])
+        poster = Path(result["poster_path"])
+
+        assert fanart.name.endswith("-fanart.jpg"), f"kodi+flat fanart 應帶 stem，實際: {fanart.name}"
+        assert poster.name.endswith("-poster.jpg"), f"kodi+flat poster 應帶 stem，實際: {poster.name}"
+        assert fanart.exists()
+        assert poster.exists()
+
+        # 裸短名不存在
+        assert not (tmp_path / "poster.jpg").exists(), "不應存在裸 poster.jpg"
+        assert not (tmp_path / "fanart.jpg").exists(), "不應存在裸 fanart.jpg"
+
+        # NFO <poster> tag 與磁碟檔名一致
+        assert result.get("nfo_path") is not None
+        nfo = Path(result["nfo_path"]).read_text(encoding="utf-8")
+        assert f"<poster>{poster.name}</poster>" in nfo, \
+            f"NFO <poster> 應指向 {poster.name}"
+
+    def test_O2_kodi_create_folder_true_actor_layer_stem_named(self, tmp_path):
+        """O2：kodi + create_folder=True + folder_layers=['{actor}'] → 仍使用 stem 命名（不再短名）。"""
+        src = tmp_path / "SONE-205.mp4"
+        src.write_bytes(b"fake mp4")
+
+        config = self._make_kodi_config(create_folder=True, folder_layers=["{actor}"])
+        metadata = self._make_kodi_metadata(actors=["三上悠亞"])
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True, f"organize 失敗: {result.get('error')}"
+        fanart = Path(result["fanart_path"])
+        poster = Path(result["poster_path"])
+
+        assert fanart.name.endswith("-fanart.jpg"), f"kodi+actor fanart 應帶 stem，實際: {fanart.name}"
+        assert poster.name.endswith("-poster.jpg"), f"kodi+actor poster 應帶 stem，實際: {poster.name}"
+
+        # 裸短名不存在
+        actor_dir = Path(result["new_folder"])
+        assert not (actor_dir / "poster.jpg").exists(), "actor 資料夾不應有裸 poster.jpg"
+        assert not (actor_dir / "fanart.jpg").exists(), "actor 資料夾不應有裸 fanart.jpg"
+
+        # NFO tag 一致
+        assert result.get("nfo_path") is not None
+        nfo = Path(result["nfo_path"]).read_text(encoding="utf-8")
+        assert f"<poster>{poster.name}</poster>" in nfo
+
+    def test_kodi_equals_jellyfin_emby_same_filenames(self, tmp_path):
+        """kodi 輸出 == jellyfin_emby 輸出（相同 stem 命名 + 相同 NFO poster/fanart tag）。"""
+        src_k = tmp_path / "SONE-205.mp4"
+        src_j = tmp_path / "SONE-205B.mp4"
+        src_k.write_bytes(b"kodi")
+        src_j.write_bytes(b"jf")
+
+        cfg_k = self._make_kodi_config(create_folder=False)
+        cfg_j = _make_ext_config("jellyfin_emby")
+        meta_k = self._make_kodi_metadata("SONE-205")
+        meta_j = _make_ext_metadata("SONE-205B")
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            res_k = organize_file(str(src_k), meta_k, cfg_k)
+            res_j = organize_file(str(src_j), meta_j, cfg_j)
+
+        assert res_k["success"] and res_j["success"]
+        # 兩者都產 stem-poster.jpg 和 stem-fanart.jpg（不同 stem 但格式相同）
+        assert Path(res_k["fanart_path"]).name.endswith("-fanart.jpg")
+        assert Path(res_k["poster_path"]).name.endswith("-poster.jpg")
+        assert Path(res_j["fanart_path"]).name.endswith("-fanart.jpg")
+        assert Path(res_j["poster_path"]).name.endswith("-poster.jpg")
+
+        # NFO tag 格式相同（各自 basename）
+        nfo_k = Path(res_k["nfo_path"]).read_text(encoding="utf-8")
+        nfo_j = Path(res_j["nfo_path"]).read_text(encoding="utf-8")
+        assert "-poster.jpg</poster>" in nfo_k
+        assert "-fanart.jpg</fanart>" in nfo_k
+        assert "-poster.jpg</poster>" in nfo_j
+        assert "-fanart.jpg</fanart>" in nfo_j
+
+    def test_kodi_multi_video_no_collision(self, tmp_path):
+        """kodi + 同資料夾兩部片 → 各自 stem 命名，無碰撞。"""
+        src1 = tmp_path / "SONE-205.mp4"
+        src2 = tmp_path / "MIDE-001.mp4"
+        src1.write_bytes(b"a")
+        src2.write_bytes(b"b")
+
+        cfg = self._make_kodi_config(create_folder=False)
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            r1 = organize_file(str(src1), self._make_kodi_metadata("SONE-205"), cfg)
+            r2 = organize_file(str(src2), self._make_kodi_metadata("MIDE-001"), cfg)
+
+        assert r1["success"] and r2["success"]
+        assert r1.get("poster_path") is not None, "r1 應產 poster_path"
+        assert r2.get("poster_path") is not None, "r2 應產 poster_path"
+        # 各有獨立 stem 命名（不同路徑）
+        assert r1["poster_path"] != r2["poster_path"], "兩片 poster 路徑不應相同"
+        assert Path(r1["poster_path"]).name.endswith("-poster.jpg"), "r1 poster 應帶 stem"
+        assert Path(r2["poster_path"]).name.endswith("-poster.jpg"), "r2 poster 應帶 stem"
+        # 裸短名不存在
+        assert not (tmp_path / "poster.jpg").exists(), "不應有共用裸 poster.jpg"
+
+    def test_O3_jellyfin_emby_unchanged(self, tmp_path):
+        """O3：jellyfin_emby + create_folder=False → stem 命名不變（回歸）。"""
+        src = tmp_path / "SONE-205.mp4"
+        src.write_bytes(b"fake mp4")
+
+        config = _make_ext_config("jellyfin_emby", create_folder=False)
+        metadata = _make_ext_metadata()
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True
+        assert Path(result["fanart_path"]).name.endswith("-fanart.jpg")
+        assert Path(result["poster_path"]).name.endswith("-poster.jpg")
+
+    def test_O3_off_unchanged(self, tmp_path):
+        """O3 off：off + create_folder=False → 無 poster/fanart（回歸）。"""
+        src = tmp_path / "SONE-205.mp4"
+        src.write_bytes(b"fake mp4")
+
+        config = _make_ext_config("off", create_folder=False)
+        metadata = _make_ext_metadata()
+
+        with patch("core.organizer.download_image", side_effect=_mock_download_image_write_jpeg):
+            result = organize_file(str(src), metadata, config)
+
+        assert result["success"] is True
+        assert result.get("fanart_path") is None
+        assert result.get("poster_path") is None

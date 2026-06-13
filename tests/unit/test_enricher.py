@@ -1177,15 +1177,18 @@ class TestWriteExternalImages:
         assert (tmp_path / "SONE-205-poster.jpg").exists()
         assert (tmp_path / "SONE-205-fanart.jpg").exists()
 
-    def test_kodi_creates_poster_fanart_no_stem(self, tmp_path):
-        """kodi：產 poster.jpg + fanart.jpg（無 stem），回傳 True/True。"""
+    def test_kodi_creates_stem_poster_fanart(self, tmp_path):
+        """kodi：產 {stem}-poster.jpg + {stem}-fanart.jpg（與 jellyfin_emby 相同），回傳 True/True。"""
         cover = tmp_path / "SONE-205.jpg"
         _create_dummy_jpeg(cover)
         from core.enricher import _write_external_images
         result = _write_external_images(str(tmp_path / "SONE-205.mp4"), "kodi", True)
         assert result == {"poster": True, "fanart": True}
-        assert (tmp_path / "poster.jpg").exists()
-        assert (tmp_path / "fanart.jpg").exists()
+        assert (tmp_path / "SONE-205-poster.jpg").exists()
+        assert (tmp_path / "SONE-205-fanart.jpg").exists()
+        # 裸短名不存在
+        assert not (tmp_path / "poster.jpg").exists()
+        assert not (tmp_path / "fanart.jpg").exists()
 
     def test_overwrite_false_existing_skips_but_reports_true(self, tmp_path):
         """overwrite=False + 已有 poster/fanart → 跳過寫入，但回傳 True（磁碟存在）。"""
@@ -1315,8 +1318,8 @@ class TestEnrichSingleExternalManager:
         assert captured[0].get("has_poster") is True
         assert captured[0].get("has_fanart") is True
 
-    def test_kodi_creates_images_nfo_has_poster_fanart(self, tmp_path):
-        """kodi：產 poster.jpg + fanart.jpg，NFO has_poster/has_fanart=True。"""
+    def test_kodi_creates_stem_images_nfo_has_poster_fanart(self, tmp_path):
+        """kodi：產 {stem}-poster.jpg + {stem}-fanart.jpg（與 jellyfin_emby 相同），NFO has_poster/has_fanart=True。"""
         mp4 = tmp_path / "SONE-205.mp4"
         mp4.touch()
         cover = tmp_path / "SONE-205.jpg"
@@ -1345,8 +1348,11 @@ class TestEnrichSingleExternalManager:
             )
 
         assert result.success is True
-        assert (tmp_path / "poster.jpg").exists()
-        assert (tmp_path / "fanart.jpg").exists()
+        # kodi 固定 stem 命名（與 jellyfin_emby 相同）
+        assert (tmp_path / "SONE-205-poster.jpg").exists(), "kodi 應產 stem-poster.jpg"
+        assert (tmp_path / "SONE-205-fanart.jpg").exists(), "kodi 應產 stem-fanart.jpg"
+        assert not (tmp_path / "poster.jpg").exists(), "kodi 不應有裸 poster.jpg"
+        assert not (tmp_path / "fanart.jpg").exists(), "kodi 不應有裸 fanart.jpg"
         assert captured, "generate_nfo 應被呼叫"
         assert captured[0].get("external_manager") == "kodi"
         assert captured[0].get("has_poster") is True
@@ -1538,3 +1544,390 @@ class TestEnrichSingleExternalManager:
 
         assert result.extrafanart_written == 0
         assert not (tmp_path / "extrafanart").exists()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 72c-codexP1：kodi 多片共用資料夾 stem 命名（E1/E2/E3/E4）
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestKodiStemNaming:
+    """E1/E2/E3/E4：kodi 模式 stem/短名切換 + 多片不碰撞（72c-codexP1）"""
+
+    def _make_mock_repo_for(self, number: str):
+        mock_repo = MagicMock()
+        mock_repo.get_by_numbers.return_value = {number: [_make_video(number=number)]}
+        mock_repo.get_by_path.return_value = None
+        # db_path 設 in-memory：避免 enrich nfo_mtime 更新路徑（enricher.py:525
+        # get_connection(repo.db_path)）對 MagicMock 做 sqlite3.connect → 在 repo root
+        # 產生 "<MagicMock ...>" 垃圾檔。:memory: 下該 UPDATE 因無 videos 表靜默失敗
+        # （已被 try/except 包裹），不留任何檔案。
+        mock_repo.db_path = ":memory:"
+        return mock_repo
+
+    def test_E1_kodi_two_videos_stem_named_no_collision(self, tmp_path):
+        """E1：kodi + 同資料夾 2 片 → 各得 {stem}-poster.jpg/{stem}-fanart.jpg；
+        無共用 poster.jpg；各 NFO <poster> 各指自己 stem。"""
+        # 建立 2 個 mp4 + 各自封面
+        mp4_a = tmp_path / "SONE-205.mp4"
+        mp4_b = tmp_path / "MIDE-001.mp4"
+        mp4_a.touch()
+        mp4_b.touch()
+        cover_a = tmp_path / "SONE-205.jpg"
+        cover_b = tmp_path / "MIDE-001.jpg"
+        _create_dummy_jpeg(cover_a)
+        _create_dummy_jpeg(cover_b)
+
+        captured_a = []
+        captured_b = []
+
+        def fake_nfo_a(**kwargs):
+            captured_a.append(kwargs)
+
+        def fake_nfo_b(**kwargs):
+            captured_b.append(kwargs)
+
+        # 處理第一片 SONE-205
+        with (
+            patch("core.enricher.VideoRepository", return_value=self._make_mock_repo_for("SONE-205")),
+            patch("core.enricher.search_jav", return_value=None),
+            patch("core.enricher.generate_nfo", side_effect=fake_nfo_a),
+            patch("core.enricher.download_image", return_value=False),
+            patch("core.enricher.find_subtitle_files", return_value=[]),
+        ):
+            from core.enricher import enrich_single
+            result_a = enrich_single(
+                file_path=str(mp4_a),
+                number="SONE-205",
+                write_nfo=True,
+                write_cover=False,
+                overwrite_existing=True,
+                external_manager="kodi",
+            )
+
+        # 處理第二片 MIDE-001
+        with (
+            patch("core.enricher.VideoRepository", return_value=self._make_mock_repo_for("MIDE-001")),
+            patch("core.enricher.search_jav", return_value=None),
+            patch("core.enricher.generate_nfo", side_effect=fake_nfo_b),
+            patch("core.enricher.download_image", return_value=False),
+            patch("core.enricher.find_subtitle_files", return_value=[]),
+        ):
+            from core.enricher import enrich_single
+            result_b = enrich_single(
+                file_path=str(mp4_b),
+                number="MIDE-001",
+                write_nfo=True,
+                write_cover=False,
+                overwrite_existing=True,
+                external_manager="kodi",
+            )
+
+        assert result_a.success is True
+        assert result_b.success is True
+
+        # E1：各得 stem 命名
+        assert (tmp_path / "SONE-205-poster.jpg").exists(), "A 應產 stem poster"
+        assert (tmp_path / "SONE-205-fanart.jpg").exists(), "A 應產 stem fanart"
+        assert (tmp_path / "MIDE-001-poster.jpg").exists(), "B 應產 stem poster"
+        assert (tmp_path / "MIDE-001-fanart.jpg").exists(), "B 應產 stem fanart"
+
+        # E1：不存在共用短名（kodi 固定 stem 長格式）
+        assert not (tmp_path / "poster.jpg").exists(), "共用 poster.jpg 不應存在"
+        assert not (tmp_path / "fanart.jpg").exists(), "共用 fanart.jpg 不應存在"
+
+        # E1：generate_nfo 均被呼叫且 external_manager='kodi'
+        assert captured_a, "SONE-205 generate_nfo 應被呼叫"
+        assert captured_b, "MIDE-001 generate_nfo 應被呼叫"
+        assert captured_a[0].get("external_manager") == "kodi"
+        assert captured_b[0].get("external_manager") == "kodi"
+
+    def test_E2_kodi_single_video_stem_named(self, tmp_path):
+        """E2：kodi + 同資料夾僅 1 片 → 仍使用 stem 命名（固定行為，與 jellyfin_emby 相同）。"""
+        mp4 = tmp_path / "SONE-205.mp4"
+        mp4.touch()
+        cover = tmp_path / "SONE-205.jpg"
+        _create_dummy_jpeg(cover)
+
+        captured = []
+
+        def fake_nfo(**kwargs):
+            captured.append(kwargs)
+
+        with (
+            patch("core.enricher.VideoRepository", return_value=self._make_mock_repo_for("SONE-205")),
+            patch("core.enricher.search_jav", return_value=None),
+            patch("core.enricher.generate_nfo", side_effect=fake_nfo),
+            patch("core.enricher.download_image", return_value=False),
+            patch("core.enricher.find_subtitle_files", return_value=[]),
+        ):
+            from core.enricher import enrich_single
+            result = enrich_single(
+                file_path=str(mp4),
+                number="SONE-205",
+                write_nfo=True,
+                write_cover=False,
+                overwrite_existing=True,
+                external_manager="kodi",
+            )
+
+        assert result.success is True
+
+        # E2：stem 命名（kodi 固定長格式）
+        assert (tmp_path / "SONE-205-poster.jpg").exists(), "kodi 應產 {stem}-poster.jpg"
+        assert (tmp_path / "SONE-205-fanart.jpg").exists(), "kodi 應產 {stem}-fanart.jpg"
+
+        # E2：裸短名不存在
+        assert not (tmp_path / "poster.jpg").exists(), "kodi 不應有裸 poster.jpg"
+        assert not (tmp_path / "fanart.jpg").exists(), "kodi 不應有裸 fanart.jpg"
+
+        # E2：generate_nfo 呼叫帶 external_manager='kodi'
+        assert captured, "generate_nfo 應被呼叫"
+        assert captured[0].get("external_manager") == "kodi"
+
+    def test_E3_kodi_two_videos_overwrite_true_no_cross_contamination(self, tmp_path):
+        """E3：kodi 2 片 + overwrite_existing=True → 第二片不覆蓋第一片 artwork（路徑互異）。"""
+        mp4_a = tmp_path / "SONE-205.mp4"
+        mp4_b = tmp_path / "MIDE-001.mp4"
+        mp4_a.touch()
+        mp4_b.touch()
+        cover_a = tmp_path / "SONE-205.jpg"
+        cover_b = tmp_path / "MIDE-001.jpg"
+        _create_dummy_jpeg(cover_a)
+        _create_dummy_jpeg(cover_b)
+
+        # 處理第一片
+        with (
+            patch("core.enricher.VideoRepository", return_value=self._make_mock_repo_for("SONE-205")),
+            patch("core.enricher.search_jav", return_value=None),
+            patch("core.enricher.generate_nfo"),
+            patch("core.enricher.download_image", return_value=False),
+            patch("core.enricher.find_subtitle_files", return_value=[]),
+        ):
+            from core.enricher import enrich_single
+            enrich_single(
+                file_path=str(mp4_a),
+                number="SONE-205",
+                write_nfo=False,
+                write_cover=False,
+                overwrite_existing=True,
+                external_manager="kodi",
+            )
+
+        # 記錄第一片 artwork mtime
+        poster_a = tmp_path / "SONE-205-poster.jpg"
+        fanart_a = tmp_path / "SONE-205-fanart.jpg"
+        assert poster_a.exists(), "E3 前置：A poster 應存在"
+        mtime_a_poster = poster_a.stat().st_mtime
+        mtime_a_fanart = fanart_a.stat().st_mtime
+
+        # 處理第二片
+        with (
+            patch("core.enricher.VideoRepository", return_value=self._make_mock_repo_for("MIDE-001")),
+            patch("core.enricher.search_jav", return_value=None),
+            patch("core.enricher.generate_nfo"),
+            patch("core.enricher.download_image", return_value=False),
+            patch("core.enricher.find_subtitle_files", return_value=[]),
+        ):
+            from core.enricher import enrich_single
+            enrich_single(
+                file_path=str(mp4_b),
+                number="MIDE-001",
+                write_nfo=False,
+                write_cover=False,
+                overwrite_existing=True,
+                external_manager="kodi",
+            )
+
+        # E3：A 的 artwork 不被 B 覆蓋（路徑互異，mtime 不變）
+        assert poster_a.stat().st_mtime == mtime_a_poster, "A poster 不應被 B 覆蓋"
+        assert fanart_a.stat().st_mtime == mtime_a_fanart, "A fanart 不應被 B 覆蓋"
+        # B 有自己的 artwork
+        assert (tmp_path / "MIDE-001-poster.jpg").exists(), "B 應有自己的 poster"
+        assert (tmp_path / "MIDE-001-fanart.jpg").exists(), "B 應有自己的 fanart"
+
+    def test_E4_jellyfin_emby_unchanged(self, tmp_path):
+        """E4：jellyfin_emby 行為不變（回歸）— stem 命名，NFO external_manager='jellyfin_emby'。"""
+        mp4_a = tmp_path / "SONE-205.mp4"
+        mp4_b = tmp_path / "MIDE-001.mp4"
+        mp4_a.touch()
+        mp4_b.touch()
+        cover_a = tmp_path / "SONE-205.jpg"
+        cover_b = tmp_path / "MIDE-001.jpg"
+        _create_dummy_jpeg(cover_a)
+        _create_dummy_jpeg(cover_b)
+
+        captured = []
+
+        def fake_nfo(**kwargs):
+            captured.append(kwargs)
+
+        # 只測第一片（jellyfin_emby 的 stem 命名本就 per-video，回歸即可）
+        with (
+            patch("core.enricher.VideoRepository", return_value=MagicMock(
+                **{"get_by_numbers.return_value": {"SONE-205": [_make_video()]},
+                   "get_by_path.return_value": None}
+            )),
+            patch("core.enricher.search_jav", return_value=None),
+            patch("core.enricher.generate_nfo", side_effect=fake_nfo),
+            patch("core.enricher.download_image", return_value=False),
+            patch("core.enricher.find_subtitle_files", return_value=[]),
+        ):
+            from core.enricher import enrich_single
+            result = enrich_single(
+                file_path=str(mp4_a),
+                number="SONE-205",
+                write_nfo=True,
+                write_cover=False,
+                overwrite_existing=True,
+                external_manager="jellyfin_emby",
+            )
+
+        assert result.success is True
+        # jellyfin_emby：stem 命名
+        assert (tmp_path / "SONE-205-poster.jpg").exists()
+        assert (tmp_path / "SONE-205-fanart.jpg").exists()
+        # E4：NFO external_manager='jellyfin_emby'
+        assert captured
+        assert captured[0].get("external_manager") == "jellyfin_emby"
+        assert captured[0].get("has_poster") is True
+        assert captured[0].get("has_fanart") is True
+
+    def test_E4_off_unchanged(self, tmp_path):
+        """E4 off：off 模式不寫 external images（回歸）。"""
+        mp4 = tmp_path / "SONE-205.mp4"
+        mp4.touch()
+        cover = tmp_path / "SONE-205.jpg"
+        _create_dummy_jpeg(cover)
+
+        with (
+            patch("core.enricher.VideoRepository", return_value=MagicMock(
+                **{"get_by_numbers.return_value": {"SONE-205": [_make_video()]},
+                   "get_by_path.return_value": None}
+            )),
+            patch("core.enricher.search_jav", return_value=None),
+            patch("core.enricher.generate_nfo"),
+            patch("core.enricher.download_image", return_value=False),
+            patch("core.enricher.find_subtitle_files", return_value=[]),
+        ):
+            from core.enricher import enrich_single
+            result = enrich_single(
+                file_path=str(mp4),
+                number="SONE-205",
+                write_nfo=False,
+                write_cover=False,
+                overwrite_existing=True,
+                external_manager="off",
+            )
+
+        assert result.success is True
+        # off 模式：無任何 poster/fanart
+        assert not (tmp_path / "poster.jpg").exists()
+        assert not (tmp_path / "fanart.jpg").exists()
+        assert not (tmp_path / "SONE-205-poster.jpg").exists()
+        assert not (tmp_path / "SONE-205-fanart.jpg").exists()
+
+    def test_E5_uri_input_kodi_stem_named(self, tmp_path):
+        """E5：enrich_single 接收 file:/// URI（production path）時，
+        kodi → stem 命名（固定，不論 sibling video 數量）。"""
+        mp4_a = tmp_path / "SONE-205.mp4"
+        mp4_b = tmp_path / "MIDE-001.mp4"
+        mp4_a.touch()
+        mp4_b.touch()
+        cover_a = tmp_path / "SONE-205.jpg"
+        _create_dummy_jpeg(cover_a)
+
+        captured = []
+
+        def fake_nfo(**kwargs):
+            captured.append(kwargs)
+
+        # 關鍵：file_path 用 to_file_uri 包裝成 file:/// URI（模擬 web API 傳入）
+        file_uri = to_file_uri(str(mp4_a))
+
+        with (
+            patch("core.enricher.VideoRepository", return_value=self._make_mock_repo_for("SONE-205")),
+            patch("core.enricher.search_jav", return_value=None),
+            patch("core.enricher.generate_nfo", side_effect=fake_nfo),
+            patch("core.enricher.download_image", return_value=False),
+            patch("core.enricher.find_subtitle_files", return_value=[]),
+        ):
+            from core.enricher import enrich_single
+            result = enrich_single(
+                file_path=file_uri,
+                number="SONE-205",
+                write_nfo=True,
+                write_cover=False,
+                overwrite_existing=True,
+                external_manager="kodi",
+            )
+
+        assert result.success is True, f"enrich_single 應成功，error={result.error}"
+        # URI input 下 kodi 固定 stem 命名
+        assert captured, "generate_nfo 應被呼叫"
+        assert captured[0].get("external_manager") == "kodi"
+        # 磁碟上應有 stem 命名 artwork
+        assert (tmp_path / "SONE-205-poster.jpg").exists(), "URI input 下應產 stem poster"
+        assert (tmp_path / "SONE-205-fanart.jpg").exists(), "URI input 下應產 stem fanart"
+        assert not (tmp_path / "poster.jpg").exists(), "URI input 下不應有共用 poster.jpg"
+
+    def test_E6_kodi_nfo_disk_content_stem_names(self, tmp_path):
+        """E6（disk 驗證）：kodi → 寫入磁碟的 NFO <poster>/<fanart>
+        包含 {stem}-poster.jpg/{stem}-fanart.jpg，且不含 bare poster.jpg。
+        不 mock generate_nfo — 驗證 NFO 實際寫入內容。"""
+        import xml.etree.ElementTree as ET
+
+        mp4_a = tmp_path / "SONE-205.mp4"
+        mp4_b = tmp_path / "MIDE-001.mp4"
+        mp4_a.touch()
+        mp4_b.touch()
+        cover_a = tmp_path / "SONE-205.jpg"
+        _create_dummy_jpeg(cover_a)
+
+        with (
+            patch("core.enricher.VideoRepository", return_value=self._make_mock_repo_for("SONE-205")),
+            patch("core.enricher.search_jav", return_value=None),
+            # generate_nfo NOT mocked — 真實寫 NFO 到磁碟
+            patch("core.enricher.download_image", return_value=False),
+            patch("core.enricher.find_subtitle_files", return_value=[]),
+        ):
+            from core.enricher import enrich_single
+            result = enrich_single(
+                file_path=str(mp4_a),
+                number="SONE-205",
+                write_nfo=True,
+                write_cover=False,
+                overwrite_existing=True,
+                external_manager="kodi",
+            )
+
+        assert result.success is True, f"enrich_single 應成功，error={result.error}"
+        assert result.nfo_written is True, "NFO 應寫出"
+
+        nfo_path = tmp_path / "SONE-205.nfo"
+        assert nfo_path.exists(), "NFO 檔應存在於磁碟"
+
+        tree = ET.parse(str(nfo_path))
+        root = tree.getroot()
+
+        poster_elem = root.find("poster")
+        fanart_elem = root.find("fanart")
+        assert poster_elem is not None, "NFO 應有 <poster> 標籤"
+        assert fanart_elem is not None, "NFO 應有 <fanart> 標籤"
+
+        poster_text = poster_elem.text or ""
+        fanart_text = fanart_elem.text or ""
+
+        # kodi 固定 stem 命名
+        assert "SONE-205-poster" in poster_text, (
+            f"NFO <poster> 應含 stem 命名（SONE-205-poster），實際：{poster_text!r}"
+        )
+        assert "SONE-205-fanart" in fanart_text, (
+            f"NFO <fanart> 應含 stem 命名（SONE-205-fanart），實際：{fanart_text!r}"
+        )
+        assert poster_text.strip() != "poster.jpg", (
+            "NFO <poster> 不應是 bare 'poster.jpg'"
+        )
+        assert fanart_text.strip() != "fanart.jpg", (
+            "NFO <fanart> 不應是 bare 'fanart.jpg'"
+        )

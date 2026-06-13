@@ -89,7 +89,7 @@ def test_write_nfo_passes_external_manager_to_generate_nfo(tmp_path):
 
 
 def test_write_nfo_passes_has_poster_has_fanart(tmp_path):
-    """T6: _write_nfo(has_poster=True, has_fanart=True) → generate_nfo 收到 True/True。"""
+    """T6: _write_nfo(has_poster=True, has_fanart=True) → generate_nfo 收到 True/True（kodi 亦同）。"""
     fs_path = str(tmp_path / "SONE-205.mp4")
     meta = {"title": "T"}
     with patch("core.enricher.generate_nfo") as mock_gen:
@@ -100,6 +100,7 @@ def test_write_nfo_passes_has_poster_has_fanart(tmp_path):
     _, kwargs = mock_gen.call_args
     assert kwargs["has_poster"] is True
     assert kwargs["has_fanart"] is True
+    assert kwargs["external_manager"] == "kodi"
 
 
 def test_write_nfo_off_mode_default_has_poster_fanart_false(tmp_path):

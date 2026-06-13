@@ -148,11 +148,11 @@ class TestJellyfinEmbyMode:
 
 
 # ─────────────────────────────────────────────
-# C. external_manager="kodi"
+# C. external_manager="kodi"（與 jellyfin_emby 相同：stem 長格式）
 # ─────────────────────────────────────────────
 
 class TestKodiMode:
-    """external_manager="kodi" 時的行為"""
+    """external_manager="kodi" 時的行為：與 jellyfin_emby 完全相同（stem 長格式）"""
 
     def test_f3_all_five_fields_present_kodi(self, tmp_path):
         """kodi → 五個 F3 欄位全部存在（與 jellyfin_emby 相同的 F3 區塊）"""
@@ -163,33 +163,33 @@ class TestKodiMode:
         assert "<sorttitle>" in nfo
         assert 'type="num"' in nfo or "type='num'" in nfo
 
-    def test_poster_independent_naming_has_poster_true(self, tmp_path):
-        """kodi + has_poster=True → <poster>poster.jpg</poster>（獨立命名，不帶 stem）"""
+    def test_poster_stem_naming_has_poster_true(self, tmp_path):
+        """kodi + has_poster=True → <poster>ABC-123-poster.jpg</poster>（stem 長格式）"""
         nfo = _read_nfo(tmp_path, has_poster=True, external_manager="kodi")
-        assert "<poster>poster.jpg</poster>" in nfo
-        # 確認不出現 stem 形式
-        assert "<poster>ABC-123-poster.jpg</poster>" not in nfo
-        assert "<poster>ABC-123.jpg</poster>" not in nfo
+        assert "<poster>ABC-123-poster.jpg</poster>" in nfo
+        # 確認不出現裸短名
+        assert "<poster>poster.jpg</poster>" not in nfo
 
-    def test_poster_independent_naming_has_poster_false(self, tmp_path):
-        """kodi + has_poster=False → 仍是 <poster>poster.jpg</poster>（不看 has_poster）"""
+    def test_poster_no_suffix_has_poster_false(self, tmp_path):
+        """kodi + has_poster=False → <poster>ABC-123.jpg</poster>（無 -poster 後綴）"""
         nfo = _read_nfo(tmp_path, has_poster=False, external_manager="kodi")
-        assert "<poster>poster.jpg</poster>" in nfo
+        assert "<poster>ABC-123.jpg</poster>" in nfo
+        assert "<poster>poster.jpg</poster>" not in nfo
 
-    def test_fanart_independent_naming_has_fanart_true(self, tmp_path):
-        """kodi + has_fanart=True → <fanart>fanart.jpg</fanart>（獨立命名）"""
+    def test_fanart_stem_naming_has_fanart_true(self, tmp_path):
+        """kodi + has_fanart=True → <fanart>ABC-123-fanart.jpg</fanart>（stem 長格式）"""
         nfo = _read_nfo(tmp_path, has_fanart=True, external_manager="kodi")
-        assert "<fanart>fanart.jpg</fanart>" in nfo
-        assert "<fanart>ABC-123-fanart.jpg</fanart>" not in nfo
-        assert "<fanart>ABC-123.jpg</fanart>" not in nfo
+        assert "<fanart>ABC-123-fanart.jpg</fanart>" in nfo
+        assert "<fanart>fanart.jpg</fanart>" not in nfo
 
-    def test_fanart_independent_naming_has_fanart_false(self, tmp_path):
-        """kodi + has_fanart=False → 仍是 <fanart>fanart.jpg</fanart>"""
+    def test_fanart_no_suffix_has_fanart_false(self, tmp_path):
+        """kodi + has_fanart=False → <fanart>ABC-123.jpg</fanart>"""
         nfo = _read_nfo(tmp_path, has_fanart=False, external_manager="kodi")
-        assert "<fanart>fanart.jpg</fanart>" in nfo
+        assert "<fanart>ABC-123.jpg</fanart>" in nfo
+        assert "<fanart>fanart.jpg</fanart>" not in nfo
 
     def test_thumb_still_stem_kodi(self, tmp_path):
-        """kodi → <thumb> 仍是 {stem}.jpg，與 poster/fanart 獨立命名並存（CD-12）"""
+        """kodi → <thumb> 仍是 {stem}.jpg（CD-12）"""
         nfo = _read_nfo(tmp_path, external_manager="kodi")
         assert "<thumb>ABC-123.jpg</thumb>" in nfo
 
@@ -198,6 +198,50 @@ class TestKodiMode:
         nfo = _read_nfo(tmp_path, number="MIDE-001", title="Kodi Film",
                         external_manager="kodi")
         assert "<sorttitle>[MIDE-001]Kodi Film</sorttitle>" in nfo
+
+    def test_kodi_equals_jellyfin_emby_stem_tags(self, tmp_path):
+        """kodi tag == jellyfin_emby tag — 直接等價斷言（兩者 poster/fanart 行為相同）"""
+        kodi_nfo = _read_nfo(tmp_path, has_poster=True, has_fanart=True,
+                             external_manager="kodi")
+        jf_nfo = _read_nfo(tmp_path, has_poster=True, has_fanart=True,
+                           external_manager="jellyfin_emby")
+        # 找出 poster/fanart 行
+        import re
+        kodi_poster = re.search(r'<poster>(.*?)</poster>', kodi_nfo)
+        jf_poster = re.search(r'<poster>(.*?)</poster>', jf_nfo)
+        kodi_fanart = re.search(r'<fanart>(.*?)</fanart>', kodi_nfo)
+        jf_fanart = re.search(r'<fanart>(.*?)</fanart>', jf_nfo)
+        assert kodi_poster and jf_poster
+        assert kodi_poster.group(1) == jf_poster.group(1), \
+            f"kodi poster tag 應與 jellyfin_emby 相同: {kodi_poster.group(1)!r} != {jf_poster.group(1)!r}"
+        assert kodi_fanart and jf_fanart
+        assert kodi_fanart.group(1) == jf_fanart.group(1), \
+            f"kodi fanart tag 應與 jellyfin_emby 相同: {kodi_fanart.group(1)!r} != {jf_fanart.group(1)!r}"
+
+
+# ─────────────────────────────────────────────
+# E. off/jellyfin_emby 回歸
+# ─────────────────────────────────────────────
+
+class TestOffJellyfinRegression:
+    """off / jellyfin_emby 回歸：stem tag 行為不變"""
+
+    def test_off_stem_tag_with_poster(self, tmp_path):
+        """off + has_poster=True → stem tag（byte-identical）"""
+        nfo = _read_nfo(tmp_path, has_poster=True, has_fanart=True, external_manager="off")
+        assert "<poster>ABC-123-poster.jpg</poster>" in nfo
+        assert "<fanart>ABC-123-fanart.jpg</fanart>" in nfo
+
+    def test_jellyfin_stem_tag_with_poster(self, tmp_path):
+        """jellyfin_emby + has_poster=True → stem tag（byte-identical）"""
+        nfo = _read_nfo(tmp_path, has_poster=True, has_fanart=True, external_manager="jellyfin_emby")
+        assert "<poster>ABC-123-poster.jpg</poster>" in nfo
+        assert "<fanart>ABC-123-fanart.jpg</fanart>" in nfo
+
+    def test_off_thumb_unchanged(self, tmp_path):
+        """off → <thumb> 仍是 {stem}.jpg"""
+        nfo = _read_nfo(tmp_path, external_manager="off")
+        assert "<thumb>ABC-123.jpg</thumb>" in nfo
 
 
 # ─────────────────────────────────────────────
