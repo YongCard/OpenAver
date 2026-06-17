@@ -83,6 +83,12 @@ def test_d2pass_canary():
     _run_canary("d2pass", D2PassScraper())
 
 
+def test_avsox_canary():
+    # Group A (probe-backed): _ensure_session() probe distinguishes site-down (skip)
+    # from 200-but-empty-parse (fail). avsox revived via JSON API (US5).
+    _run_canary("avsox", AVSOXScraper(), note="avsox revived (JSON API)")
+
+
 # ========== Group B (quorum-only, no probe) ==========
 
 def test_fc2_canary():
@@ -97,12 +103,6 @@ def test_javdb_canary():
     except ImportError:
         pytest.skip("curl_cffi not installed")
     _run_canary("javdb", JavDBScraper(), note="javdb all-skip likely CF-banned")
-
-
-def test_avsox_canary():
-    # Known-dead until US5 (site went SPA + 403). Group B -> None probe -> row 6
-    # skip -> quorum skip -> pytest.skip. CANARY_NUMBERS["avsox"] notes known-dead.
-    _run_canary("avsox", AVSOXScraper(), note="known-dead until US5")
 
 
 # ========== dmm (proxy-gated, 4-way) ==========

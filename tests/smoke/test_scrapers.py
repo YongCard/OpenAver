@@ -163,13 +163,13 @@ class TestAVSOXScraper:
         return AVSOXScraper()
 
     def test_get_working_domain(self, scraper):
-        """測試：取得可用網域"""
-        domain = scraper._get_working_domain()
-
-        if domain:  # 網路依賴
-            assert isinstance(domain, str)
-            assert domain.startswith("https://")
-            assert "avsox" in domain
+        """測試：取得可用網域（改用 _ensure_session()，T1 已刪 _get_working_domain）"""
+        base, token = scraper._ensure_session()
+        if base:  # 網路依賴
+            assert isinstance(base, str)
+            assert base.startswith("https://")
+            assert "avsox" in base
+            assert isinstance(token, str) and token
 
     def test_search_uncensored_number(self, scraper):
         """測試：搜尋無碼番號"""

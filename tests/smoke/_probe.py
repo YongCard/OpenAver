@@ -19,7 +19,7 @@ import requests
 def _probe_reachable(source: str, number: str, scraper) -> bool:
     """Return True if `source` looks reachable for `number`, else False.
 
-    Group A only (javbus / heyzo / d2pass / jav321 / dmm). Group B and unknown
+    Group A only (javbus / heyzo / d2pass / jav321 / dmm / avsox). Group B and unknown
     sources return False (-> classify_one row 6 skip, never a false state-2 fail).
     """
     try:
@@ -66,7 +66,11 @@ def _probe_reachable(source: str, number: str, scraper) -> bool:
             scraper._session.get(scraper.API_URL, timeout=10)
             return True
 
-        # Group B (javdb / fc2 / avsox) or unknown source.
+        if source == "avsox":
+            base, _ = scraper._ensure_session()
+            return base is not None
+
+        # Group B (javdb / fc2) or unknown source.
         return False
     except Exception:
         # NEVER raise — any failure means "treat as unreachable" -> skip.

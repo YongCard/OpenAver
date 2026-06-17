@@ -29,5 +29,6 @@ CANARY_NUMBERS: dict[str, list[str]] = {
     "fc2": ["FC2-PPV-1723984", "FC2-PPV-2200414", "FC2-PPV-2781063", "FC2-PPV-2865434"],
     # fc2 INPUT 用 FC2-PPV- 形式（scraper 接受）；輸出 .number=FC2-{id}（無 PPV），numbers_match 橋接
 
-    "avsox": ["051119-917"],  # known-dead until US5（站方轉 SPA + 403）；T3 預期 all-skip
+    "avsox": ["051119-917", "062719-001", "120415_201", "n0762", "k0874"],
+    # 通用無碼聚合站（US5 復活，轉打 JSON API）；caribbean / 1pondo / Tokyo Hot 混放，混 hyphen/底線型
 }
