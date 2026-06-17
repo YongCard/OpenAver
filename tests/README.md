@@ -6,7 +6,7 @@ OpenAver 使用 `pytest` 作為測試框架，搭配 `npm run lint`（eslint + s
 
 ```bash
 source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install pytest pytest-asyncio pytest-mock httpx
+pip install pytest pytest-asyncio pytest-mock pytest-cov httpx
 ```
 
 ## 目錄結構
