@@ -10,6 +10,15 @@ test_javbus_scraper.py - JavBus 爬蟲單元測試（BC-1 ~ BC-13）
 import pytest
 from unittest.mock import patch, MagicMock
 import requests
+from pathlib import Path
+
+# ============================================================
+# External fixture files (T4)
+# ============================================================
+
+FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "scrapers"
+JAVBUS_JUR688_HTML = (FIXTURE_DIR / "javbus_JUR-688.html").read_text(encoding="utf-8")
+JAVBUS_SNOS143_HTML = (FIXTURE_DIR / "javbus_SNOS-143.html").read_text(encoding="utf-8")
 
 # ============================================================
 # HTML Fixtures
@@ -830,3 +839,69 @@ class TestConnectionErrorHandling:
         scraper_zh._session.get = MagicMock(side_effect=requests.ConnectionError("dns fail"))
         result = scraper_zh.search_by_keyword("SONE")
         assert result == []
+
+
+# ============================================================
+# T4: 外部 fixture 離線斷言 — JUR-688
+# ============================================================
+
+class TestJavbusJUR688Fields:
+    """離線斷言 JUR-688 欄位 contract（fixture 餵法，零連網）"""
+
+    def test_director_non_empty(self, scraper_zh):
+        scraper_zh._session.get = MagicMock(return_value=make_response(JAVBUS_JUR688_HTML))
+        video = scraper_zh.search("JUR-688")
+        assert video is not None
+        assert isinstance(video.director, str) and len(video.director) > 0
+
+    def test_duration_positive_int(self, scraper_zh):
+        scraper_zh._session.get = MagicMock(return_value=make_response(JAVBUS_JUR688_HTML))
+        video = scraper_zh.search("JUR-688")
+        assert video is not None
+        assert isinstance(video.duration, int) and video.duration > 0
+
+    def test_label_non_empty(self, scraper_zh):
+        scraper_zh._session.get = MagicMock(return_value=make_response(JAVBUS_JUR688_HTML))
+        video = scraper_zh.search("JUR-688")
+        assert video is not None
+        assert isinstance(video.label, str) and len(video.label) > 0
+
+    def test_series_non_empty(self, scraper_zh):
+        scraper_zh._session.get = MagicMock(return_value=make_response(JAVBUS_JUR688_HTML))
+        video = scraper_zh.search("JUR-688")
+        assert video is not None
+        assert isinstance(video.series, str) and len(video.series) > 0
+
+    def test_sample_images_non_empty_http(self, scraper_zh):
+        scraper_zh._session.get = MagicMock(return_value=make_response(JAVBUS_JUR688_HTML))
+        video = scraper_zh.search("JUR-688")
+        assert video is not None
+        assert isinstance(video.sample_images, list) and len(video.sample_images) > 0
+        assert all(url.startswith("http") for url in video.sample_images)
+
+
+# ============================================================
+# T4: 外部 fixture 離線斷言 — SNOS-143
+# ============================================================
+
+class TestJavbusSNOS143Fields:
+    """離線斷言 SNOS-143 欄位 contract（series-empty 是關鍵 contract，零連網）"""
+
+    def test_series_is_str_empty_ok(self, scraper_zh):
+        """SNOS-143 series 為空串是正常業務資料，不是缺資料"""
+        scraper_zh._session.get = MagicMock(return_value=make_response(JAVBUS_SNOS143_HTML))
+        video = scraper_zh.search("SNOS-143")
+        assert video is not None
+        assert isinstance(video.series, str)  # 空串 OK
+
+    def test_duration_positive(self, scraper_zh):
+        scraper_zh._session.get = MagicMock(return_value=make_response(JAVBUS_SNOS143_HTML))
+        video = scraper_zh.search("SNOS-143")
+        assert video is not None
+        assert isinstance(video.duration, int) and video.duration > 0
+
+    def test_sample_images_non_empty(self, scraper_zh):
+        scraper_zh._session.get = MagicMock(return_value=make_response(JAVBUS_SNOS143_HTML))
+        video = scraper_zh.search("SNOS-143")
+        assert video is not None
+        assert isinstance(video.sample_images, list) and len(video.sample_images) > 0

@@ -11,8 +11,6 @@ Phase 35 Task 8a: 驗證重寫後 JavBusScraper 所有新欄位
 - 無法連線時自動 skip，不算失敗
 """
 
-import re
-
 import pytest
 
 from core.scrapers import JavBusScraper
@@ -22,105 +20,8 @@ pytestmark = pytest.mark.smoke
 
 # ========== 測試番號 ==========
 
-# JUR-688：有 series（ハプニングバーNTR），適合驗 series 非空
-NUMBER_WITH_SERIES = "JUR-688"
-
-# SNOS-143：series 為空，適合驗 series 可為空
-NUMBER_WITHOUT_SERIES = "SNOS-143"
-
-# 多語言測試用番號（兩個都可，用 SNOS-143）
+# 多語言測試用番號
 NUMBER_MULTILANG = "SNOS-143"
-
-
-# ========== 精準搜尋測試 ==========
-
-class TestJavBusSmokeSearch:
-    """精準搜尋驗證所有新欄位"""
-
-    @pytest.fixture
-    def scraper(self):
-        return JavBusScraper(lang="zh-tw")
-
-    def test_search_all_fields_with_series(self, scraper):
-        """JUR-688：驗證所有欄位非空（包含 series）"""
-        try:
-            video = scraper.search(NUMBER_WITH_SERIES)
-        except Exception as e:
-            pytest.skip(f"JavBus 連線問題: {e}")
-        if video is None:
-            pytest.skip("JavBus 無法連線（可能被網站封鎖或網路問題）")
-
-        assert isinstance(video, Video)
-
-        # 基本識別欄位
-        assert video.number == NUMBER_WITH_SERIES, f"番號不符: {video.number!r}"
-        assert isinstance(video.title, str) and len(video.title) > 0, "title 為空"
-        assert video.source == "javbus", f"source 不符: {video.source!r}"
-
-        # URL 欄位
-        assert video.cover_url.startswith("http"), f"cover_url 格式錯誤: {video.cover_url!r}"
-        assert video.detail_url.startswith("http"), f"detail_url 格式錯誤: {video.detail_url!r}"
-
-        # 日期格式 YYYY-MM-DD
-        assert re.match(r"^\d{4}-\d{2}-\d{2}$", video.date), \
-            f"date 格式錯誤: {video.date!r}"
-
-        # 片商
-        assert isinstance(video.maker, str) and len(video.maker) > 0, "maker 為空"
-
-        # tags
-        assert isinstance(video.tags, list) and len(video.tags) > 0, "tags 為空列表"
-        assert all(isinstance(t, str) for t in video.tags), "tags 包含非 str 元素"
-
-        # actresses（可能為空，但類型必須正確）
-        assert isinstance(video.actresses, list), "actresses 不是 list"
-
-        # 新欄位：director
-        assert isinstance(video.director, str) and len(video.director) > 0, \
-            "director 為空（JUR-688 應有導演資訊）"
-
-        # 新欄位：duration
-        assert isinstance(video.duration, int) and video.duration > 0, \
-            f"duration 不是正整數: {video.duration!r}"
-
-        # 新欄位：label
-        assert isinstance(video.label, str) and len(video.label) > 0, \
-            "label 為空（JUR-688 應有發行商）"
-
-        # 新欄位：series（JUR-688 應有 series）
-        assert isinstance(video.series, str), "series 不是 str"
-        assert len(video.series) > 0, \
-            f"series 為空（JUR-688 應有 series，實際: {video.series!r}）"
-
-        # 新欄位：sample_images
-        assert isinstance(video.sample_images, list) and len(video.sample_images) > 0, \
-            "sample_images 為空列表（JUR-688 應有樣品圖）"
-        assert all(url.startswith("http") for url in video.sample_images), \
-            "sample_images 包含非 http URL"
-
-    def test_search_series_can_be_empty(self, scraper):
-        """SNOS-143：series 可為空字串（不強制非空）"""
-        try:
-            video = scraper.search(NUMBER_WITHOUT_SERIES)
-        except Exception as e:
-            pytest.skip(f"JavBus 連線問題: {e}")
-        if video is None:
-            pytest.skip("JavBus 無法連線（可能被網站封鎖或網路問題）")
-
-        assert isinstance(video, Video)
-        assert video.number == NUMBER_WITHOUT_SERIES, f"番號不符: {video.number!r}"
-        assert video.source == "javbus"
-
-        # series 可為空，但必須是 str
-        assert isinstance(video.series, str), \
-            f"series 應為 str，實際型別: {type(video.series).__name__}"
-
-        # 其他必要欄位仍應正常
-        assert video.cover_url.startswith("http"), f"cover_url 格式錯誤: {video.cover_url!r}"
-        assert isinstance(video.duration, int) and video.duration > 0, \
-            f"duration 不是正整數: {video.duration!r}"
-        assert isinstance(video.sample_images, list) and len(video.sample_images) > 0, \
-            "sample_images 為空列表（SNOS-143 應有樣品圖）"
 
 
 # ========== 模糊搜尋測試 ==========
