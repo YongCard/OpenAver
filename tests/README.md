@@ -50,10 +50,10 @@ tests/
 ├── smoke/                   # 煙霧測試（需網路/服務）
 │   ├── conftest.py
 │   ├── test_batch_api.py
+│   ├── test_extra_paths_live.py
 │   ├── test_gemini_safety_settings.py
-│   ├── test_javbus_smoke.py
-│   ├── test_scraper_live.py
-│   ├── test_scrapers.py
+│   ├── test_jellyfin_compat.py
+│   ├── test_source_canary.py
 │   ├── test_translate_gemini_manual.py
 │   └── test_translate_live.py
 │
@@ -141,7 +141,7 @@ pytest tests/unit/test_translate_service.py -v
 pytest tests/integration/test_api_config.py -v
 
 # 爬蟲連通測試（需網路）
-pytest tests/smoke/test_scraper_live.py -v -m smoke
+pytest tests/smoke/test_source_canary.py tests/smoke/test_extra_paths_live.py -v -m smoke
 ```
 
 ## 測試分類
@@ -182,9 +182,9 @@ pytest tests/smoke/test_scraper_live.py -v -m smoke
 
 | 檔案 | 測試內容 | 前提條件 |
 |------|----------|----------|
-| `test_scraper_live.py` | 爬蟲連通性 | 網路 |
-| `test_scrapers.py` | 6 個爬蟲模組測試 | 網路 |
-| `test_javbus_smoke.py` | JavBus scraper 連通 + 欄位驗證 | 網路 + JavBus 可連 |
+| `test_source_canary.py` | 8 源金絲雀連通性 | 網路 |
+| `test_extra_paths_live.py` | 桶 C 獨特 live 路徑（fan-out / 女優 / 多語言等） | 網路 |
+| `test_jellyfin_compat.py` | Jellyfin 相容性 | 網路 |
 | `test_translate_live.py` | Ollama 翻譯 | Ollama 服務 |
 | `test_batch_api.py` | 批次翻譯 API | FastAPI + Ollama |
 | `test_gemini_safety_settings.py` | Gemini 安全設定 | Gemini API Key |
