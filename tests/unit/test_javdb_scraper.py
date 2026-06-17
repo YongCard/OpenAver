@@ -165,3 +165,27 @@ class TestJavdbGetHtmlNone:
         with patch.object(scraper, "_get_html", side_effect=[None]):
             result = scraper.search("SONE-103")
         assert result is None
+
+
+class TestJavdbTags:
+    """tags 解析：從 fixture SONE-103 detail 頁驗證 video.tags"""
+
+    def test_javdb_tags_from_fixture(self, scraper):
+        """
+        用 SEARCH_HTML + DETAIL_HTML（javdb_SONE-103.html）餵 run_search，
+        驗證 video.tags 為非空 list[str] 且含穩定錨點 tag「戲劇」。
+
+        fixture 行 373–375 含 7 個 tag：戲劇、乳交、巨乳、單體作品、苗條、按摩、妹妹
+        只斷言型別 + 非空 + 一個穩定 tag，不斷言完整 list 或順序。
+        """
+        video = run_search(scraper, SEARCH_HTML, DETAIL_HTML)
+        assert video is not None
+
+        # 層 1：型別 + 非空
+        assert isinstance(video.tags, list) and len(video.tags) > 0
+
+        # 層 2：每個元素都是 str
+        assert all(isinstance(t, str) for t in video.tags)
+
+        # 層 3：含穩定錨點 tag
+        assert "戲劇" in video.tags
