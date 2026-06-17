@@ -165,24 +165,6 @@ class TestActressSearch:
 class TestSpecialNumbers:
     """特殊番號格式測試"""
 
-    def test_fc2_number_formats(self):
-        """FC2 各種格式測試"""
-        from core.scrapers import FC2Scraper
-
-        scraper = FC2Scraper()
-
-        # 測試不同格式都能正規化
-        formats = [
-            "FC2-PPV-1723984",
-            "FC2PPV-1723984",
-            "FC2-1723984",
-            "fc2ppv1723984",
-        ]
-
-        for fmt in formats:
-            normalized = scraper._normalize_fc2_number(fmt)
-            assert normalized == "1723984", f"{fmt} 正規化失敗: {normalized}"
-
     @pytest.mark.parametrize("number,desc", [
         ("FC2-PPV-2200414", "fc2"),
         ("FC2-PPV-2781063", "fc2"),

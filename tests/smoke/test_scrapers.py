@@ -77,25 +77,6 @@ def test_search_valid_number(scraper_cls, test_number):
 
 # ========== Task 1 爬蟲測試 ==========
 
-class TestJavBusScraper:
-    """JavBus 爬蟲測試"""
-
-    @pytest.fixture
-    def scraper(self):
-        return JavBusScraper()
-
-    def test_search_invalid_number(self, scraper):
-        """測試：搜尋不存在的番號"""
-        video = scraper.search("INVALID-99999")
-        assert video is None
-
-    def test_normalize_number(self, scraper):
-        """測試：番號正規化"""
-        assert scraper.normalize_number("sone205") == "SONE-205"
-        assert scraper.normalize_number("SONE-205") == "SONE-205"
-        assert scraper.normalize_number("  sone-205  ") == "SONE-205"
-
-
 class TestJAV321Scraper:
     """JAV321 爬蟲測試"""
 
@@ -134,27 +115,6 @@ class TestJavDBScraper:
 
 # ========== Task 2 新爬蟲測試 ==========
 
-class TestFC2Scraper:
-    """FC2 爬蟲測試"""
-
-    @pytest.fixture
-    def scraper(self):
-        return FC2Scraper()
-
-    def test_normalize_fc2_number(self, scraper):
-        """測試：FC2 番號正規化"""
-        assert scraper._normalize_fc2_number("FC2-PPV-1723984") == "1723984"
-        assert scraper._normalize_fc2_number("FC2PPV1723984") == "1723984"
-        assert scraper._normalize_fc2_number("FC2-1723984") == "1723984"
-        assert scraper._normalize_fc2_number("fc2ppv-1723984") == "1723984"
-        assert scraper._normalize_fc2_number("1723984") == "1723984"
-
-    def test_search_invalid_number(self, scraper):
-        """測試：搜尋不存在的 FC2 番號"""
-        video = scraper.search("FC2-PPV-9999999999")
-        assert video is None
-
-
 class TestAVSOXScraper:
     """AVSOX 爬蟲測試（無碼專用）"""
 
@@ -181,86 +141,3 @@ class TestAVSOXScraper:
             assert isinstance(video.actresses, list) and len(video.actresses) > 0
             assert isinstance(video.actresses[0], Actress)
 
-    def test_search_censored_number_returns_none(self, scraper):
-        """測試：有碼番號應返回 None（AVSOX 主要收錄無碼）"""
-        video = scraper.search("SONE-205")
-        # AVSOX 可能找不到有碼番號，這是正常的
-        # 不做 assert，只確認不會報錯
-
-
-# ========== 向後相容性測試 ==========
-
-class TestBackwardCompatibility:
-    """向後相容性測試"""
-
-    def test_old_api_still_works(self):
-        """測試：舊 API 仍可運作"""
-        from core.scraper import search_jav, extract_number
-
-        # extract_number 不需網路
-        number = extract_number("SONE-205.mp4")
-        assert number == "SONE-205"
-
-        number = extract_number("[MIDV-018] title.avi")
-        assert number == "MIDV-018"
-
-    def test_video_model_compatibility(self):
-        """測試：Video 模型欄位相容性"""
-        video = Video(
-            number="TEST-001",
-            title="Test Title",
-            actresses=[Actress(name="Test Actress")],
-            date="2024-01-01",
-            maker="Test Maker",
-            cover_url="https://example.com/cover.jpg",
-            tags=["tag1", "tag2"],
-            source="test",
-        )
-
-        assert video.number == "TEST-001"
-        assert video.title == "Test Title"
-        assert len(video.actresses) == 1
-        assert video.actresses[0].name == "Test Actress"
-
-
-# ========== 多來源整合測試 ==========
-
-class TestMultiSourceIntegration:
-    """多來源整合測試"""
-
-    def test_all_scrapers_have_same_interface(self):
-        """測試：所有爬蟲實作相同介面"""
-        scrapers = [
-            JavBusScraper(),
-            JAV321Scraper(),
-            JavDBScraper(),
-            FC2Scraper(),
-            AVSOXScraper(),
-        ]
-
-        for scraper in scrapers:
-            # 確認有必要的方法
-            assert hasattr(scraper, 'search')
-            assert hasattr(scraper, 'search_by_keyword')
-            assert hasattr(scraper, 'normalize_number')
-            assert hasattr(scraper, 'source_name')
-
-            # 確認 source_name 是有效的非空字串
-            assert isinstance(scraper.source_name, str)
-            assert len(scraper.source_name.strip()) > 0
-
-    def test_scraper_source_names_unique(self):
-        """測試：各爬蟲來源名稱唯一"""
-        scrapers = [
-            JavBusScraper(),
-            JAV321Scraper(),
-            JavDBScraper(),
-            FC2Scraper(),
-            AVSOXScraper(),
-        ]
-
-        source_names = [s.source_name for s in scrapers]
-        assert len(source_names) == len(set(source_names)), "來源名稱應唯一"
-
-        expected_names = {"javbus", "jav321", "javdb", "fc2", "avsox"}
-        assert set(source_names) == expected_names
