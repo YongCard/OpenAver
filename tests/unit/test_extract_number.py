@@ -93,3 +93,13 @@ class TestExtractNumber:
         result = extract_number("n07620.mp4")
         assert result != "N0762"
         assert result is None
+
+    # --- TASK-73e-T8: 前綴收窄負向 case ---
+
+    def test_non_th_prefix_A_holiday(self):
+        """holiday_A2024.mp4 → None（A 非 Tokyo Hot 前綴 n/k/c/m/s，不得誤抽）"""
+        assert extract_number("holiday_A2024.mp4") is None
+
+    def test_non_th_prefix_B_vacation(self):
+        """vacation_B2023.mp4 → None（B 非 Tokyo Hot 前綴 n/k/c/m/s，不得誤抽）"""
+        assert extract_number("vacation_B2023.mp4") is None
