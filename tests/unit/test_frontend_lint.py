@@ -7700,10 +7700,9 @@ class TestSourcePillSharedComponentGuard:
         ]:
             assert token in html, f"62a-0 違規：bootstrap partial 缺少 {token!r}"
         # 74c-T1：enabled 行已退役，bootstrap 不再含 config.advanced_search_enabled
+        # （此精確 source token 即唯一被移除行的指紋；不另加過寬的 "enabled:" 檢查避免誤殺未來其他 *_enabled: key）
         assert "config.advanced_search_enabled" not in html, \
             "74c-T1 違規：bootstrap partial 仍含 config.advanced_search_enabled（應已退役）"
-        assert "enabled:" not in html, \
-            "74c-T1 違規：bootstrap partial 仍含 enabled: 行（應已退役）"
 
     def test_search_and_showcase_include_bootstrap(self):
         """search.html + showcase.html 皆 include bootstrap partial。"""

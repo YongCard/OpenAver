@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-06-18
+
+本版主軸：**進階搜尋發現性重設計（來源膠囊常駐化）+ 畢業退 toggle + 全面零長壓**（feature/74）。「自訂來源搜尋／挑來源重刮」這個 power 功能過去只能靠**隱形長壓**觸發——畫面零提示、桌面用戶幾乎不長壓，等於對沒讀文件的人隱形；而 🔄 鈕又一顆扛兩意圖（tap=重整、長壓=挑來源）。本版把「來源範圍」從隱藏模式改成**處處可見的來源膠囊**：搜尋列打字後浮出「自動」膠囊（點開挑單一來源）、結果面板把 🔄 換成常駐「目前來源膠囊」（顯示這筆是哪個源找到的 + 點擊換源）、換來源預覽改用唯讀膠囊讓截圖一眼辨識來源。同時**全面移除所有長壓手勢**（覆寫舊「降級保留」決定）、把 Showcase 進階重刮收斂到燈箱齒輪 ⚙，並讓進階搜尋正式**畢業為永久常駐核心**（移除 Settings 開關 + config 欄位 + 一次性 migration）。**後端搜尋路由零改動**（Active Row 仍是唯一真理，本版只改入口可見性）。
+
+### Added
+#### 🔎 搜尋列常駐「自動」來源膠囊（US1）/ Always-on auto source pill
+- **搜尋列打字後、送出前**（compose 態，番號／女優／前綴模式皆同）在提交鈕左側浮出一顆低調的「自動」來源膠囊，作為「挑來源」的可見把手；**空框不顯示**（維持 Spotlight 乾淨）、**一送出搜尋即隱藏**（出處改由結果面板膠囊承擔，避免重複/誤導）、改動查詢字回 compose 態重新出現。
+- 點膠囊開來源 picker，挑某源即以該源跑一次精確搜尋（沿用既有行為）；膠囊用可點互動樣式（pointer + hover），看得出可點、非純標籤。
+- **一次性語意**：不記憶、不黏著、不 override Active Row 自動路由（預設搜尋仍走 Active Row 排序）。
+
+#### 🏷️ 結果面板「目前來源膠囊」取代 🔄（US2）/ Result-panel current-source pill
+- 搜尋結果 detail 面板**移除 🔄 重新整理按鈕**，原位置改放「目前來源膠囊」：顯示這筆結果是哪個源找到的（有碼藍／無碼綠色彩編碼），點膠囊開來源 picker——picker 內「自動」＝原 🔄 的「換到下一個來源」循環、某具體源＝換成該源的結果（in-place 替換當前卡）。
+- 換源／循環中膠囊呈 loading、失敗 shake、完成後即時反映新來源；↗（開原始連結）／📁（本地徽章）行為不變。
+
+#### 🖼️ 換來源預覽顯示來源膠囊（US3）/ Rescrape-preview source pill
+- showcase 換來源／重刮的「預覽確認」步驟，把「你剛挑的來源」從純文字「· JavBus」改成 `source-pill` 呈現，採**唯讀 flat 變體**（無 hover、無 pointer，與可點膠囊一眼可分）——確認/截圖時一眼辨識用了哪個源。零 DB 欄位、零 serializer 改動。
+
+### Changed
+#### 🚫 全面移除長壓手勢（US4 + 跨 US 原則）/ All long-press gestures removed
+- **所有入口的隱形長壓全部移除**（覆寫舊「長壓不刪、只降級」決定，owner 2026-06-18 拍板）：搜尋列提交鈕、結果面板 🔄、Showcase 封面牆／燈箱補資料鈕——次要動作改為看得見的控件或收斂到既有可見入口。
+- **Showcase 補資料鈕 🔍**：`tap`＝自動補資料維持不變；長壓移除。**進階重刮／換源收斂到燈箱齒輪 ⚙**（本就可見）——grid 小卡只保留「自動補資料」一個動作，要指定來源重刮就進燈箱點 ⚙。
+- 長壓基礎設施本體（`long-press.js` helper、兩頁 mixin 接線、design-system 長壓 demo card）全數退役——全 codebase 零長壓。
+
+#### 🎓 進階搜尋畢業、永久常駐（US6）/ Advanced search graduated to always-on
+- **Settings 移除「進階搜尋」開關**：自 v0.9.8 default-on、v0.9.10 de-Beta 後長期穩定 → 正式畢業為永久常駐核心；來源膠囊與 picker 永遠可用、燈箱齒輪 ⚙ 常駐顯示（不再被開關綁架）。
+- **移除 `advanced_search_enabled` config 欄位** + 一次性 load-time strip migration：舊 config.json 殘留任何值（含 `false`）載入時即刪除並存檔（**刻意覆寫舊偏好**——畢業核心功能不被舊設定半殘；反轉 v0.9.8「保留偏好」設計）。缺 key 則 no-op、冪等。
+
+### Help / i18n
+- **Help 文案改寫零長壓（zh_TW）**：進階搜尋 picker 五入口教學從「長壓送出鈕／🔄 長壓／缺卡長壓／燈箱 ⚙」改寫為新可見控件模型（搜尋列「自動」膠囊／結果面板來源膠囊／補資料鈕 tap 自動補／燈箱 ⚙ 進階重刮），不再教不存在的手勢；移除 Settings 進階搜尋 toggle 相關文案 key（保留 metatube keyword hint）。
+- **zh_CN／en／ja 文案 + 2 個 tooltip key（`search.auto_pill.tooltip`／`search.source_pill.tooltip`）milestone 同步**（owner 拍板多語系重複內容等 milestone）；其間非 zh_TW 用戶 help 暫留舊敘述（已知可接受）。README／README_EN 無長壓敘述，不動。
+
+### Internal
+- source-pill 抽 Jinja macro（`_macros/source_pill.html`）共用，三處（搜尋列／結果面板／換源預覽）覆用同一元件；新增 `.source-pill--flat` 唯讀變體 CSS（保留色彩 tint、關掉 pointer/hover/focus 互動）。
+- picker「自動」cycle rewire（結果面板膠囊接 switchSource 循環）；rescrapePreview effective source 計算（auto→實際 `_source`）。
+- 長壓退役連帶清除 `rescrapeEnabled()` / `window.__ADVANCED_SEARCH__.enabled` gate（齒輪 `x-show` 改常駐）、`'enrich'` entryPoint 文字殘留（純註解、無真死分支）；mergeState 鏈只移除 `longPressState` 一行、不改 spread（保 getter reactivity）。
+
+### Non-Goals（明確不做）
+- **不改後端搜尋路由**（Active Row 仍是唯一真理，本版只改入口可見性）、**不為 showcase 既有影片補「來源出處」DB 欄位**（換源預覽膠囊顯示的是「剛挑的源」非「原紀錄來源」）、**搜尋列膠囊不做持久黏著範圍**（不記憶、不 override 路由）、**不保留任何長壓加速鍵**、**不為 grid 卡新增進階重刮入口**（收斂到燈箱齒輪）、**US6 只退總開關**（逐源 enable/disable、Parts Bin、Active Row 排序全保留）、**不做一次性 coachmark**、**JavLibrary 進搜尋列（接 CF flow）列可選 follow-on、本版不含**。
+
+### 測試
+- 全套 pytest **4249 passed, 2 skipped**（unit + integration，排除 smoke / e2e）+ `npm run lint`（eslint + stylelint）綠。
+- 來源金絲雀：**8 源全 PASS**（pre-merge live 健康檢查）。
+- 新增測試：`TestMigrationAdvancedSearchEnabled`（config 欄位 strip migration 3 案）+ source-pill macro／搜尋列膠囊 state gate／結果面板膠囊／flat CSS／換源預覽膠囊／效力來源等前端守衛；退役 toggle/gate/長壓 helper-mechanics/demo 守衛（畢業退役多於新增，4258→4249）。
+- **transient-guard**：本版多條「單向遷移後不回退」負向守衛（bootstrap 去 enabled / 長壓退役 / toggle 退役 / 齒輪去 gate 等）標記下個 milestone 評估移除。
+
 ## [0.10.0] - 2026-06-18
 
 本版主軸：**來源穩定性 + 測試硬化**（feature/73，0.10 線首版）。不是新功能，是**可信度硬化**——讓你相信「來源還活著、parser 沒爛、我的 NFO 不會被默默寫壞」。兩個觸發點：外部 AI 審查回報「測試覆蓋率不足」（查證後確認帳面被 smoke skip 低估，但流程定型前的歷史真債確實存在，最高風險是會改寫用戶 NFO 卻零測試的 `nfo_updater`），以及用戶回報 Tokyo Hot 番號（`n0762`）永遠查不到。本版做了六件事：把 8 個來源用真實番號做成「健康金絲雀」smoke 套件（連不上只警告、改版才報紅）、修掉 Tokyo Hot 單字母番號被誤插 hyphen 的 bug、清償五項離線單元測試真債、立覆蓋率流程地板防老債再被遺忘、復活站方轉 SPA 後失效的 avsox 來源、並把舊 smoke 與金絲雀重疊的冗餘測試整併清掉。
