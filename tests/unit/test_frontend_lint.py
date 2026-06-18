@@ -8686,6 +8686,34 @@ class TestSwitchSourceAutoCycle:
             "switch-source + auto short-circuit 分支內必須呼叫 switchSource()（循環到下一來源）"
 
 
+class TestRescrapeSourcesSeededAtInit:
+    """TASK-74a-T5 US2 修：結果面板來源膠囊在 picker 開啟前即 render，呼叫 _resolveSourceName，
+    需 rescrapeSources 在 component init 就有料（否則膠囊顯示 raw id 'javbus' 而非顯示名 'JavBus'）。
+
+    rescrapeState() 是 mergeState 時呼叫的 factory，早於此的 _advanced_search_bootstrap.html 已設好
+    window.__ADVANCED_SEARCH__ → 初始化器可直接讀。守衛斷言 rescrapeSources 初始化器（非 openRescrape
+    的 this.rescrapeSources 再賦值）從 window.__ADVANCED_SEARCH__.sources 灌入。
+
+    三問：還原成 `rescrapeSources: []` → 紅（初始化器不再讀 window）。
+    """
+
+    STATE_RESCRAPE_JS = (
+        Path(__file__).parent.parent.parent / "web" / "static" / "js"
+        / "shared" / "state-rescrape.js"
+    )
+
+    def test_rescrape_sources_initializer_seeds_from_bootstrap(self):
+        src = self.STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+        # 初始化器（state property default，冒號賦值）— 非 openRescrape 的 `this.rescrapeSources =`
+        m = re.search(r"^\s*rescrapeSources:\s*(.+?),\s*$", src, re.MULTILINE)
+        assert m, "state-rescrape.js 缺 rescrapeSources 初始化器"
+        initializer = m.group(1)
+        assert "window.__ADVANCED_SEARCH__" in initializer and "sources" in initializer, (
+            "rescrapeSources 初始化器必須從 window.__ADVANCED_SEARCH__.sources 灌入"
+            "（不可還原成 []，否則結果面板來源膠囊在 picker 開啟前顯示 raw id）"
+        )
+
+
 class TestDesignSystemLongPressCard:
     """62c-2 (b)：/design-system 登記 long-press 互動 pattern demo card（D.14）。
 

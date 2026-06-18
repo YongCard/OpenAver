@@ -30,7 +30,11 @@ export function rescrapeState() {
         rescrapeEntryPoint: 'lightbox',    // 'lightbox' | 'enrich' | 'search' | 'switch-source'
         rescrapeNumber: '',
         rescrapeOriginalFilename: '',
-        rescrapeSources: [],
+        // 74a US2：init 即從 SSR bootstrap 灌入（rescrapeState() 在 mergeState 時呼叫，
+        // 早於此的 _advanced_search_bootstrap.html 已設好 window.__ADVANCED_SEARCH__）。
+        // 結果面板來源膠囊在 picker 開啟前就要 _resolveSourceName，故不能等 openRescrape 才填，
+        // 否則膠囊顯示 raw id（'javbus'）而非顯示名（'JavBus'）。openRescrape 仍每次重灌（belt-and-suspenders）。
+        rescrapeSources: (window.__ADVANCED_SEARCH__ && window.__ADVANCED_SEARCH__.sources) || [],
         rescrapeLoadingSource: null,       // string | null（明確，:disabled 純 boolean）
         rescrapePreview: null,             // transient（CD-62-2）
         rescrapeNotFound: false,
