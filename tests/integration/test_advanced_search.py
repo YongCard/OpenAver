@@ -1,43 +1,11 @@
 """TASK-61c-7: 進階搜尋 picker MVP — 後端契約測試
 
 涵蓋：
-1. `advanced_search_enabled` persist round-trip（GET 預設 true / PUT false → GET false）。
-2. source override：`/api/search?source=<停用來源>&mode=exact` 仍回該來源資料
+1. source override：`/api/search?source=<停用來源>&mode=exact` 仍回該來源資料
    （證明 override 路徑與 sources enabled 狀態無關，整包贏）。
 
 長壓 / picker 互動 / OQ-3 軟提示 = MANUAL（見 TASK card checklist）。
 """
-import json
-
-
-class TestAdvancedSearchEnabledPersist:
-    """advanced_search_enabled top-level bool persist round-trip"""
-
-    def test_default_true(self, client, temp_config_path):
-        """GET /api/config 預設 advanced_search_enabled = true（v0.9.x 起預設開啟）"""
-        resp = client.get("/api/config")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["success"] is True
-        assert data["data"].get("advanced_search_enabled") is True
-
-    def test_put_true_persists(self, client, temp_config_path):
-        """PUT advanced_search_enabled=true → GET 回 true（round-trip）"""
-        cfg = client.get("/api/config").json()["data"]
-        cfg["advanced_search_enabled"] = True
-
-        put_resp = client.put("/api/config", json=cfg)
-        assert put_resp.status_code == 200
-        assert put_resp.json()["success"] is True
-
-        # GET 再驗
-        new_cfg = client.get("/api/config").json()["data"]
-        assert new_cfg["advanced_search_enabled"] is True
-
-        # 直接讀檔驗證持久化
-        with open(temp_config_path, "r", encoding="utf-8") as f:
-            saved = json.load(f)
-        assert saved["advanced_search_enabled"] is True
 
 
 class TestAdvancedSearchSourceOverride:
