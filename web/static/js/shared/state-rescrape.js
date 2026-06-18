@@ -27,7 +27,7 @@ export function rescrapeState() {
         // ── 彈窗狀態（平鋪，對齊 partial 綁定 + mockup） ──
         rescrapeOpen: false,
         rescrapeStep: 'pick',              // 'pick' | 'preview'
-        rescrapeEntryPoint: 'lightbox',    // 'lightbox' | 'enrich' | 'search' | 'switch-source'
+        rescrapeEntryPoint: 'lightbox',    // 'lightbox' | 'search' | 'switch-source'
         rescrapeNumber: '',
         rescrapeOriginalFilename: '',
         // 74a US2：init 即從 SSR bootstrap 灌入（rescrapeState() 在 mergeState 時呼叫，
@@ -232,12 +232,12 @@ export function rescrapeState() {
                     this.rescrapeNotFound = true;
                     return;
                 }
-                // Showcase（lightbox / enrich）：找到 → 換頁 preview；找不到 → 留 pick
+                // Showcase（lightbox）：找到 → 換頁 preview；找不到 → 留 pick
                 // （Search 入口已在函式開頭提早分流到 advancedSearch，不走到這裡）
                 // （cf_needed / cf_unavailable 已在上方統一提前處理，此處不再重複）
                 if (data && data.success) {
                     // 74b US3：預覽膠囊顯示「實際刮到的源」+ 有碼/無碼上色。
-                    // lightbox/enrich + auto 也會進 preview（無 early return）→ auto 時用後端
+                    // lightbox + auto 也會進 preview（無 early return）→ auto 時用後端
                     // 回傳的實際源（data._source）解析，否則顯示「自動」+藍 fallback、無法辨識
                     // 實際源（違背 US3「截圖辨識用了哪個源」）。
                     const previewSourceId = sourceId === 'auto' ? (data._source || data.source || sourceId) : sourceId;
@@ -371,9 +371,6 @@ export function rescrapeState() {
             this.rescrapeNotFound = false;
             this.rescrapeLoadingSource = null;
             this._switchTarget = null;     // 62c-3：關窗清掉捕捉的 slot（switch-source 入口）
-            // Codex 二輪 P3：清長壓殘留旗標，涵蓋鍵盤 / 輔助技術 click 啟用（無 mousedown 前導）
-            // 繞過 longPressStart top reset 的情況。optional-chain：search 入口（62c）才合併 longPressState。
-            this.longPressReset?.();
         },
     };
 }

@@ -6,9 +6,7 @@
  *
  * 機制重點：
  * - enabled gate / sources 清單來自 SSR 注入的 window.__ADVANCED_SEARCH__。
- * - 長壓 wiring（62c-2）已改接共用 shared/long-press.js（longPressState）：#btnSubmit 六事件 + click guard
- *   走 longPressStart/End/Cancel/ClickGuard，fire callback（openRescrape(null,'search') + 番號預填）在
- *   template arrow 傳入。US8（長壓開窗不連帶送出一般搜尋）由 longPressClickGuard 的 preventDefault 取消
+ * - #btnSubmit 長壓入口已退役（74a-T2）；search 進階搜尋入口保留 openRescrape(null,'search') 呼叫。
  *   submit 按鈕的隱式 form 送出保護；form @submit 直接走 doSearch()（不再有 form-level submit guard）。
  * - advancedSearch(source) 走非 stream GET /api/search?q=...&mode=exact&source=<id>（stream 端點無 source param），
  *   自帶 result→Alpine state binding（整包贏由後端 search_jav_single_source 承擔；不呼叫 fallbackSearch）。

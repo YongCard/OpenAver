@@ -8114,13 +8114,10 @@ class TestRescrapeStateGuard:
             "openRescrape 必須將 rescrapeNumber 預填自 video.number（前端 prefill 連結，62b-2 #6）"
 
     def test_close_rescrape_clears_longpress_flag(self):
-        """Codex 二輪 P3：closeRescrape 必須清長壓殘留旗標（longPressReset），涵蓋鍵盤 / 輔助技術
-        以 click 啟用（無 mousedown 前導）繞過 longPressStart top reset 的卡旗標路徑。
-        若 refactor 拿掉此清理，長壓開 modal 後關閉、下次 keyboard quick-enrich 會被吞 → RED。
-        """
+        """74c-T3（翻轉）：longPressReset?.() 呼叫已隨長壓基礎設施退役移除；state-rescrape.js 不得再含此呼叫。"""
         src = self._src()
-        assert "longPressReset" in src, \
-            "closeRescrape 必須呼叫 longPressReset()（清長壓旗標，鍵盤/AT 兜底，Codex 二輪 P3）"
+        assert "longPressReset" not in src, \
+            "74c-T3 違規：closeRescrape 仍含 longPressReset（長壓基礎設施已退役，此呼叫應移除）"
 
     def test_rescrape_metatube_sources_has_routable_gate(self):
         """Codex PR#47 round-2 P2-B：rescrapeMetatubeSources() 必須同時 filter
@@ -8218,29 +8215,18 @@ class TestRescrapeEntryGuard:
 
     # ── helper 檔 + mergeState 接線 ────────────────────────────────────
 
-    def test_long_press_helper_exists(self):
-        """shared/long-press.js 必須存在（決策 #2：獨立檔，62c-2 可引用）。"""
-        assert self.LONG_PRESS_JS.exists(), \
-            f"long-press.js missing at {self.LONG_PRESS_JS!s}"
-
-    def test_long_press_exports_factory_and_methods(self):
-        """long-press.js 必須 export function longPressState 並含通用契約 method。"""
-        src = self.LONG_PRESS_JS.read_text(encoding="utf-8")
-        assert re.search(r"export\s+function\s+longPressState\s*\(", src), \
-            "long-press.js missing: export function longPressState()"
-        for method in ("longPressStart", "longPressEnd", "longPressCancel",
-                       "longPressClickGuard", "longPressReset"):
-            assert method in src, f"long-press.js missing method: {method}"
-        # 700ms 長壓常數（與 advanced-picker.js 對齊）
-        assert "700" in src, "long-press.js missing LONG_PRESS_MS = 700"
+    def test_long_press_helper_retired(self):
+        """74c-T3（退役）：shared/long-press.js 已刪除，不得再存在。"""
+        assert not self.LONG_PRESS_JS.exists(), \
+            f"74c-T3 違規：long-press.js 仍存在於 {self.LONG_PRESS_JS!s}（應已退役刪除）"
 
     def test_main_js_imports_and_merges_long_press(self):
-        """main.js 必須 import longPressState 並插入 mergeState 鏈（descriptor-preserving）。"""
+        """74c-T3（翻轉）：showcase main.js 已移除 long-press import + longPressState 接線（負向守衛）。"""
         src = self.MAIN_JS.read_text(encoding="utf-8")
-        assert "from '@/shared/long-press.js'" in src, \
-            "main.js missing: import { longPressState } from '@/shared/long-press.js'"
-        assert "longPressState.call(this)" in src, \
-            "main.js mergeState chain missing: longPressState.call(this)"
+        assert "from '@/shared/long-press.js'" not in src, \
+            "74c-T3 違規：showcase main.js 仍含 long-press.js import（應已退役）"
+        assert "longPressState" not in src, \
+            "74c-T3 違規：showcase main.js 仍含 longPressState（應已退役）"
 
     def test_rescrape_enabled_method_in_mixin(self):
         """74c-T1：rescrapeEnabled() 已從 state-rescrape.js 退役（負向守衛）；window.__ADVANCED_SEARCH__ 仍在（sources/proxy/CF live 消費者）。"""
@@ -8256,13 +8242,11 @@ class TestSearchRescrapeEntryGuard:
     """62c-1: 守衛 Search 進階搜尋入口改用 62a 共用重刮彈窗 contract。
 
     B1 radio picker（advancedPickerModal）已移除，改 include _rescrape_modal.html；
-    search bar 送出鈕長壓 → openRescrape(null,'search') 開共用彈窗上半部（番號預填 searchQuery）；
+    搜尋列「自動」膠囊 → openRescrape(null,'search') 開共用彈窗上半部（番號預填 searchQuery）；
     state-rescrape.js search 分支成功走 advancedSearch(source) 整包贏（不打 preview、不 fallbackSearch）。
 
-    62c-2：#btnSubmit 六事件 + click guard 改接共用 shared/long-press.js（longPressState），
-    main.js import + mergeState longPressState；form submit guard（advancedLongPressSubmitGuard）已移除，
-    form 直接走 doSearch()。US8（長壓開窗不連帶送出一般搜尋）由 longPressClickGuard 的 preventDefault
-    取消 submit 按鈕隱式 form 送出保護（方案 A）。advanced-picker.js 的整套 advancedLongPress* mixin 已移除。
+    74（US1/US6-c）：長壓基礎設施全退役——#btnSubmit 不再接 longPress* / click guard，
+    挑來源唯一入口改為搜尋列常駐「自動」膠囊（可見點擊）；search main.js 無 long-press.js import。
     對齊 TestRescrapeStateGuard / TestRescrapeEntryGuard pattern（element-bound regex，避免假測試）。
     """
 
@@ -8304,16 +8288,12 @@ class TestSearchRescrapeEntryGuard:
             "search main.js mergeState chain missing: rescrapeState()"
 
     def test_search_main_imports_long_press_state(self):
-        """62c-2（翻轉）：search main.js 必須 import longPressState + 併入 mergeState 鏈（descriptor-preserving）。
-
-        62c-1 原斷言「不得 import longPressState」（留 62c-2）；本 task 兌現 — #btnSubmit 改接共用
-        shared/long-press.js，故 main.js 必須 import 並 merge longPressState（CD-62-14 descriptor merge，禁 spread）。
-        """
+        """74c-T3（翻轉）：search main.js 已移除 long-press import + longPressState 接線（負向守衛）。"""
         src = self._main()
-        assert "from '@/shared/long-press.js'" in src, \
-            "62c-2：search main.js 必須 import { longPressState } from '@/shared/long-press.js'"
-        assert re.search(r"longPressState\s*\(", src), \
-            "62c-2：search main.js mergeState chain missing: longPressState()"
+        assert "from '@/shared/long-press.js'" not in src, \
+            "74c-T3 違規：search main.js 仍含 long-press.js import（應已退役）"
+        assert "longPressState" not in src, \
+            "74c-T3 違規：search main.js 仍含 longPressState（應已退役）"
 
     # ── (b) search.html include 共用彈窗 + 長壓 wiring（共用 longPressState）──
 
@@ -8655,20 +8635,15 @@ class TestDesignSystemLongPressCard:
     def _html(self):
         return self.SETTINGS_COMPONENTS_HTML.read_text(encoding="utf-8")
 
-    def test_long_press_card_present(self):
-        """settings-components.html 含 long-press demo card（標題 + longPressStart/long-press 引用 + 700ms）。"""
+    def test_long_press_card_retired(self):
+        """74c-T3（退役）：D.14 long-press demo card 已從 settings-components.html 移除（負向守衛）。"""
         html = self._html()
-        assert "Long-press" in html, "design-system 缺 long-press demo card 標題（Long-press）"
-        assert "longPressStart" in html, "long-press demo card 必須引用共用 helper longPressStart"
-        assert "long-press.js" in html, "long-press demo card 必須引用 shared/long-press.js"
-        assert "700" in html, "long-press demo card 必須標出 700ms 長壓門檻"
-
-    def test_long_press_card_no_progress_ring_or_tooltip(self):
-        """負向（CD-62-0 #7 §7.4）：long-press card 不得含 hold-progress / progress-ring / data-tooltip affordance。"""
-        html = self._html()
-        for forbidden in ("hold-progress", "progress-ring", "data-tooltip"):
-            assert forbidden not in html, \
-                f"long-press demo card 不應含 {forbidden}（刻意無進度環 / 無 tooltip，CD-62-0 #7）"
+        assert "D.14" not in html, \
+            "74c-T3 違規：settings-components.html 仍含 D.14（long-press demo card 應已移除）"
+        assert "longPressStart" not in html, \
+            "74c-T3 違規：settings-components.html 仍含 longPressStart（long-press demo card 應已移除）"
+        assert "long-press.js" not in html, \
+            "74c-T3 違規：settings-components.html 仍含 long-press.js（long-press demo card 應已移除）"
 
 
 class TestLongPressTouchSuppression:
@@ -8693,59 +8668,11 @@ class TestLongPressTouchSuppression:
     def _showcase_html(self):
         return SHOWCASE_HTML.read_text(encoding="utf-8")
 
-    # ── (a) long-press.js helper 機制 ────────────────────────────────────
-
-    def test_helper_has_suppress_state(self):
-        """long-press.js 必須宣告 _lpSuppressMouseUntil state（與 _lpTimer/_lpFired 並列，初值 0）。"""
-        src = self._js()
-        assert re.search(r'_lpSuppressMouseUntil\s*:\s*0', src), \
-            "long-press.js 缺 _lpSuppressMouseUntil: 0 state（touchend 抑制窗截止時間）"
-
-    def test_helper_longpressstart_takes_event_and_early_returns(self):
-        """longPressStart 必須收 event 第三參，synthetic mousedown 在抑制窗內 early-return（在 _lpFired reset 之前）。"""
-        src = self._js()
-        m = re.search(r'longPressStart\(cb,\s*enabledFn,\s*event\)\s*\{(.*?)\n        \},', src, re.DOTALL)
-        assert m, "longPressStart 必須宣告第三參數 event（longPressStart(cb, enabledFn, event)）"
-        body = m.group(1)
-        # early-return 條件：mousedown + 抑制窗未過
-        guard = re.search(
-            r"if\s*\(\s*event\s*&&\s*event\.type\s*===\s*'mousedown'\s*&&\s*performance\.now\(\)\s*<\s*this\._lpSuppressMouseUntil\s*\)\s*\{?\s*return",
-            body,
-        )
-        assert guard, \
-            "longPressStart 開頭必須有 synthetic mousedown 抑制 early-return（event.type==='mousedown' && performance.now() < this._lpSuppressMouseUntil → return）"
-        # early-return 必在 _lpFired = false reset 之前（否則旗標已被清）。
-        # 比對「實際賦值語句」（行尾分號），避免抓到 docstring/註解裡提及的 this._lpFired = false reset 字樣。
-        reset_m = re.search(r'this\._lpFired\s*=\s*false\s*;', body)
-        assert reset_m, "longPressStart body 缺 this._lpFired = false; reset 賦值"
-        assert guard.start() < reset_m.start(), \
-            "synthetic mousedown early-return 必須在 this._lpFired = false reset 之前（否則旗標已被清）"
-
-    def test_helper_longpressend_sets_window_on_touchend(self):
-        """longPressEnd 必須收 event 參，touchend 時設 _lpSuppressMouseUntil = performance.now() + (窗)。"""
-        src = self._js()
-        m = re.search(r'longPressEnd\(event\)\s*\{(.*?)\n        \},', src, re.DOTALL)
-        assert m, "longPressEnd 必須宣告 event 參數（longPressEnd(event)）"
-        body = m.group(1)
-        assert re.search(
-            r"event\s*&&\s*event\.type\s*===\s*'touchend'", body), \
-            "longPressEnd 必須判斷 event.type === 'touchend'"
-        assert re.search(
-            r"this\._lpSuppressMouseUntil\s*=\s*performance\.now\(\)\s*\+", body), \
-            "longPressEnd(touchend) 必須設 this._lpSuppressMouseUntil = performance.now() + 窗"
-
-    def test_helper_longpresscancel_sets_window_on_touchcancel(self):
-        """longPressCancel 必須收 event 參，touchcancel 時設 _lpSuppressMouseUntil = performance.now() + (窗)。"""
-        src = self._js()
-        m = re.search(r'longPressCancel\(event\)\s*\{(.*?)\n        \},', src, re.DOTALL)
-        assert m, "longPressCancel 必須宣告 event 參數（longPressCancel(event)）"
-        body = m.group(1)
-        assert re.search(
-            r"event\s*&&\s*event\.type\s*===\s*'touchcancel'", body), \
-            "longPressCancel 必須判斷 event.type === 'touchcancel'"
-        assert re.search(
-            r"this\._lpSuppressMouseUntil\s*=\s*performance\.now\(\)\s*\+", body), \
-            "longPressCancel(touchcancel) 必須設 this._lpSuppressMouseUntil = performance.now() + 窗"
+    # ── (a) long-press.js helper 機制（74c-T3 退役：helper 檔已刪）─────────────
+    # test_helper_has_suppress_state、test_helper_longpressstart_takes_event_and_early_returns、
+    # test_helper_longpressend_sets_window_on_touchend、test_helper_longpresscancel_sets_window_on_touchcancel
+    # 已退役（shared/long-press.js 已刪，helper 機制守衛無意義）。
+    # (b) element-bound 退役守衛（74a/74b）保留不動。
 
     # ── (b) 四入口 wiring 傳 $event（element-bound）─────────────────────
 
