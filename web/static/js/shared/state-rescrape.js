@@ -27,10 +27,14 @@ export function rescrapeState() {
         // ── 彈窗狀態（平鋪，對齊 partial 綁定 + mockup） ──
         rescrapeOpen: false,
         rescrapeStep: 'pick',              // 'pick' | 'preview'
-        rescrapeEntryPoint: 'lightbox',    // 'lightbox' | 'enrich' | 'search' | 'switch-source'
+        rescrapeEntryPoint: 'lightbox',    // 'lightbox' | 'search' | 'switch-source'
         rescrapeNumber: '',
         rescrapeOriginalFilename: '',
-        rescrapeSources: [],
+        // 74a US2：init 即從 SSR bootstrap 灌入（rescrapeState() 在 mergeState 時呼叫，
+        // 早於此的 _advanced_search_bootstrap.html 已設好 window.__ADVANCED_SEARCH__）。
+        // 結果面板來源膠囊在 picker 開啟前就要 _resolveSourceName，故不能等 openRescrape 才填，
+        // 否則膠囊顯示 raw id（'javbus'）而非顯示名（'JavBus'）。openRescrape 仍每次重灌（belt-and-suspenders）。
+        rescrapeSources: (window.__ADVANCED_SEARCH__ && window.__ADVANCED_SEARCH__.sources) || [],
         rescrapeLoadingSource: null,       // string | null（明確，:disabled 純 boolean）
         rescrapePreview: null,             // transient（CD-62-2）
         rescrapeNotFound: false,
@@ -42,15 +46,6 @@ export function rescrapeState() {
         _rescrapeVideo: null,              // commit 時 refreshVideoData 對象（私有，非 lightbox 當前 state）
         _rescrapeCommitSource: null,       // 進 preview 用的 source（commit 沿用，auto→null 映射前原值）
         _switchTarget: null,               // 62c-3：switch-source 入口長壓開窗當下捕捉的 target slot（{listMode,fileIndex,arr,idx,number}），async race 防覆蓋錯卡
-
-        /**
-         * 進階重刮入口 gate（62b-1，決策 #1）。各入口（⚙ / grid 長壓 / lightbox 🔍 長壓 / search 送出鈕長壓）共用，
-         * 守衛可斷言、避免 template 散落 window 讀取（62c-2 起 search 長壓 enabledFn 亦統一用此）。
-         * method 非 getter（規避 Alpine reactivity 凍結；CD-62-14 #0）。
-         */
-        rescrapeEnabled() {
-            return !!(window.__ADVANCED_SEARCH__ && window.__ADVANCED_SEARCH__.enabled);
-        },
 
         /**
          * 開啟彈窗（62b-1 wire ⚙ / 🔍 長壓呼叫；search 入口傳 video=null）。
@@ -170,6 +165,15 @@ export function rescrapeState() {
                 await this.advancedSearch(sourceId);  // 'auto' 直接傳給 /api/search（後端 merger）
                 return;
             }
+            // 74a US2：switch-source 入口點「自動」= 直接 cycle（picker 關閉 + switchSource 循環）
+            // spec-74 §US2：picker「自動」= 原本 🔄 tap 的「換到下一個來源」循環功能。
+            // 必須在 POST /api/rescrape/preview fetch 之前短路（DROP：switch-source + auto 不再打 preview）；
+            // 具體 source pick 不受影響，繼續走下面 fetch + in-place replace 分支。
+            if (this.rescrapeEntryPoint === 'switch-source' && sourceId === 'auto') {
+                this.closeRescrape();
+                await this.switchSource();
+                return;
+            }
             this.rescrapeNotFound = false;
             this.rescrapeLoadingSource = sourceId;
             try {
@@ -228,11 +232,21 @@ export function rescrapeState() {
                     this.rescrapeNotFound = true;
                     return;
                 }
-                // Showcase（lightbox / enrich）：找到 → 換頁 preview；找不到 → 留 pick
+                // Showcase（lightbox）：找到 → 換頁 preview；找不到 → 留 pick
                 // （Search 入口已在函式開頭提早分流到 advancedSearch，不走到這裡）
                 // （cf_needed / cf_unavailable 已在上方統一提前處理，此處不再重複）
                 if (data && data.success) {
-                    this.rescrapePreview = { ...data, sourceName: this._resolveSourceName(sourceId) };
+                    // 74b US3：預覽膠囊顯示「實際刮到的源」+ 有碼/無碼上色。
+                    // lightbox + auto 也會進 preview（無 early return）→ auto 時用後端
+                    // 回傳的實際源（data._source）解析，否則顯示「自動」+藍 fallback、無法辨識
+                    // 實際源（違背 US3「截圖辨識用了哪個源」）。
+                    const previewSourceId = sourceId === 'auto' ? (data._source || data.source || sourceId) : sourceId;
+                    const _previewSrc = this.rescrapeSources.find(x => x.id === previewSourceId);
+                    this.rescrapePreview = {
+                        ...data,
+                        sourceName: this._resolveSourceName(previewSourceId),
+                        sourceCensored: _previewSrc?.is_censored ?? true,  // 找不到 → fallback 有碼藍（同 US2 安全預設）
+                    };
                     this._rescrapeCommitSource = sourceId;
                     this.rescrapeStep = 'preview';
                 } else {
@@ -357,9 +371,6 @@ export function rescrapeState() {
             this.rescrapeNotFound = false;
             this.rescrapeLoadingSource = null;
             this._switchTarget = null;     // 62c-3：關窗清掉捕捉的 slot（switch-source 入口）
-            // Codex 二輪 P3：清長壓殘留旗標，涵蓋鍵盤 / 輔助技術 click 啟用（無 mousedown 前導）
-            // 繞過 longPressStart top reset 的情況。optional-chain：search 入口（62c）才合併 longPressState。
-            this.longPressReset?.();
         },
     };
 }

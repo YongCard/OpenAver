@@ -19,9 +19,9 @@
     z-index: 100;
 }
 
-/* T9: search 右側最多 3 按鈕（toggle + clear + submit），需比 default 6rem 更寬 */
+/* 74a-T2: search 右側 worst case 4 元素（toggle + clear + auto pill + submit，compose 態）；8.5rem 會撐出 ~8px 蓋住輸入文字，加寬到 10.5rem 容納（含 EN "Auto" 最寬語系 pill） */
 .search-bar .spotlight-search {
-    --spotlight-right-slot: 8.5rem;
+    --spotlight-right-slot: 10.5rem;
 }
 
 /* 結果區域（外層容器，包含所有狀態頁 + 結果卡片） */

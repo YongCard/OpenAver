@@ -156,7 +156,6 @@ class AppConfig(BaseModel):
     showcase: ShowcaseConfig = ShowcaseConfig()
     general: GeneralConfig = GeneralConfig()
     sources: list[SourceConfig] = Field(default_factory=get_builtin_sources)
-    advanced_search_enabled: bool = True  # 進階搜尋 picker（TASK-61c-7）；預設開啟（v0.9.x）；Pydantic default 自動補缺漏
     thumbnail_cache_enabled: bool = False  # 縮圖快取開關（feature/71 T2）；預設關閉；top-level additive migration 補缺漏
     metatube: MetatubeConfig = MetatubeConfig()  # CD-63b-3；Pydantic default 自動補缺漏（no migration needed）
 
@@ -324,6 +323,13 @@ def _load_config_unlocked() -> dict:
         search_section = raw_config['search']
         if 'primary_source' in search_section:
             del search_section['primary_source']
+            need_save = True
+
+        # Migration: advanced_search_enabled 一次性移除（feature/74 US6；畢業為永久常駐）
+        # 覆寫舊值（含 false）——畢業核心功能不被舊偏好半殘（反轉 v0.9.8 保留偏好）。
+        # top-level（非巢狀），load_config() return raw dict 不過 model_validate → 顯式 strip。
+        if 'advanced_search_enabled' in raw_config:
+            del raw_config['advanced_search_enabled']
             need_save = True
 
         # Migration: sources 段（TASK-61a-2）— US1-critical，fail-open

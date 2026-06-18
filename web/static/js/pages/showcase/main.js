@@ -15,7 +15,6 @@ import { stateLightbox } from '@/showcase/state-lightbox.js';
 import { stateSimilar }  from '@/showcase/state-similar.js';
 import { stateDelete }   from '@/showcase/state-delete.js';
 import { rescrapeState } from '@/shared/state-rescrape.js';
-import { longPressState } from '@/shared/long-press.js';
 
 function mergeState(...parts) {
     const target = {};
@@ -34,7 +33,6 @@ window.showcaseState = function() {
         stateSimilar.call(this),
         stateDelete.call(this),
         rescrapeState.call(this),
-        longPressState.call(this),
     );
 };
 

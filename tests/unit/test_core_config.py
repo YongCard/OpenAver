@@ -1022,7 +1022,7 @@ class TestConfigDefaultSchemaParity:
 
     load_config() 對 fresh install 直接回傳複製來的 raw dict（不經 AppConfig 重建），
     故 default 檔漏的欄位 / 來源漏的 is_censored 會直接出現在 /api/config，導致：
-      - 缺 top-level 欄位 → GET 契約不完整（如 advanced_search_enabled）
+      - 缺 top-level 欄位 → GET 契約不完整（如 thumbnail_cache_enabled）
       - sources 漏 is_censored → 前端 isUncensored() 把有碼來源誤判無碼（§2.4 配色）
     此守衛防止 default 檔再次漂移出 AppConfig schema。
     """
@@ -1038,10 +1038,6 @@ class TestConfigDefaultSchemaParity:
         schema = AppConfig().model_dump()
         missing = set(schema) - set(default)
         assert not missing, f"config.default.json 缺 top-level 欄位（fresh install /api/config 會漏）: {sorted(missing)}"
-
-    def test_default_advanced_search_enabled_present_and_true(self):
-        default = self._default()
-        assert default.get("advanced_search_enabled") is True
 
     def test_default_sources_carry_is_censored(self):
         default = self._default()
@@ -1199,3 +1195,55 @@ class TestJavlibraryMigration:
         result = load_config()
         jl = next(s for s in result['sources'] if s.get('id') == 'javlibrary')
         assert jl['order'] == 50  # 用戶設定不被覆蓋
+
+
+# ============ test_migration_advanced_search_enabled ============
+
+class TestMigrationAdvancedSearchEnabled:
+    """advanced_search_enabled top-level strip migration（feature/74 US6；畢業為永久常駐）
+
+    欄位已從 AppConfig + config.default.json 移除；load_config() 直接 return raw dict
+    （不 model_validate），故舊 config.json 殘留的 advanced_search_enabled key 不會被
+    Pydantic 自動剝除 → 顯式 strip（覆寫舊值含 false；冪等）。
+    注意：advanced_search_enabled 是 top-level（非巢狀），無 section-missing 案（3 案）。
+    """
+
+    def test_strip_and_save_value_true(self, tmp_path, monkeypatch):
+        """頂層含 advanced_search_enabled: true → load 後 key 不存在 + 磁碟也不含（need_save 觸發）"""
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {"advanced_search_enabled": True, "general": {"theme": "light"}})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert "advanced_search_enabled" not in result
+        # 磁碟也被寫回（need_save 觸發）
+        saved = _read_config(config_path)
+        assert "advanced_search_enabled" not in saved
+
+    def test_no_op_key_missing(self, tmp_path, monkeypatch):
+        """頂層無 advanced_search_enabled → no-op 不崩潰、其他欄位仍在"""
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {"general": {"theme": "dark"}})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert "advanced_search_enabled" not in result
+        assert result.get("general", {}).get("theme") == "dark"
+
+    def test_strip_and_save_value_false(self, tmp_path, monkeypatch):
+        """頂層含 advanced_search_enabled: false（舊用戶關閉偏好）→ 仍被移除 + 磁碟寫回無該鍵"""
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {"advanced_search_enabled": False, "general": {"theme": "light"}})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert "advanced_search_enabled" not in result
+        # 磁碟也被寫回（覆寫舊 false 偏好）
+        saved = _read_config(config_path)
+        assert "advanced_search_enabled" not in saved

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from '_macros/source_pill.html' import source_pill %}
 
 {% block title %}{{ t('search.page_title') }} - OpenAver{% endblock %}
 
@@ -288,14 +289,16 @@
                     <button type="button" id="btnClear" class="btn-icon" x-show="hasContent" x-cloak @click="clearAll()" title="{{ t('search.action.clear') }}">
                         <i class="bi bi-x-lg"></i>
                     </button>
-                    <button type="submit" id="btnSubmit" class="btn-icon active" title="{{ t('search.action.search') }}"
-                            @mousedown="longPressStart(() => { openRescrape(null, 'search'); rescrapeNumber = (searchQuery || '').trim(); }, () => rescrapeEnabled(), $event)"
-                            @mouseup="longPressEnd($event)"
-                            @mouseleave="longPressCancel($event)"
-                            @touchstart.passive="longPressStart(() => { openRescrape(null, 'search'); rescrapeNumber = (searchQuery || '').trim(); }, () => rescrapeEnabled(), $event)"
-                            @touchend="longPressEnd($event)"
-                            @touchcancel="longPressCancel($event)"
-                            @click="longPressClickGuard($event)">
+                    <!-- US1: 自動來源膠囊（compose 態顯示，點擊開進階搜尋 picker） -->
+                    {{ source_pill(
+                        name="t('showcase.rescrape.auto_source')",
+                        censored=true,
+                        variant='action',
+                        icon='bi-stars',
+                        extra_classes='search-auto-pill',
+                        attrs='x-show="isComposing()" x-cloak @click="openRescrape(null, \'search\'); rescrapeNumber = (searchQuery || \'\').trim()" :title="t(\'search.auto_pill.tooltip\')"'
+                    ) }}
+                    <button type="submit" id="btnSubmit" class="btn-icon active" title="{{ t('search.action.search') }}">
                         <i class="bi bi-arrow-right"></i>
                     </button>
                 </div>
@@ -451,24 +454,16 @@
                           x-show="hasLocalBadge()"
                           :title="localBadgeTitle()"
                           @click="openLocal(current()._localStatus?.paths?.[0])">📁</span>
-                    {# 62c-3 US7：tap=維持現有循環切換（switchSource）/ 長壓 700ms=開來源 picker（openSwitchSourcePicker）。
-                       longPressClickGuard 攔截長壓 fire 後的同一次 click，避免連帶觸發 switchSource。
-                       enabledFn=rescrapeEnabled()：toggle OFF → 不啟 timer，只剩 tap 循環（鎖定 gate）。
-                       ⚠️ 長壓只疊此鈕（🔄）；旁邊 ↗ openSourceUrl 鈕不碰。 #}
-                    <button id="switchSourceBtn" class="info-icon-btn"
-                            @click="longPressClickGuard($event) || switchSource()"
-                            @mousedown="longPressStart(() => openSwitchSourcePicker(), () => rescrapeEnabled(), $event)"
-                            @mouseup="longPressEnd($event)"
-                            @mouseleave="longPressCancel($event)"
-                            @touchstart.passive="longPressStart(() => openSwitchSourcePicker(), () => rescrapeEnabled(), $event)"
-                            @touchend="longPressEnd($event)"
-                            @touchcancel="longPressCancel($event)"
-                            title="{{ t('search.action.switch_source') }}"
-                            :disabled="isSwitchingSource"
-                            :class="{ 'shake': switchSourceShake }">
-                        <i class="bi bi-arrow-repeat" x-show="!isSwitchingSource"></i>
-                        <span x-show="isSwitchingSource" class="loading loading-spinner loading-sm"></span>
-                    </button>
+                    {# US2：目前來源膠囊（action 變體；source 空 → 整顆不渲染） #}
+                    <template x-if="current().source || current()._source">
+                        {{ source_pill(
+                            name="_resolveSourceName(current().source || current()._source)",
+                            variant='action',
+                            loading_expr='isSwitchingSource',
+                            extra_classes='result-source-pill',
+                            attrs=':class="{ \'source-pill--uncensored\': !(rescrapeSources.find(x => x.id === (current().source || current()._source))?.is_censored ?? true), \'is-loading\': isSwitchingSource, \'shake\': switchSourceShake }" :disabled="isSwitchingSource" @click="openSwitchSourcePicker()" :title="t(\'search.source_pill.tooltip\')"'
+                        ) }}
+                    </template>
                     <button class="info-icon-btn"
                             @click="openSourceUrl(current()?.url || '')"
                             x-show="appConfig?.source_links?.[current()?.source] && current()?.url"
@@ -949,7 +944,7 @@
 
     {# 進階搜尋共用重刮彈窗（62c-1：取代 B1 radio picker，與 Showcase 共用 _rescrape_modal.html）。
        search 入口（rescrapeEntryPoint === 'search'）只用上半部 pick 步：番號 input + 來源 pill 點擊即搜，
-       無 ✓/✗ 預覽 commit（spec US5）。長壓開窗 wiring 在 #btnSubmit（共用 shared/long-press.js 的 longPressStart）。 #}
+       無 ✓/✗ 預覽 commit（spec US5）。開窗入口為搜尋列「自動」膠囊（.search-auto-pill 的 @click → openRescrape(null,'search')，74a US1）。 #}
     {% include '_rescrape_modal.html' %}
 </div>
 {% endblock %}

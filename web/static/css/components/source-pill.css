@@ -278,6 +278,22 @@
     box-shadow: none;
 }
 
+/* ─── Flat / read-only modifier (74b US3; non-interactive preview pill) ───
+ * Reuses base + [data-enabled] accent tint+border so censored(blue)/uncensored(green)
+ * colour-coding stays (screenshot辨識實際用了哪個源); only the interaction affordances
+ * are negated so flat reads "info" while --action reads "clickable" (會 hover 反應=可點).
+ * Placed after base + --action so the (0,1,0)/(0,2,0) ties win on source order. */
+.source-pill--flat {
+    cursor: default;
+}
+.source-pill--flat:hover {
+    transform: none;
+    box-shadow: none;
+}
+.source-pill--flat:focus-visible {
+    outline: none;
+}
+
 .source-pill .pill-spin {
     width: 0.85rem;
     height: 0.85rem;

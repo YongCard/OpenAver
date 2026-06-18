@@ -7689,17 +7689,20 @@ class TestSourcePillSharedComponentGuard:
         )
 
     def test_bootstrap_partial_exists_with_injection(self):
-        """_advanced_search_bootstrap.html 存在且注入 __ADVANCED_SEARCH__ + config 欄位。"""
+        """_advanced_search_bootstrap.html 存在且注入 __ADVANCED_SEARCH__ + sources（74c-T1：enabled 行已退役）。"""
         assert ADV_SEARCH_BOOTSTRAP.exists(), (
             "62a-0 違規：缺少 web/templates/_advanced_search_bootstrap.html"
         )
         html = self._bootstrap()
         for token in [
             "window.__ADVANCED_SEARCH__",
-            "config.advanced_search_enabled",
             "config.sources",
         ]:
             assert token in html, f"62a-0 違規：bootstrap partial 缺少 {token!r}"
+        # 74c-T1：enabled 行已退役，bootstrap 不再含 config.advanced_search_enabled
+        # （此精確 source token 即唯一被移除行的指紋；不另加過寬的 "enabled:" 檢查避免誤殺未來其他 *_enabled: key）
+        assert "config.advanced_search_enabled" not in html, \
+            "74c-T1 違規：bootstrap partial 仍含 config.advanced_search_enabled（應已退役）"
 
     def test_search_and_showcase_include_bootstrap(self):
         """search.html + showcase.html 皆 include bootstrap partial。"""
@@ -8110,13 +8113,10 @@ class TestRescrapeStateGuard:
             "openRescrape 必須將 rescrapeNumber 預填自 video.number（前端 prefill 連結，62b-2 #6）"
 
     def test_close_rescrape_clears_longpress_flag(self):
-        """Codex 二輪 P3：closeRescrape 必須清長壓殘留旗標（longPressReset），涵蓋鍵盤 / 輔助技術
-        以 click 啟用（無 mousedown 前導）繞過 longPressStart top reset 的卡旗標路徑。
-        若 refactor 拿掉此清理，長壓開 modal 後關閉、下次 keyboard quick-enrich 會被吞 → RED。
-        """
+        """74c-T3（翻轉）：longPressReset?.() 呼叫已隨長壓基礎設施退役移除；state-rescrape.js 不得再含此呼叫。"""
         src = self._src()
-        assert "longPressReset" in src, \
-            "closeRescrape 必須呼叫 longPressReset()（清長壓旗標，鍵盤/AT 兜底，Codex 二輪 P3）"
+        assert "longPressReset" not in src, \
+            "74c-T3 違規：closeRescrape 仍含 longPressReset（長壓基礎設施已退役，此呼叫應移除）"
 
     def test_rescrape_metatube_sources_has_routable_gate(self):
         """Codex PR#47 round-2 P2-B：rescrapeMetatubeSources() 必須同時 filter
@@ -8141,12 +8141,14 @@ class TestRescrapeStateGuard:
 
 
 class TestRescrapeEntryGuard:
-    """62b-1: 守衛三個 Showcase 進階重刮入口接線 contract（lightbox ⚙ + grid 長壓 + lightbox 🔍 長壓）。
+    """62b-1 → 74b US4：守衛 Showcase 進階重刮入口接線 contract。
 
-    入口全受 rescrapeEnabled() gate；長壓走 shared/long-press.js helper（grid + lightbox 共用）；
-    tap 路徑（enrichVideo）不得被長壓覆蓋；長壓 callback 路由到 openRescrape(...,'enrich')，不直接 enrichVideo。
+    74b US4 移除 grid + lightbox 🔍 enrich-btn 的長壓入口（去長壓）後，**燈箱齒輪 ⚙ 成為
+    showcase 唯一可見進階重刮入口**。本類守衛齒輪 contract（icon / openRescrape('lightbox') /
+    rescrapeEnabled() gate / i18n tooltip）+ long-press helper 機制本體（74c 才退役本體）。
+    enrich-btn 去長壓的 element-bound 守衛見 TestLongPressTouchSuppression
+    （test_grid/lightbox_enrich_btn_longpress_retired）。
     強守衛採 element-bound regex（綁到具體 button tag）避免「字串存在性」假測試（gotchas Frontend Guard 強度）。
-    對齊 TestSimilarStageGuard L1164 / TestRescrapeStateGuard pattern。
     """
 
     SHARED_DIR = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "shared"
@@ -8157,31 +8159,6 @@ class TestRescrapeEntryGuard:
 
     def _html(self):
         return SHOWCASE_HTML.read_text(encoding="utf-8")
-
-    def _grid_enrich_btn(self, html):
-        """擷取 grid 缺卡 enrich-btn 的完整 <button>...</button> 區塊（btn-glass-circle enrich-btn）。
-
-        注意：button tag 內 @mousedown 等屬性值含 arrow function `() =>`，含 `>` 字元，
-        故不可用 `[^>]*>` 截到第一個 `>`；改用 non-greedy 抓到 </button>。
-        """
-        m = re.search(
-            r'<button\b[^>]*?\bclass="btn-glass-circle enrich-btn".*?</button>',
-            html, re.DOTALL,
-        )
-        assert m, "grid .btn-glass-circle.enrich-btn button 區塊不存在"
-        return m.group(0)
-
-    def _lightbox_enrich_btn(self, html):
-        """擷取 lightbox cover-actions 🔍 enrich-btn 區塊（含 enrichVideo(currentLightboxVideo) 的 lb-action-btn）。"""
-        # (?:(?!</button>).)*? 確保不跨越前一個 </button>，避免抓到 play/open 等其他 lb-action-btn
-        m = re.search(
-            r'<button\b(?:(?!</button>).)*?\bclass="lb-action-btn"'
-            r'(?:(?!</button>).)*?enrichVideo\(currentLightboxVideo\)'
-            r'(?:(?!</button>).)*?</button>',
-            html, re.DOTALL,
-        )
-        assert m, "lightbox cover-actions .lb-action-btn（enrichVideo(currentLightboxVideo)）button 區塊不存在"
-        return m.group(0)
 
     def _gear_btn(self, html):
         """擷取 lightbox 番號旁 ⚙ gear 的完整 <button>...</button> 區塊。"""
@@ -8213,12 +8190,14 @@ class TestRescrapeEntryGuard:
             f"⚙ @click 必須 openRescrape(currentLightboxVideo, 'lightbox')，實際: {m.group(1)!r}"
 
     def test_gear_gated_by_rescrape_enabled(self):
-        """⚙ 必須 x-show=rescrapeEnabled() gate（toggle OFF 時不顯示，決策 #1）。"""
+        """74c-T1：⚙ 齒輪已退役 x-show gate，改為常駐顯示（負向守衛）。"""
         tag = self._gear_btn(self._html())
         m = re.search(r'x-show="([^"]*)"', tag)
-        assert m, "⚙ gear button 缺 x-show gate"
-        assert "rescrapeEnabled()" in m.group(1), \
-            f"⚙ x-show 必須 gate by rescrapeEnabled()，實際: {m.group(1)!r}"
+        assert not m, \
+            f"74c-T1 違規：⚙ gear button 仍有 x-show gate（應常駐）: {m.group(0) if m else ''!r}"
+        # 確認 @click 仍在（齒輪行為不變）
+        assert "openRescrape(currentLightboxVideo, 'lightbox')" in tag, \
+            "74c-T1：⚙ gear button @click 不得移除（僅退役 x-show gate）"
 
     def test_gear_tooltip_uses_i18n_key(self):
         """⚙ 的 aria-label / data-tooltip 走 i18n key，不硬編碼（i18n.md）。"""
@@ -8229,116 +8208,44 @@ class TestRescrapeEntryGuard:
         assert re.search(r':aria-label="[^"]*entry_tooltip', tag), \
             "⚙ gear 缺 :aria-label（可及性）"
 
-    # ── 入口 2：grid 缺卡 enrich-btn 長壓 ───────────────────────────────
-
-    def test_grid_enrich_tap_preserved_via_clickguard(self):
-        """grid enrich-btn @click 仍走 enrichVideo（tap 路徑不移除），但前置 longPressClickGuard 分流。"""
-        tag = self._grid_enrich_btn(self._html())
-        m = re.search(r'@click(?:\.stop)?="([^"]*)"', tag)
-        assert m, "grid enrich-btn 缺 @click handler"
-        expr = m.group(1)
-        assert "longPressClickGuard($event)" in expr, \
-            f"grid enrich-btn @click 必須前置 longPressClickGuard($event)，實際: {expr!r}"
-        assert "enrichVideo(video)" in expr, \
-            f"grid enrich-btn tap 路徑（enrichVideo(video)）不得移除，實際: {expr!r}"
-
-    def test_grid_enrich_longpress_events_wired(self):
-        """grid enrich-btn 必須疊 6 長壓事件（鏡像 search.html）。"""
-        tag = self._grid_enrich_btn(self._html())
-        for ev in ("@mousedown", "@mouseup", "@mouseleave",
-                   "@touchstart.passive", "@touchend", "@touchcancel"):
-            assert ev in tag, f"grid enrich-btn 缺長壓事件 {ev}"
-
-    def test_grid_longpress_routes_to_rescrape_enrich(self):
-        """grid 長壓 callback 走 openRescrape(video, 'enrich')（不直接 enrichVideo），且 gate by rescrapeEnabled。"""
-        tag = self._grid_enrich_btn(self._html())
-        m = re.search(r'@mousedown="([^"]*)"', tag)
-        assert m, "grid enrich-btn 缺 @mousedown"
-        expr = m.group(1)
-        assert "longPressStart(" in expr, f"grid @mousedown 必須呼叫 longPressStart，實際: {expr!r}"
-        assert "openRescrape(video, 'enrich')" in expr, \
-            f"grid 長壓 callback 必須 openRescrape(video, 'enrich')（不直接 enrichVideo），實際: {expr!r}"
-        assert "rescrapeEnabled()" in expr, \
-            f"grid 長壓 enabledFn 必須 gate by rescrapeEnabled()，實際: {expr!r}"
-
-    # ── 入口 3：lightbox cover-actions 🔍 enrich-btn 長壓 ───────────────
-
-    def test_lightbox_enrich_tap_preserved_via_clickguard(self):
-        """lightbox 🔍 @click 仍走 enrichVideo(currentLightboxVideo)（tap 不移除），前置 longPressClickGuard。"""
-        tag = self._lightbox_enrich_btn(self._html())
-        m = re.search(r'@click(?:\.stop)?="([^"]*)"', tag)
-        assert m, "lightbox 🔍 enrich-btn 缺 @click handler"
-        expr = m.group(1)
-        assert "longPressClickGuard($event)" in expr, \
-            f"lightbox 🔍 @click 必須前置 longPressClickGuard($event)，實際: {expr!r}"
-        assert "enrichVideo(currentLightboxVideo)" in expr, \
-            f"lightbox 🔍 tap 路徑不得移除，實際: {expr!r}"
-
-    def test_lightbox_enrich_longpress_events_wired(self):
-        """lightbox 🔍 enrich-btn 必須疊 6 長壓事件。"""
-        tag = self._lightbox_enrich_btn(self._html())
-        for ev in ("@mousedown", "@mouseup", "@mouseleave",
-                   "@touchstart.passive", "@touchend", "@touchcancel"):
-            assert ev in tag, f"lightbox 🔍 enrich-btn 缺長壓事件 {ev}"
-
-    def test_lightbox_longpress_routes_to_rescrape_enrich(self):
-        """lightbox 🔍 長壓 callback 走 openRescrape(currentLightboxVideo, 'enrich')，gate by rescrapeEnabled。"""
-        tag = self._lightbox_enrich_btn(self._html())
-        m = re.search(r'@mousedown="([^"]*)"', tag)
-        assert m, "lightbox 🔍 enrich-btn 缺 @mousedown"
-        expr = m.group(1)
-        assert "longPressStart(" in expr, f"lightbox 🔍 @mousedown 必須呼叫 longPressStart，實際: {expr!r}"
-        assert "openRescrape(currentLightboxVideo, 'enrich')" in expr, \
-            f"lightbox 🔍 長壓 callback 必須 openRescrape(currentLightboxVideo, 'enrich')，實際: {expr!r}"
-        assert "rescrapeEnabled()" in expr, \
-            f"lightbox 🔍 長壓 enabledFn 必須 gate by rescrapeEnabled()，實際: {expr!r}"
+    # ── 74b US4：grid + lightbox 🔍 enrich-btn 長壓入口已退役 ──────────────
+    # 去長壓的 element-bound 守衛見 TestLongPressTouchSuppression
+    # （test_grid/lightbox_enrich_btn_longpress_retired）；齒輪 ⚙ 成 showcase 唯一進階重刮入口。
 
     # ── helper 檔 + mergeState 接線 ────────────────────────────────────
 
-    def test_long_press_helper_exists(self):
-        """shared/long-press.js 必須存在（決策 #2：獨立檔，62c-2 可引用）。"""
-        assert self.LONG_PRESS_JS.exists(), \
-            f"long-press.js missing at {self.LONG_PRESS_JS!s}"
-
-    def test_long_press_exports_factory_and_methods(self):
-        """long-press.js 必須 export function longPressState 並含通用契約 method。"""
-        src = self.LONG_PRESS_JS.read_text(encoding="utf-8")
-        assert re.search(r"export\s+function\s+longPressState\s*\(", src), \
-            "long-press.js missing: export function longPressState()"
-        for method in ("longPressStart", "longPressEnd", "longPressCancel",
-                       "longPressClickGuard", "longPressReset"):
-            assert method in src, f"long-press.js missing method: {method}"
-        # 700ms 長壓常數（與 advanced-picker.js 對齊）
-        assert "700" in src, "long-press.js missing LONG_PRESS_MS = 700"
+    def test_long_press_helper_retired(self):
+        """74c-T3（退役）：shared/long-press.js 已刪除，不得再存在。"""
+        assert not self.LONG_PRESS_JS.exists(), \
+            f"74c-T3 違規：long-press.js 仍存在於 {self.LONG_PRESS_JS!s}（應已退役刪除）"
 
     def test_main_js_imports_and_merges_long_press(self):
-        """main.js 必須 import longPressState 並插入 mergeState 鏈（descriptor-preserving）。"""
+        """74c-T3（翻轉）：showcase main.js 已移除 long-press import + longPressState 接線（負向守衛）。"""
         src = self.MAIN_JS.read_text(encoding="utf-8")
-        assert "from '@/shared/long-press.js'" in src, \
-            "main.js missing: import { longPressState } from '@/shared/long-press.js'"
-        assert "longPressState.call(this)" in src, \
-            "main.js mergeState chain missing: longPressState.call(this)"
+        assert "from '@/shared/long-press.js'" not in src, \
+            "74c-T3 違規：showcase main.js 仍含 long-press.js import（應已退役）"
+        assert "longPressState" not in src, \
+            "74c-T3 違規：showcase main.js 仍含 longPressState（應已退役）"
 
     def test_rescrape_enabled_method_in_mixin(self):
-        """state-rescrape.js 必須揭露 rescrapeEnabled() gate（決策 #1，三入口共用）。"""
+        """74c-T1：rescrapeEnabled() 已從 state-rescrape.js 退役（負向守衛）；window.__ADVANCED_SEARCH__ 仍在（sources/proxy/CF live 消費者）。"""
         src = self.STATE_RESCRAPE_JS.read_text(encoding="utf-8")
-        assert "rescrapeEnabled()" in src, \
-            "state-rescrape.js missing rescrapeEnabled() method（決策 #1）"
+        assert "rescrapeEnabled" not in src, \
+            "74c-T1 違規：state-rescrape.js 仍含 rescrapeEnabled（應已退役）"
+        # window.__ADVANCED_SEARCH__ 仍在（sources/proxy_configured/cf_transport_available live 消費者，CD-74c-7）
         assert "window.__ADVANCED_SEARCH__" in src, \
-            "rescrapeEnabled() 必須讀 window.__ADVANCED_SEARCH__.enabled"
+            "74c-T1：state-rescrape.js 不得移除 window.__ADVANCED_SEARCH__（sources/proxy/CF 仍在）"
 
 
 class TestSearchRescrapeEntryGuard:
     """62c-1: 守衛 Search 進階搜尋入口改用 62a 共用重刮彈窗 contract。
 
     B1 radio picker（advancedPickerModal）已移除，改 include _rescrape_modal.html；
-    search bar 送出鈕長壓 → openRescrape(null,'search') 開共用彈窗上半部（番號預填 searchQuery）；
+    搜尋列「自動」膠囊 → openRescrape(null,'search') 開共用彈窗上半部（番號預填 searchQuery）；
     state-rescrape.js search 分支成功走 advancedSearch(source) 整包贏（不打 preview、不 fallbackSearch）。
 
-    62c-2：#btnSubmit 六事件 + click guard 改接共用 shared/long-press.js（longPressState），
-    main.js import + mergeState longPressState；form submit guard（advancedLongPressSubmitGuard）已移除，
-    form 直接走 doSearch()。US8（長壓開窗不連帶送出一般搜尋）由 longPressClickGuard 的 preventDefault
-    取消 submit 按鈕隱式 form 送出保護（方案 A）。advanced-picker.js 的整套 advancedLongPress* mixin 已移除。
+    74（US1/US6-c）：長壓基礎設施全退役——#btnSubmit 不再接 longPress* / click guard，
+    挑來源唯一入口改為搜尋列常駐「自動」膠囊（可見點擊）；search main.js 無 long-press.js import。
     對齊 TestRescrapeStateGuard / TestRescrapeEntryGuard pattern（element-bound regex，避免假測試）。
     """
 
@@ -8380,16 +8287,12 @@ class TestSearchRescrapeEntryGuard:
             "search main.js mergeState chain missing: rescrapeState()"
 
     def test_search_main_imports_long_press_state(self):
-        """62c-2（翻轉）：search main.js 必須 import longPressState + 併入 mergeState 鏈（descriptor-preserving）。
-
-        62c-1 原斷言「不得 import longPressState」（留 62c-2）；本 task 兌現 — #btnSubmit 改接共用
-        shared/long-press.js，故 main.js 必須 import 並 merge longPressState（CD-62-14 descriptor merge，禁 spread）。
-        """
+        """74c-T3（翻轉）：search main.js 已移除 long-press import + longPressState 接線（負向守衛）。"""
         src = self._main()
-        assert "from '@/shared/long-press.js'" in src, \
-            "62c-2：search main.js 必須 import { longPressState } from '@/shared/long-press.js'"
-        assert re.search(r"longPressState\s*\(", src), \
-            "62c-2：search main.js mergeState chain missing: longPressState()"
+        assert "from '@/shared/long-press.js'" not in src, \
+            "74c-T3 違規：search main.js 仍含 long-press.js import（應已退役）"
+        assert "longPressState" not in src, \
+            "74c-T3 違規：search main.js 仍含 longPressState（應已退役）"
 
     # ── (b) search.html include 共用彈窗 + 長壓 wiring（共用 longPressState）──
 
@@ -8408,43 +8311,38 @@ class TestSearchRescrapeEntryGuard:
             assert dead not in html, \
                 f"62c-1 違規：search.html 仍殘留 B1 picker 引用 {dead}（應隨 DOM 移除）"
 
-    def test_submit_btn_longpress_opens_rescrape_search(self):
-        """62c-2（翻轉）：#btnSubmit 長壓 mousedown 改接共用 longPressStart，fire callback 開共用彈窗 + 番號預填。
+    def test_submit_btn_longpress_retired_for_auto_pill(self):
+        """TASK-74a-T2（翻轉 62c-2）：#btnSubmit 長壓入口退役，改由搜尋列「自動」膠囊接管進階搜尋入口。
 
-        62c-1 原接 advancedLongPressStart()；62c-2 改接 shared helper longPressStart(cb, enabledFn)，
-        cb 以 template arrow 傳入（openRescrape(null,'search') + rescrapeNumber 預填 searchQuery，US5-a），
-        enabledFn 為 rescrapeEnabled()（toggle OFF gate）。
+        62c-2 曾把 #btnSubmit @mousedown 接 longPressStart(openRescrape(null,'search') + 番號預填)；
+        T2 移除此長壓 wiring，#btnSubmit 回歸純 type=\"submit\"。長壓開窗 + 番號預填的職責
+        移到 .search-auto-pill macro 呼叫的 @click（由 TestSearchAutoSourcePill 守衛）。
+        long-press.js helper 本身不刪（showcase 消費者仍在，全面退役在 74c）。
         """
         tag = self._submit_btn(self._html())
-        m = re.search(r'@mousedown="([^"]*)"', tag)
-        assert m, "#btnSubmit 缺 @mousedown 長壓 wiring"
-        wiring = m.group(1)
-        assert "longPressStart(" in wiring, \
-            f"#btnSubmit @mousedown 必須接共用 longPressStart(...)（62c-2 rewire），實際: {wiring!r}"
-        assert re.search(r"openRescrape\(\s*null\s*,\s*'search'\s*\)", wiring), \
-            f"#btnSubmit @mousedown fire callback 必須開 openRescrape(null,'search')，實際: {wiring!r}"
-        assert "searchQuery" in wiring, \
-            f"#btnSubmit @mousedown fire callback 必須以 searchQuery 預填 rescrapeNumber（US5-a），實際: {wiring!r}"
-        assert "rescrapeEnabled()" in wiring, \
-            f"#btnSubmit @mousedown enabledFn 必須是 rescrapeEnabled()（toggle OFF gate），實際: {wiring!r}"
+        assert "@mousedown" not in tag, \
+            f"#btnSubmit 不應再有 @mousedown 長壓 wiring（T2 退役）；tag: {tag!r}"
+        assert "longPressStart" not in tag, \
+            f"#btnSubmit 不應再接 longPressStart（職責移到 .search-auto-pill @click）；tag: {tag!r}"
 
-    def test_submit_btn_six_events_wired(self):
-        """62c-2：#btnSubmit 六事件齊全且接共用 longPress*（mousedown/up/leave + touchstart.passive/end/cancel）。"""
+    def test_submit_btn_six_events_retired(self):
+        """TASK-74a-T2（翻轉 62c-2）：#btnSubmit 六長壓事件全移除（mousedown/up/leave + touchstart/end/cancel）。"""
         tag = self._submit_btn(self._html())
-        assert re.search(r'@mousedown="longPressStart\(', tag), "#btnSubmit 缺 @mousedown longPressStart"
-        assert re.search(r'@mouseup="longPressEnd\([^)]*\)"', tag), "#btnSubmit 缺 @mouseup longPressEnd()"
-        assert re.search(r'@mouseleave="longPressCancel\([^)]*\)"', tag), "#btnSubmit 缺 @mouseleave longPressCancel()"
-        assert re.search(r'@touchstart\.passive="longPressStart\(', tag), "#btnSubmit 缺 @touchstart.passive longPressStart"
-        assert re.search(r'@touchend="longPressEnd\([^)]*\)"', tag), "#btnSubmit 缺 @touchend longPressEnd()"
-        assert re.search(r'@touchcancel="longPressCancel\([^)]*\)"', tag), "#btnSubmit 缺 @touchcancel longPressCancel()"
+        for forbidden in ("@mousedown", "@mouseup", "@mouseleave",
+                          "@touchstart", "@touchend", "@touchcancel"):
+            assert forbidden not in tag, \
+                f"#btnSubmit 不應再有 {forbidden} 長壓事件（T2 退役為純提交鈕）；tag: {tag!r}"
 
-    def test_submit_btn_click_guard_preserved(self):
-        """62c-2（翻轉）：#btnSubmit @click 改走共用 longPressClickGuard（US8：preventDefault 取消隱式 form 送出）。"""
+    def test_submit_btn_click_guard_retired(self):
+        """TASK-74a-T2（翻轉 62c-2）：#btnSubmit @click longPressClickGuard 移除，回歸純 type=\"submit\"。
+
+        tap 提交仍由 <form id=\"searchForm\" @submit.prevent=\"doSearch()\"> 驅動（不需 click guard）。
+        """
         tag = self._submit_btn(self._html())
-        m = re.search(r'@click="([^"]*)"', tag)
-        assert m, "#btnSubmit 缺 @click guard"
-        assert "longPressClickGuard($event)" in m.group(1), \
-            f"#btnSubmit @click 必須 longPressClickGuard($event)（62c-2 共用 helper），實際: {m.group(1)!r}"
+        assert "@click" not in tag, \
+            f"#btnSubmit 不應再有 @click（longPressClickGuard 隨長壓一併移除）；tag: {tag!r}"
+        assert "longPressClickGuard" not in tag, \
+            f"#btnSubmit 不應再含 longPressClickGuard（T2 退役）；tag: {tag!r}"
 
     def test_form_submit_guard_removed(self):
         """62c-2（翻轉）：form submit guard 已移除，#searchForm @submit.prevent 直接走 doSearch()。
@@ -8554,58 +8452,25 @@ class TestSwitchSourcePickGuard:
     def _ui(self):
         return self.UI_JS.read_text(encoding="utf-8")
 
-    def _switch_btn(self, html):
-        """擷取結果面板 🔄 鈕 #switchSourceBtn 的完整 <button>...</button> 區塊。"""
-        m = re.search(
-            r'<button\b(?:(?!</button>).)*?\bid="switchSourceBtn"(?:(?!</button>).)*?</button>',
-            html, re.DOTALL,
-        )
-        assert m, "search.html #switchSourceBtn button 區塊不存在"
-        return m.group(0)
+    # ── (a) #switchSourceBtn 已退役（T3 翻轉 62c-3 US7）──
+    #
+    # TASK-74a-T3（CD-74a-6）：結果面板 🔄 #switchSourceBtn（含 6 長壓 handler + tap 循環）
+    # 整顆移除，原位改放「目前來源膠囊」（action 變體，@click 直接 openSwitchSourcePicker()）。
+    # 原 (a) 群的長壓 wiring 守衛（test_switch_btn_longpress_opens_picker / _six_events_wired /
+    # _touchstart_opens_picker / _click_guard_preserves_switch_source）已退役，改為下方單一
+    # 退役守衛——只觸及 #switchSourceBtn 該按鈕的存在性，不動本 class 其餘 contract
+    # （openSourceUrl 負向、_rescrape_modal 番號可編輯、state-rescrape.js switch-source 分支、
+    # ui.js seedSwitchState export 全部保留，膠囊仍走 openSwitchSourcePicker → switch-source 入口）。
+    # 膠囊本身的 @click/name/loading 接線由 TestResultSourcePill 守衛。
 
-    # ── (a) #switchSourceBtn 長壓六事件 + click 分流（tap 維持循環）──
+    def test_switch_source_btn_retired(self):
+        """TASK-74a-T3：#switchSourceBtn 整顆退役，search.html 不得再出現該 id（含其長壓 wiring）。
 
-    def test_switch_btn_longpress_opens_picker(self):
-        """#switchSourceBtn @mousedown 長壓接共用 longPressStart，fire callback 開 openSwitchSourcePicker()。"""
-        tag = self._switch_btn(self._html())
-        m = re.search(r'@mousedown="([^"]*)"', tag)
-        assert m, "#switchSourceBtn 缺 @mousedown 長壓 wiring"
-        wiring = m.group(1)
-        assert "longPressStart(" in wiring, \
-            f"#switchSourceBtn @mousedown 必須接共用 longPressStart(...)，實際: {wiring!r}"
-        assert "openSwitchSourcePicker()" in wiring, \
-            f"#switchSourceBtn @mousedown fire callback 必須開 openSwitchSourcePicker()，實際: {wiring!r}"
-        assert "rescrapeEnabled()" in wiring, \
-            f"#switchSourceBtn @mousedown enabledFn 必須是 rescrapeEnabled()（toggle OFF gate），實際: {wiring!r}"
-
-    def test_switch_btn_six_events_wired(self):
-        """#switchSourceBtn 六事件齊全且接共用 longPress*（mousedown/up/leave + touchstart.passive/end/cancel）。"""
-        tag = self._switch_btn(self._html())
-        assert re.search(r'@mousedown="longPressStart\(', tag), "#switchSourceBtn 缺 @mousedown longPressStart"
-        assert re.search(r'@mouseup="longPressEnd\([^)]*\)"', tag), "#switchSourceBtn 缺 @mouseup longPressEnd()"
-        assert re.search(r'@mouseleave="longPressCancel\([^)]*\)"', tag), "#switchSourceBtn 缺 @mouseleave longPressCancel()"
-        assert re.search(r'@touchstart\.passive="longPressStart\(', tag), "#switchSourceBtn 缺 @touchstart.passive longPressStart"
-        assert re.search(r'@touchend="longPressEnd\([^)]*\)"', tag), "#switchSourceBtn 缺 @touchend longPressEnd()"
-        assert re.search(r'@touchcancel="longPressCancel\([^)]*\)"', tag), "#switchSourceBtn 缺 @touchcancel longPressCancel()"
-
-    def test_switch_btn_touchstart_opens_picker(self):
-        """#switchSourceBtn @touchstart.passive fire callback 同樣開 openSwitchSourcePicker()（mousedown/touchstart 一致）。"""
-        tag = self._switch_btn(self._html())
-        m = re.search(r'@touchstart\.passive="([^"]*)"', tag)
-        assert m, "#switchSourceBtn 缺 @touchstart.passive 長壓 wiring"
-        assert "openSwitchSourcePicker()" in m.group(1), \
-            f"#switchSourceBtn @touchstart.passive fire callback 必須開 openSwitchSourcePicker()，實際: {m.group(1)!r}"
-
-    def test_switch_btn_click_guard_preserves_switch_source(self):
-        """#switchSourceBtn @click 走 longPressClickGuard($event) || switchSource()（tap 維持循環，長壓 fire 後短路）。"""
-        tag = self._switch_btn(self._html())
-        m = re.search(r'@click="([^"]*)"', tag)
-        assert m, "#switchSourceBtn 缺 @click 分流"
-        guard = m.group(1)
-        assert "longPressClickGuard($event)" in guard, \
-            f"#switchSourceBtn @click 必須 longPressClickGuard($event)（長壓短路），實際: {guard!r}"
-        assert "switchSource()" in guard, \
-            f"#switchSourceBtn @click 必須保留 switchSource()（tap 循環不回歸），實際: {guard!r}"
+        過「三問」：把長壓按鈕加回（id 重現）→ 紅。膠囊接線改由 TestResultSourcePill 守衛。
+        """
+        html = self._html()
+        assert 'id="switchSourceBtn"' not in html, \
+            "search.html 仍含 id=\"switchSourceBtn\" — 該按鈕應整顆退役（T3，膠囊取代）"
 
     def test_open_source_url_btn_not_touched(self):
         """負向（§1.6 D）：長壓只疊 #switchSourceBtn，旁邊 ↗ openSourceUrl 鈕不得沾長壓 wiring。"""
@@ -8683,6 +8548,75 @@ class TestSwitchSourcePickGuard:
             f"window.SearchUI 必須 export seedSwitchState，實際 export: {m.group(1)!r}"
 
 
+class TestSwitchSourceAutoCycle:
+    """TASK-74a-T4 US2：picker 由結果面板來源膠囊開啟（switch-source 入口）時，點「自動」pill
+    直接走 switchSource() 循環（picker 先關閉），不再 POST /api/rescrape/preview 的 auto 路徑。
+
+    source-bound 靜態守衛斷言新增的 auto short-circuit 分支存在（含 `&& sourceId === 'auto'`
+    + closeRescrape + switchSource 兩動作）。不重複 TestSwitchSourcePickGuard.test_switch_source_branch_present
+    （後者守既有 preview 路徑分支）。async cycle 的實際循環 / shake / 關窗時序走手動 checklist。
+    """
+
+    STATE_RESCRAPE_JS = (
+        Path(__file__).parent.parent.parent / "web" / "static" / "js"
+        / "shared" / "state-rescrape.js"
+    )
+
+    def _rescrape(self):
+        return self.STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+
+    def test_switch_source_auto_short_circuit_branch_present(self):
+        """state-rescrape.js 含 switch-source + auto short-circuit 分支（含 closeRescrape + switchSource）。
+
+        過「三問」：刪 `&& sourceId === 'auto'` 子式 → 紅（退化成既有 bare switch-source 分支）；
+        刪 closeRescrape / switchSource → 紅。distinguishes 新 short-circuit 分支與既有 preview 分支
+        （後者無 `&& sourceId === 'auto'`）。
+        """
+        src = self._rescrape()
+        # short-circuit 分支條件：rescrapeEntryPoint === 'switch-source' && sourceId === 'auto'（容許空白）
+        m = re.search(
+            r"rescrapeEntryPoint\s*===\s*'switch-source'\s*&&\s*sourceId\s*===\s*'auto'\s*\)\s*\{(.*?)\}",
+            src, re.DOTALL,
+        )
+        assert m, (
+            "state-rescrape.js 缺 switch-source + auto short-circuit 分支"
+            "（rescrapeEntryPoint === 'switch-source' && sourceId === 'auto'）"
+        )
+        block = m.group(1)
+        assert "closeRescrape(" in block, \
+            "switch-source + auto short-circuit 分支內必須呼叫 closeRescrape()（先關 picker）"
+        assert "switchSource(" in block, \
+            "switch-source + auto short-circuit 分支內必須呼叫 switchSource()（循環到下一來源）"
+
+
+class TestRescrapeSourcesSeededAtInit:
+    """TASK-74a-T5 US2 修：結果面板來源膠囊在 picker 開啟前即 render，呼叫 _resolveSourceName，
+    需 rescrapeSources 在 component init 就有料（否則膠囊顯示 raw id 'javbus' 而非顯示名 'JavBus'）。
+
+    rescrapeState() 是 mergeState 時呼叫的 factory，早於此的 _advanced_search_bootstrap.html 已設好
+    window.__ADVANCED_SEARCH__ → 初始化器可直接讀。守衛斷言 rescrapeSources 初始化器（非 openRescrape
+    的 this.rescrapeSources 再賦值）從 window.__ADVANCED_SEARCH__.sources 灌入。
+
+    三問：還原成 `rescrapeSources: []` → 紅（初始化器不再讀 window）。
+    """
+
+    STATE_RESCRAPE_JS = (
+        Path(__file__).parent.parent.parent / "web" / "static" / "js"
+        / "shared" / "state-rescrape.js"
+    )
+
+    def test_rescrape_sources_initializer_seeds_from_bootstrap(self):
+        src = self.STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+        # 初始化器（state property default，冒號賦值）— 非 openRescrape 的 `this.rescrapeSources =`
+        m = re.search(r"^\s*rescrapeSources:\s*(.+?),\s*$", src, re.MULTILINE)
+        assert m, "state-rescrape.js 缺 rescrapeSources 初始化器"
+        initializer = m.group(1)
+        assert "window.__ADVANCED_SEARCH__" in initializer and "sources" in initializer, (
+            "rescrapeSources 初始化器必須從 window.__ADVANCED_SEARCH__.sources 灌入"
+            "（不可還原成 []，否則結果面板來源膠囊在 picker 開啟前顯示 raw id）"
+        )
+
+
 class TestDesignSystemLongPressCard:
     """62c-2 (b)：/design-system 登記 long-press 互動 pattern demo card（D.14）。
 
@@ -8700,20 +8634,15 @@ class TestDesignSystemLongPressCard:
     def _html(self):
         return self.SETTINGS_COMPONENTS_HTML.read_text(encoding="utf-8")
 
-    def test_long_press_card_present(self):
-        """settings-components.html 含 long-press demo card（標題 + longPressStart/long-press 引用 + 700ms）。"""
+    def test_long_press_card_retired(self):
+        """74c-T3（退役）：D.14 long-press demo card 已從 settings-components.html 移除（負向守衛）。"""
         html = self._html()
-        assert "Long-press" in html, "design-system 缺 long-press demo card 標題（Long-press）"
-        assert "longPressStart" in html, "long-press demo card 必須引用共用 helper longPressStart"
-        assert "long-press.js" in html, "long-press demo card 必須引用 shared/long-press.js"
-        assert "700" in html, "long-press demo card 必須標出 700ms 長壓門檻"
-
-    def test_long_press_card_no_progress_ring_or_tooltip(self):
-        """負向（CD-62-0 #7 §7.4）：long-press card 不得含 hold-progress / progress-ring / data-tooltip affordance。"""
-        html = self._html()
-        for forbidden in ("hold-progress", "progress-ring", "data-tooltip"):
-            assert forbidden not in html, \
-                f"long-press demo card 不應含 {forbidden}（刻意無進度環 / 無 tooltip，CD-62-0 #7）"
+        assert "D.14" not in html, \
+            "74c-T3 違規：settings-components.html 仍含 D.14（long-press demo card 應已移除）"
+        assert "longPressStart" not in html, \
+            "74c-T3 違規：settings-components.html 仍含 longPressStart（long-press demo card 應已移除）"
+        assert "long-press.js" not in html, \
+            "74c-T3 違規：settings-components.html 仍含 long-press.js（long-press demo card 應已移除）"
 
 
 class TestLongPressTouchSuppression:
@@ -8738,59 +8667,11 @@ class TestLongPressTouchSuppression:
     def _showcase_html(self):
         return SHOWCASE_HTML.read_text(encoding="utf-8")
 
-    # ── (a) long-press.js helper 機制 ────────────────────────────────────
-
-    def test_helper_has_suppress_state(self):
-        """long-press.js 必須宣告 _lpSuppressMouseUntil state（與 _lpTimer/_lpFired 並列，初值 0）。"""
-        src = self._js()
-        assert re.search(r'_lpSuppressMouseUntil\s*:\s*0', src), \
-            "long-press.js 缺 _lpSuppressMouseUntil: 0 state（touchend 抑制窗截止時間）"
-
-    def test_helper_longpressstart_takes_event_and_early_returns(self):
-        """longPressStart 必須收 event 第三參，synthetic mousedown 在抑制窗內 early-return（在 _lpFired reset 之前）。"""
-        src = self._js()
-        m = re.search(r'longPressStart\(cb,\s*enabledFn,\s*event\)\s*\{(.*?)\n        \},', src, re.DOTALL)
-        assert m, "longPressStart 必須宣告第三參數 event（longPressStart(cb, enabledFn, event)）"
-        body = m.group(1)
-        # early-return 條件：mousedown + 抑制窗未過
-        guard = re.search(
-            r"if\s*\(\s*event\s*&&\s*event\.type\s*===\s*'mousedown'\s*&&\s*performance\.now\(\)\s*<\s*this\._lpSuppressMouseUntil\s*\)\s*\{?\s*return",
-            body,
-        )
-        assert guard, \
-            "longPressStart 開頭必須有 synthetic mousedown 抑制 early-return（event.type==='mousedown' && performance.now() < this._lpSuppressMouseUntil → return）"
-        # early-return 必在 _lpFired = false reset 之前（否則旗標已被清）。
-        # 比對「實際賦值語句」（行尾分號），避免抓到 docstring/註解裡提及的 this._lpFired = false reset 字樣。
-        reset_m = re.search(r'this\._lpFired\s*=\s*false\s*;', body)
-        assert reset_m, "longPressStart body 缺 this._lpFired = false; reset 賦值"
-        assert guard.start() < reset_m.start(), \
-            "synthetic mousedown early-return 必須在 this._lpFired = false reset 之前（否則旗標已被清）"
-
-    def test_helper_longpressend_sets_window_on_touchend(self):
-        """longPressEnd 必須收 event 參，touchend 時設 _lpSuppressMouseUntil = performance.now() + (窗)。"""
-        src = self._js()
-        m = re.search(r'longPressEnd\(event\)\s*\{(.*?)\n        \},', src, re.DOTALL)
-        assert m, "longPressEnd 必須宣告 event 參數（longPressEnd(event)）"
-        body = m.group(1)
-        assert re.search(
-            r"event\s*&&\s*event\.type\s*===\s*'touchend'", body), \
-            "longPressEnd 必須判斷 event.type === 'touchend'"
-        assert re.search(
-            r"this\._lpSuppressMouseUntil\s*=\s*performance\.now\(\)\s*\+", body), \
-            "longPressEnd(touchend) 必須設 this._lpSuppressMouseUntil = performance.now() + 窗"
-
-    def test_helper_longpresscancel_sets_window_on_touchcancel(self):
-        """longPressCancel 必須收 event 參，touchcancel 時設 _lpSuppressMouseUntil = performance.now() + (窗)。"""
-        src = self._js()
-        m = re.search(r'longPressCancel\(event\)\s*\{(.*?)\n        \},', src, re.DOTALL)
-        assert m, "longPressCancel 必須宣告 event 參數（longPressCancel(event)）"
-        body = m.group(1)
-        assert re.search(
-            r"event\s*&&\s*event\.type\s*===\s*'touchcancel'", body), \
-            "longPressCancel 必須判斷 event.type === 'touchcancel'"
-        assert re.search(
-            r"this\._lpSuppressMouseUntil\s*=\s*performance\.now\(\)\s*\+", body), \
-            "longPressCancel(touchcancel) 必須設 this._lpSuppressMouseUntil = performance.now() + 窗"
+    # ── (a) long-press.js helper 機制（74c-T3 退役：helper 檔已刪）─────────────
+    # test_helper_has_suppress_state、test_helper_longpressstart_takes_event_and_early_returns、
+    # test_helper_longpressend_sets_window_on_touchend、test_helper_longpresscancel_sets_window_on_touchcancel
+    # 已退役（shared/long-press.js 已刪，helper 機制守衛無意義）。
+    # (b) element-bound 退役守衛（74a/74b）保留不動。
 
     # ── (b) 四入口 wiring 傳 $event（element-bound）─────────────────────
 
@@ -8800,14 +8681,6 @@ class TestLongPressTouchSuppression:
             html, re.DOTALL,
         )
         assert m, "search.html #btnSubmit button 區塊不存在"
-        return m.group(0)
-
-    def _switch_btn(self, html):
-        m = re.search(
-            r'<button\b(?:(?!</button>).)*?\bid="switchSourceBtn"(?:(?!</button>).)*?</button>',
-            html, re.DOTALL,
-        )
-        assert m, "search.html #switchSourceBtn button 區塊不存在"
         return m.group(0)
 
     def _grid_enrich_btn(self, html):
@@ -8828,30 +8701,57 @@ class TestLongPressTouchSuppression:
         assert m, "showcase lightbox .lb-action-btn（enrichVideo(currentLightboxVideo)）button 區塊不存在"
         return m.group(0)
 
-    def _assert_entry_passes_event(self, tag, label):
-        """element-bound：@mousedown/@touchstart longPressStart 傳 $event；@touchend longPressEnd($event)。"""
-        md = re.search(r'@mousedown="(longPressStart\([^"]*)"', tag)
-        assert md and '$event)' in md.group(1), \
-            f"{label} @mousedown longPressStart 必須傳 $event，實際: {md.group(1) if md else None!r}"
-        ts = re.search(r'@touchstart\.passive="(longPressStart\([^"]*)"', tag)
-        assert ts and '$event)' in ts.group(1), \
-            f"{label} @touchstart.passive longPressStart 必須傳 $event，實際: {ts.group(1) if ts else None!r}"
-        assert re.search(r'@touchend="longPressEnd\(\$event\)"', tag), \
-            f"{label} @touchend 必須 longPressEnd($event)"
-        assert re.search(r'@touchcancel="longPressCancel\(\$event\)"', tag), \
-            f"{label} @touchcancel 必須 longPressCancel($event)"
+    def _assert_no_longpress(self, tag, label, click_expr):
+        """element-bound：該鈕已無任何 longPress* / longPressClickGuard 接線；@click 為純 enrich。"""
+        for hook in ("longPressStart", "longPressEnd", "longPressCancel", "longPressClickGuard"):
+            assert hook not in tag, \
+                f"{label} 不應再有 {hook}（74b US4 去長壓）；tag: {tag!r}"
+        for ev in ("@mousedown", "@mouseup", "@mouseleave",
+                   "@touchstart", "@touchend", "@touchcancel"):
+            assert ev not in tag, \
+                f"{label} 不應再有 {ev} 長壓 handler（74b US4 去長壓）；tag: {tag!r}"
+        assert re.search(rf'@click\.stop="{re.escape(click_expr)}"', tag), \
+            f"{label} @click.stop 必須為 {click_expr}（tap=自動補缺維持）；tag: {tag!r}"
 
-    def test_search_submit_btn_passes_event(self):
-        self._assert_entry_passes_event(self._submit_btn(self._search_html()), "#btnSubmit")
+    def test_search_submit_btn_longpress_retired(self):
+        """TASK-74a-T2（翻轉）：#btnSubmit 退役為純提交鈕，不再是長壓入口（不傳 $event 因無 longPress* wiring）。
 
-    def test_switch_source_btn_passes_event(self):
-        self._assert_entry_passes_event(self._switch_btn(self._search_html()), "#switchSourceBtn")
+        showcase grid+lightbox enrich 兩入口已於 74b US4 去長壓（見
+        test_grid/lightbox_enrich_btn_longpress_retired）；#switchSourceBtn 由 74a-T3
+        整顆退役為膠囊（見 test_switch_source_btn_retired）。
+        """
+        tag = self._submit_btn(self._search_html())
+        assert "longPressStart" not in tag and "longPressEnd" not in tag \
+            and "longPressCancel" not in tag, \
+            f"#btnSubmit 不應再有任何 longPress* wiring（T2 退役）；tag: {tag!r}"
 
-    def test_grid_enrich_btn_passes_event(self):
-        self._assert_entry_passes_event(self._grid_enrich_btn(self._showcase_html()), "grid enrich-btn")
+    def test_switch_source_btn_retired(self):
+        """TASK-74a-T3：#switchSourceBtn 整顆退役（膠囊取代），不再是長壓 $event 入口。
 
-    def test_lightbox_enrich_btn_passes_event(self):
-        self._assert_entry_passes_event(self._lightbox_enrich_btn(self._showcase_html()), "lightbox enrich-btn")
+        原 test_switch_source_btn_passes_event 斷言該按鈕長壓傳 $event；按鈕移除後改為退役守衛。
+        過「三問」：把長壓按鈕加回（id 重現）→ 紅。膠囊接線由 TestResultSourcePill 守衛。
+        """
+        html = self._search_html()
+        assert 'id="switchSourceBtn"' not in html, \
+            "search.html 仍含 id=\"switchSourceBtn\" — 該長壓入口應整顆退役（T3，膠囊取代）"
+
+    def test_grid_enrich_btn_longpress_retired(self):
+        """TASK-74b-T3（US4）：grid 補資料鈕去長壓，tap=enrichVideo(video) 維持。
+
+        原 test_grid_enrich_btn_passes_event 斷言長壓四要素傳 $event；長壓移除後改為退役守衛。
+        過「三問」：把任一 longPress* handler 加回 → 紅；@click 改非 enrichVideo → 紅。
+        """
+        self._assert_no_longpress(
+            self._grid_enrich_btn(self._showcase_html()), "grid enrich-btn", "enrichVideo(video)")
+
+    def test_lightbox_enrich_btn_longpress_retired(self):
+        """TASK-74b-T3（US4）：燈箱補資料鈕去長壓，tap=enrichVideo(currentLightboxVideo) 維持。
+
+        進階重刮收斂到燈箱齒輪 ⚙（純 @click，本 plan 不動）。
+        """
+        self._assert_no_longpress(
+            self._lightbox_enrich_btn(self._showcase_html()), "lightbox enrich-btn",
+            "enrichVideo(currentLightboxVideo)")
 
 
 class TestScannerXShowCssConflictGuard:
@@ -9601,22 +9501,13 @@ class TestSettingsQuickToggleGuard:
         assert 'x-model="form.downloadSampleImages"' in row_block, \
             "64b-3 違規：form.downloadSampleImages x-model 必須在 .settings-quick-toggle-row 內"
 
-    def test_advanced_search_enabled_in_quick_toggle_row(self):
+    def test_advanced_search_toggle_removed_from_quick_toggle_row(self):
+        """74c-T1：進階搜尋 toggle 已從 quick-toggle 列退役（負向守衛）。"""
         html = self._html()
-        row_start = html.index('class="settings-quick-toggle-row"')
-        sec_search_pos = html.index('id="sec-search"')
-        row_block = html[row_start:sec_search_pos]
-        assert 'x-model="form.advancedSearchEnabled"' in row_block, \
-            "64b-3 違規：form.advancedSearchEnabled x-model 必須在 .settings-quick-toggle-row 內"
-
-    def test_advanced_search_toggle_id_preserved(self):
-        """id=advancedSearchToggle 必須在 quick-toggle 列（不可消失）"""
-        html = self._html()
-        row_start = html.index('class="settings-quick-toggle-row"')
-        sec_search_pos = html.index('id="sec-search"')
-        row_block = html[row_start:sec_search_pos]
-        assert 'id="advancedSearchToggle"' in row_block, \
-            "64b-3 違規：id=advancedSearchToggle 必須保留在 quick-toggle 列內（64b-1 DoD：不得遺失 id）"
+        assert 'x-model="form.advancedSearchEnabled"' not in html, \
+            "74c-T1 違規：settings.html 仍含 form.advancedSearchEnabled（toggle 應已退役）"
+        assert 'id="advancedSearchToggle"' not in html, \
+            "74c-T1 違規：settings.html 仍含 id=advancedSearchToggle（toggle 應已退役）"
 
     def test_download_sample_images_not_duplicated_in_card(self):
         """downloadSampleImages x-model 只出現一次（已從 Card ② 搬走）"""
@@ -9624,24 +9515,6 @@ class TestSettingsQuickToggleGuard:
         count = html.count('x-model="form.downloadSampleImages"')
         assert count == 1, \
             f"64b-3 違規：form.downloadSampleImages x-model 出現 {count} 次，應只在 quick-toggle 列（1 次）"
-
-    def test_advanced_search_toggle_id_unique(self):
-        """id=advancedSearchToggle 全頁只出現一次（搬移非複製；重複 id 為無效 HTML）"""
-        html = self._html()
-        count = html.count('id="advancedSearchToggle"')
-        assert count == 1, \
-            f"64b-3 違規：id=advancedSearchToggle 出現 {count} 次，應只在 quick-toggle 列（1 次）"
-
-    def test_advanced_search_has_help_popover(self):
-        """64e-1 E2：進階搜尋區塊必須有 showAdvancedSearchHelp state 與 help-popover 元件（Alpine↔HTML API contract）"""
-        html = self._html()
-        row_start = html.index('class="settings-quick-toggle-row"')
-        sec_search_pos = html.index('id="sec-search"')
-        row_block = html[row_start:sec_search_pos]
-        assert 'showAdvancedSearchHelp' in row_block, \
-            "64e-1 違規：quick-toggle 列內進階搜尋區塊缺少 showAdvancedSearchHelp state binding"
-        assert 'help-popover' in row_block, \
-            "64e-1 違規：quick-toggle 列內進階搜尋區塊缺少 help-popover 元件"
 
     def test_thumbnail_cache_enabled_in_quick_toggle_row(self):
         """71-T5：封面縮圖快取 toggle（form.thumbnailCacheEnabled）必須在 quick-toggle 列內"""
@@ -10446,30 +10319,43 @@ class TestJavlibraryCfFlowT6Guard:
 
         B2-P3-1 hardening: anchor on `data.cf_needed` (the consuming expression),
         not bare `cf_needed` which could match a comment appearing earlier in the file.
+
+        74a-T4 hardening: anchor sw_pos on the PREVIEW switch-source branch opener
+        `rescrapeEntryPoint === 'switch-source') {` (bare, closing-paren + brace),
+        NOT the bare-first-occurrence `.index()`. 74a-T4 introduces a switch-source + auto
+        short-circuit branch (`rescrapeEntryPoint === 'switch-source' && sourceId === 'auto'`)
+        that runs BEFORE the fetch — it cannot intercept CF data, so it is irrelevant to the
+        property this guard protects (CF handling must precede the data-consuming PREVIEW branch).
+        Anchoring on the bare-opener keeps the guard meaningful (the auto branch opener has
+        `&& sourceId === 'auto'` before `)`, so it never matches this anchor).
         """
         js = _STATE_RESCRAPE_JS.read_text(encoding="utf-8")
         assert "data.cf_needed" in js, \
             "70-T6 P2 違規：state-rescrape.js 未含 data.cf_needed 消費表達式"
-        assert "rescrapeEntryPoint === 'switch-source'" in js, \
-            "70-T6 P2 違規：state-rescrape.js 未含 switch-source 分支"
+        assert "rescrapeEntryPoint === 'switch-source') {" in js, \
+            "70-T6 P2 違規：state-rescrape.js 未含 preview switch-source 分支"
         cf_pos = js.index("data.cf_needed")
-        sw_pos = js.index("rescrapeEntryPoint === 'switch-source'")
+        sw_pos = js.index("rescrapeEntryPoint === 'switch-source') {")
         assert cf_pos < sw_pos, (
-            f"70-T6 P2 違規：data.cf_needed 處理（pos={cf_pos}）必須在 switch-source 分支"
+            f"70-T6 P2 違規：data.cf_needed 處理（pos={cf_pos}）必須在 preview switch-source 分支"
             f"（pos={sw_pos}）之前，否則 switch-source 入口永遠看不到 CF flow"
         )
 
     def test_cf_unavailable_before_switch_source_branch(self):
-        """70-T6 P2：cf_unavailable 處理必須在 switch-source 分支之前（與 cf_needed 同理）。"""
+        """70-T6 P2：cf_unavailable 處理必須在 switch-source 分支之前（與 cf_needed 同理）。
+
+        74a-T4 hardening: 同 test_cf_needed_before_switch_source_branch，sw_pos 錨在 preview
+        switch-source 分支 opener（bare `) {`），不受 74a-T4 fetch 前的 auto short-circuit 分支影響。
+        """
         js = _STATE_RESCRAPE_JS.read_text(encoding="utf-8")
         assert "cf_unavailable" in js, \
             "70-T6 P2 違規：state-rescrape.js 未含 cf_unavailable 處理"
-        assert "rescrapeEntryPoint === 'switch-source'" in js, \
-            "70-T6 P2 違規：state-rescrape.js 未含 switch-source 分支"
+        assert "rescrapeEntryPoint === 'switch-source') {" in js, \
+            "70-T6 P2 違規：state-rescrape.js 未含 preview switch-source 分支"
         cf_unav_pos = js.index("cf_unavailable")
-        sw_pos = js.index("rescrapeEntryPoint === 'switch-source'")
+        sw_pos = js.index("rescrapeEntryPoint === 'switch-source') {")
         assert cf_unav_pos < sw_pos, (
-            f"70-T6 P2 違規：cf_unavailable 處理（pos={cf_unav_pos}）必須在 switch-source 分支"
+            f"70-T6 P2 違規：cf_unavailable 處理（pos={cf_unav_pos}）必須在 preview switch-source 分支"
             f"（pos={sw_pos}）之前"
         )
 
@@ -10765,4 +10651,416 @@ class TestSkippedNfoMultipartToastGuard:
         assert count >= 2, (
             f"batch.js 'search.toast.skipped_nfo_multipart' 出現 {count} 次，期望 >= 2"
             "（scrapeAll + scrapeSingle 各一條 showToast 呼叫）"
+        )
+
+
+SOURCE_PILL_MACRO = (
+    Path(__file__).parent.parent.parent
+    / "web" / "templates" / "_macros" / "source_pill.html"
+)
+
+
+class TestSourcePillMacroTypeButton:
+    """TASK-74a-T1: source_pill macro DOM contract（element-bound）。
+
+    過「三問」：搬走 / 註解化 / 刪子表達式都要紅。
+    """
+
+    def _macro(self) -> str:
+        return SOURCE_PILL_MACRO.read_text(encoding="utf-8")
+
+    def _root_button_tag(self, src: str) -> str:
+        """抽出 macro root <button ...> 開頭 tag（含屬性，不含子元素）。
+
+        錨定 class="source-pill 的那顆 button（macro 註解中亦有裸 <button> 字樣，
+        須跳過；root button 是唯一帶 source-pill class 的開頭 tag）。
+        """
+        m = re.search(r'<button\b[^>]*class="source-pill[^>]*>', src)
+        assert m, "source_pill.html 找不到 root <button> tag（class=\"source-pill\"）"
+        return m.group(0)
+
+    def test_root_button_has_type_button(self):
+        """root <button> tag 同一 tag 上帶 type=\"button\"（CD-74a-14(1)）。
+
+        搬到子元素 / 拿掉 type → 此斷言紅（regex 只取 root button tag）。
+        """
+        tag = self._root_button_tag(self._macro())
+        assert re.search(r'type\s*=\s*"button"', tag), (
+            f"root <button> 必須 hardcode type=\"button\"，實際 tag: {tag!r}"
+        )
+
+    def test_attrs_output_via_safe(self):
+        """attrs 用 {{ attrs|safe }}（或 attrs | safe）輸出，非裸 {{ attrs }}（CD-74a-14(3)）。
+
+        拿掉 |safe → autoescape 打爛引號；此斷言紅。
+        """
+        src = self._macro()
+        assert re.search(r"\{\{\s*attrs\s*\|\s*safe\s*\}\}", src), (
+            "attrs 必須以 {{ attrs|safe }} 輸出（不可裸 {{ attrs }}，否則引號被 escape）"
+        )
+        # 防回歸成裸 {{ attrs }}：不存在「未接 |safe 的 attrs 輸出」
+        assert not re.search(r"\{\{\s*attrs\s*\}\}", src), (
+            "偵測到裸 {{ attrs }}（無 |safe），會被 autoescape 打爛 Alpine directive"
+        )
+
+    def test_root_button_has_no_alpine_class_binding(self):
+        """root <button> tag 不含 :class=（動態 class 必走 caller attrs，CD-74a-14(2)）。
+
+        把 :class 加到 root → 此斷言紅。
+        """
+        tag = self._root_button_tag(self._macro())
+        assert ":class=" not in tag, (
+            f"root <button> 不可輸出 :class（動態 class 走 caller 的單一 :class）；tag: {tag!r}"
+        )
+
+    def test_variant_branches_emit_both_classes(self):
+        """variant 判斷處同時輸出 source-pill--action 與 source-pill--flat 兩分支字串。
+
+        刪任一分支 → 此斷言紅。
+        """
+        src = self._macro()
+        # 兩 class 必須出現在 variant 條件式內（同一 {% if variant ... %} 區塊）
+        branch = re.search(
+            r"\{%\s*if\s+variant\b.*?\{%\s*endif\s*%\}", src, re.DOTALL
+        )
+        assert branch, "找不到 variant 的 {% if %}…{% endif %} 分支"
+        block = branch.group(0)
+        assert "source-pill--action" in block, "variant 分支缺 source-pill--action"
+        assert "source-pill--flat" in block, "variant 分支缺 source-pill--flat"
+
+    def test_inner_child_classes_present(self):
+        """子元素 class 名與既有 pill 相容：pill-spin / pill-name。"""
+        src = self._macro()
+        assert re.search(r'class="pill-spin"', src), "缺 spinner span class=\"pill-spin\""
+        assert re.search(r'class="pill-name"', src), "缺 name span class=\"pill-name\""
+
+
+class TestSearchAutoSourcePill:
+    """TASK-74a-T2: 搜尋列自動膠囊 macro 呼叫 DOM contract（call-site-bound）。
+
+    守衛抽出 search.html 內含 extra_classes='search-auto-pill' 的 source_pill(...)
+    macro 呼叫文字，斷言同一呼叫上：x-show 含 isComposing()；@click 含
+    openRescrape(null, 'search') 與 rescrapeNumber = 預填（CD-74a-14 + Codex P1-2）。
+
+    過「三問」：把 isComposing()/@click 搬到別的 macro 呼叫 → 紅（regex 只取
+    search-auto-pill 那一個 call）；註解化 → 紅；刪 rescrapeNumber 預填子表達式 → 紅。
+    """
+
+    def _auto_pill_call(self) -> str:
+        """抽出帶 extra_classes='search-auto-pill' 的 source_pill(...) macro 呼叫文字。"""
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+        m = re.search(
+            r"source_pill\((?:[^()]|\([^()]*\))*search-auto-pill(?:[^()]|\([^()]*\))*\)",
+            html,
+            re.DOTALL,
+        )
+        assert m, "search.html 找不到 extra_classes='search-auto-pill' 的 source_pill(...) 呼叫"
+        return m.group(0)
+
+    def test_auto_pill_xshow_is_composing(self):
+        """自動膠囊 macro 呼叫的 x-show 含 isComposing()（compose 態才顯示）。"""
+        call = self._auto_pill_call()
+        xshow_m = re.search(r'x-show=\\?["\']([^"\']*)', call)
+        assert xshow_m, f"search-auto-pill 呼叫缺 x-show binding；call: {call!r}"
+        assert "isComposing()" in xshow_m.group(1), (
+            f"search-auto-pill x-show 缺 isComposing()；x-show: {xshow_m.group(1)!r}"
+        )
+
+    def test_auto_pill_click_opens_rescrape_with_prefill(self):
+        """自動膠囊 @click 含 openRescrape(null, 'search') 且預填 rescrapeNumber =。
+
+        刪任一子表達式 → 此斷言紅（漏 rescrapeNumber 預填會在挑源時觸發 rescrapeNotFound，
+        state-rescrape.js:163）。
+        """
+        call = self._auto_pill_call()
+        # raw template 內單引號被 Jinja 字串轉義（\'search\'），故 regex 容忍可選反斜線
+        assert re.search(r"openRescrape\(null,\s*\\?'search\\?'\)", call), (
+            f"search-auto-pill 呼叫缺 openRescrape(null, 'search')；call: {call!r}"
+        )
+        assert "rescrapeNumber =" in call, (
+            f"search-auto-pill @click 缺 rescrapeNumber = 預填；call: {call!r}"
+        )
+
+
+class TestSearchSubmitBtnNoLongPress:
+    """TASK-74a-T2: #btnSubmit 縮減為純提交鈕（CD-74a-5）。
+
+    守衛抽出 id=\"btnSubmit\" 的 <button> 開頭 tag，斷言該 tag 上不含 4 個長壓 handler。
+    過「三問」：把任一長壓 handler 加回 #btnSubmit tag → 紅。
+    """
+
+    def _submit_tag(self) -> str:
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+        m = re.search(r'<button\b[^>]*\bid="btnSubmit"[^>]*>', html, re.DOTALL)
+        assert m, "search.html 找不到 id=\"btnSubmit\" 的 <button> tag"
+        return m.group(0)
+
+    def test_submit_btn_has_no_long_press(self):
+        """#btnSubmit tag 不含 longPressStart / longPressEnd / longPressCancel / longPressClickGuard。"""
+        tag = self._submit_tag()
+        for forbidden in (
+            "longPressStart",
+            "longPressEnd",
+            "longPressCancel",
+            "longPressClickGuard",
+        ):
+            assert forbidden not in tag, (
+                f"#btnSubmit 不應再含 {forbidden!r}（長壓已移除）；tag: {tag!r}"
+            )
+
+
+class TestSwitchSourceBtnRemoved:
+    """TASK-74a-T3: 結果面板 🔄 #switchSourceBtn 整顆移除（CD-74a-6）。
+
+    負向守衛：search.html 全檔不得再出現 id=\"switchSourceBtn\"。
+    過「三問」：把按鈕加回 → 紅（id 重現）。
+    """
+
+    def test_switch_source_btn_id_gone(self):
+        """search.html 不得再含 id=\"switchSourceBtn\"（整顆按鈕已移除）。"""
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+        assert 'id="switchSourceBtn"' not in html, (
+            "search.html 仍含 id=\"switchSourceBtn\" — #switchSourceBtn 應整顆移除（T3）"
+        )
+
+    def test_switch_source_btn_arrow_repeat_icon_gone(self):
+        """強化：原 🔄 icon bi-arrow-repeat 隨按鈕一併消失於 .av-card-full-header 區段。"""
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+        m = re.search(
+            r'<div class="av-card-full-header">(.*?)</div>\s*<div class="av-card-full-body">',
+            html, re.DOTALL,
+        )
+        assert m, "search.html 找不到 .av-card-full-header 區段"
+        header = m.group(1)
+        assert "bi-arrow-repeat" not in header, (
+            f"av-card-full-header 不應再含 bi-arrow-repeat（🔄 icon 隨 #switchSourceBtn 移除）；header: {header!r}"
+        )
+
+
+class TestResultSourcePill:
+    """TASK-74a-T3: 結果面板「目前來源膠囊」macro 呼叫 DOM contract（call-site-bound）。
+
+    守衛抽出 search.html 內含 extra_classes='result-source-pill' 的 source_pill(...)
+    macro 呼叫文字，斷言同一呼叫上接 openSwitchSourcePicker()（@click）、
+    _resolveSourceName（name 表達式）、isSwitchingSource（:disabled / :class is-loading）。
+
+    過「三問」：把 binding 搬到別的 macro 呼叫 → 紅（regex 只取 result-source-pill 那一個 call）；
+    註解化 → 紅；刪關鍵子表達式 → 紅。
+    """
+
+    def _result_pill_call(self) -> str:
+        """抽出帶 extra_classes='result-source-pill' 的 source_pill(...) macro 呼叫文字。
+
+        macro 呼叫 attrs 內含多層巢狀括號（rescrapeSources.find(... (current()...) ...)），
+        故不走 balanced-paren regex；改抽「source_pill( 起點 → 含 result-source-pill →
+        到下一個 ) }} macro 收尾」的呼叫文字（call-site-bound）。
+        """
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+        m = re.search(
+            r"source_pill\((?:(?!source_pill\().)*?result-source-pill.*?\)\s*\}\}",
+            html,
+            re.DOTALL,
+        )
+        assert m, "search.html 找不到 extra_classes='result-source-pill' 的 source_pill(...) 呼叫"
+        return m.group(0)
+
+    def test_result_pill_click_opens_switch_picker(self):
+        """目前來源膠囊 @click 含 openSwitchSourcePicker()（沿用既有換源入口）。"""
+        call = self._result_pill_call()
+        assert "openSwitchSourcePicker()" in call, (
+            f"result-source-pill 呼叫缺 openSwitchSourcePicker()（@click）；call: {call!r}"
+        )
+
+    def test_result_pill_name_resolves_source(self):
+        """目前來源膠囊 name 表達式走 _resolveSourceName（backend-authoritative 顯示名）。"""
+        call = self._result_pill_call()
+        assert "_resolveSourceName" in call, (
+            f"result-source-pill 呼叫缺 _resolveSourceName（name 顯示名）；call: {call!r}"
+        )
+
+    def test_result_pill_loading_bound_to_switching(self):
+        """目前來源膠囊 loading 綁 isSwitchingSource（:disabled + :class is-loading 驅動 spinner）。"""
+        call = self._result_pill_call()
+        assert "isSwitchingSource" in call, (
+            f"result-source-pill 呼叫缺 isSwitchingSource 綁定（:disabled / is-loading）；call: {call!r}"
+        )
+
+
+class TestIsComposingGetter:
+    """TASK-74a-T2: search-flow.js isComposing() computed getter（source-bound，CD-74a-2）。
+
+    抽出 isComposing method body，斷言同一 body 內含三個條件子表達式：
+    pageState !== 'loading'、searchQuery、currentQuery。
+    過「三問」：刪任一條件 → 紅；把它搬到別的 method → 抽不到 isComposing body → 紅。
+    """
+
+    def _is_composing_body(self) -> str:
+        js = SEARCH_FLOW_JS.read_text(encoding="utf-8")
+        # 抽 isComposing() { ... } 到下一個 method（以 method-or-end 為界）
+        m = re.search(r"isComposing\s*\(\s*\)\s*\{(.*?)\n    \}", js, re.DOTALL)
+        assert m, "search-flow.js 找不到 isComposing() method 定義"
+        return m.group(1)
+
+    def test_is_composing_three_conditions(self):
+        """isComposing() body 含 pageState !== 'loading' + searchQuery + currentQuery 三條件。"""
+        body = self._is_composing_body()
+        assert "pageState !== 'loading'" in body, (
+            f"isComposing() 缺 pageState !== 'loading' 條件；body: {body!r}"
+        )
+        assert "searchQuery" in body, (
+            f"isComposing() 缺 searchQuery 條件；body: {body!r}"
+        )
+        assert "currentQuery" in body, (
+            f"isComposing() 缺 currentQuery 條件；body: {body!r}"
+        )
+
+
+STATE_RESCRAPE_JS = (
+    Path(__file__).parent.parent.parent
+    / "web" / "static" / "js" / "shared" / "state-rescrape.js"
+)
+
+
+class TestSourcePillFlatCss:
+    """TASK-74b-T1: .source-pill--flat 唯讀變體 CSS contract（cross-file，element-bound）。
+
+    flat 變體保留 tint、只關互動（CD-74b-1）：cursor default + hover 無 lift/shadow + focus 無 outline。
+    cross-file 契約：macro 在 variant='flat' 輸出 source-pill--flat ↔ CSS 必有對應規則。
+    過「三問」：刪 .source-pill--flat 規則 → 紅；macro 移除 flat 分支 → 紅；改 cursor 值 → 紅。
+    """
+
+    def _css(self) -> str:
+        return SOURCE_PILL_CSS.read_text(encoding="utf-8")
+
+    def _macro(self) -> str:
+        return SOURCE_PILL_MACRO.read_text(encoding="utf-8")
+
+    def test_flat_rule_defines_cursor_default(self):
+        """`.source-pill--flat { cursor: default; }` 存在（覆寫 base cursor: grab）。"""
+        css = self._css()
+        m = re.search(r"\.source-pill--flat\s*\{([^}]*)\}", css)
+        assert m, "source-pill.css 缺 .source-pill--flat 規則（74b T1 enabler）"
+        assert "cursor: default" in m.group(1), (
+            f".source-pill--flat 必須 cursor: default（關掉 base grab）；body: {m.group(1)!r}"
+        )
+
+    def test_flat_hover_negates_lift(self):
+        """`.source-pill--flat:hover` 關掉 base hover 的 transform + box-shadow。"""
+        css = self._css()
+        m = re.search(r"\.source-pill--flat:hover\s*\{([^}]*)\}", css)
+        assert m, "source-pill.css 缺 .source-pill--flat:hover 規則"
+        body = m.group(1)
+        assert "transform: none" in body, (
+            f".source-pill--flat:hover 必須 transform: none（關掉 base lift）；body: {body!r}"
+        )
+        assert "box-shadow: none" in body, (
+            f".source-pill--flat:hover 必須 box-shadow: none（關掉 base shadow）；body: {body!r}"
+        )
+
+    def test_macro_emits_flat_class_cross_file(self):
+        """cross-file：macro variant='flat' 分支輸出 source-pill--flat（CSS 規則的唯一消費路徑）。"""
+        macro = self._macro()
+        assert "source-pill--flat" in macro, (
+            "source_pill.html 未輸出 source-pill--flat — flat CSS 將無消費者（cross-file 契約斷裂）"
+        )
+
+
+class TestRescrapePreviewSourcePill:
+    """TASK-74b-T2(US3): 換源預覽 flat 唯讀膠囊 template contract（element-bound）。
+
+    preview 步驟以 macro flat 膠囊取代純文字「· sourceName」；name null-safe（CD-74b-11）；
+    動態有碼/無碼 :class（sourceCensored）；不含舊純文字 span。
+    過「三問」：改 variant 非 flat → 紅；name 去掉 `&&` guard → 紅；舊純文字復活 → 紅。
+    """
+
+    def _modal(self) -> str:
+        return RESCRAPE_MODAL_HTML.read_text(encoding="utf-8")
+
+    def _preview_pill_call(self, html: str) -> str:
+        """抽出 preview 的 source_pill macro 呼叫（錨 extra_classes='rescrape-preview-source-pill'）。"""
+        m = re.search(r"\{\{\s*source_pill\((.*?)\)\s*\}\}", html, re.DOTALL)
+        assert m, "_rescrape_modal.html 找不到 source_pill macro 呼叫"
+        call = m.group(1)
+        assert "rescrape-preview-source-pill" in call, (
+            f"抽到的 source_pill 呼叫非 preview 膠囊（缺 rescrape-preview-source-pill）；call: {call!r}"
+        )
+        return call
+
+    def test_macro_import_present(self):
+        """檔頂 import source_pill macro（modal 是獨立檔，74a 只在 search.html import）。"""
+        assert "{% from '_macros/source_pill.html' import source_pill %}" in self._modal(), (
+            "_rescrape_modal.html 缺 source_pill macro import"
+        )
+
+    def test_preview_pill_is_flat_variant(self):
+        """preview 膠囊用 variant='flat'（唯讀）。"""
+        call = self._preview_pill_call(self._modal())
+        assert re.search(r"variant\s*=\s*'flat'", call), (
+            f"preview 膠囊必須 variant='flat'（唯讀）；call: {call!r}"
+        )
+
+    def test_preview_pill_name_null_safe(self):
+        """name 為 null-safe `rescrapePreview && rescrapePreview.sourceName`（CD-74b-11，防 pick 步驟 TypeError）。"""
+        call = self._preview_pill_call(self._modal())
+        assert "rescrapePreview && rescrapePreview.sourceName" in call, (
+            f"preview 膠囊 name 必須 null-safe（含 && guard），不得裸 rescrapePreview.sourceName；call: {call!r}"
+        )
+
+    def test_preview_pill_readonly_attrs(self):
+        """attrs 含 tabindex=\"-1\"（移出 tab 序）+ 動態 uncensored :class（sourceCensored），且無 @click。"""
+        call = self._preview_pill_call(self._modal())
+        assert 'tabindex=\\"-1\\"' in call or 'tabindex="-1"' in call, (
+            f"preview 膠囊必須 tabindex=-1（唯讀移出 tab 序）；call: {call!r}"
+        )
+        assert "source-pill--uncensored" in call and "sourceCensored" in call, (
+            f"preview 膠囊必須動態 :class 注入 uncensored（依 sourceCensored）；call: {call!r}"
+        )
+        assert "@click" not in call, (
+            f"preview 膠囊唯讀，不得有 @click；call: {call!r}"
+        )
+
+    def test_old_plaintext_source_removed(self):
+        """舊純文字「&nbsp;·&nbsp;<span x-text=...sourceName>」已移除（不與膠囊重複）。"""
+        html = self._modal()
+        assert '&nbsp;·&nbsp;<span x-text="rescrapePreview && rescrapePreview.sourceName"' not in html, (
+            "_rescrape_modal.html 仍含舊純文字 · sourceName span — 應由 flat 膠囊取代"
+        )
+
+
+class TestRescrapePreviewEffectiveSource:
+    """TASK-74b-T2(US3): rescrapePreview 組裝算 effective source + sourceCensored（element-bound，CD-74b-2）。
+
+    auto 重刮顯示後端實際源（data._source）而非「自動」；sourceName 用 previewSourceId、加 sourceCensored 欄位。
+    過「三問」：刪 auto 分支 → 紅；sourceName 改回裸 sourceId → 紅；刪 sourceCensored 欄位 → 紅。
+    """
+
+    def _assembly(self) -> str:
+        """抽出 const previewSourceId ... this.rescrapePreview = { ... }; 區塊（綁定兩者相鄰）。"""
+        js = STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+        m = re.search(
+            r"const previewSourceId =.*?this\.rescrapePreview = \{(.*?)\};",
+            js, re.DOTALL,
+        )
+        assert m, "state-rescrape.js 找不到 previewSourceId + rescrapePreview 組裝區塊"
+        return m.group(0), m.group(1)
+
+    def test_effective_source_auto_branch(self):
+        """previewSourceId 在 auto 時取 data._source（effective source）。"""
+        whole, _ = self._assembly()
+        assert "sourceId === 'auto'" in whole and "data._source" in whole, (
+            f"previewSourceId 必須在 auto 時用 data._source 解析 effective source；region: {whole!r}"
+        )
+
+    def test_source_name_uses_effective_id(self):
+        """sourceName 用 previewSourceId 解析（非裸 sourceId）。"""
+        _, body = self._assembly()
+        assert "_resolveSourceName(previewSourceId)" in body, (
+            f"sourceName 必須 _resolveSourceName(previewSourceId)（非裸 sourceId）；body: {body!r}"
+        )
+
+    def test_source_censored_field(self):
+        """rescrapePreview 加 sourceCensored 欄位，找不到 source → ?? true（藍 fallback）。"""
+        _, body = self._assembly()
+        assert "sourceCensored" in body and "is_censored" in body and "?? true" in body, (
+            f"rescrapePreview 必須含 sourceCensored: ...is_censored ?? true；body: {body!r}"
         )
