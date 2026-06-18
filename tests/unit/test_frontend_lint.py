@@ -11007,3 +11007,154 @@ class TestIsComposingGetter:
         assert "currentQuery" in body, (
             f"isComposing() 缺 currentQuery 條件；body: {body!r}"
         )
+
+
+STATE_RESCRAPE_JS = (
+    Path(__file__).parent.parent.parent
+    / "web" / "static" / "js" / "shared" / "state-rescrape.js"
+)
+
+
+class TestSourcePillFlatCss:
+    """TASK-74b-T1: .source-pill--flat 唯讀變體 CSS contract（cross-file，element-bound）。
+
+    flat 變體保留 tint、只關互動（CD-74b-1）：cursor default + hover 無 lift/shadow + focus 無 outline。
+    cross-file 契約：macro 在 variant='flat' 輸出 source-pill--flat ↔ CSS 必有對應規則。
+    過「三問」：刪 .source-pill--flat 規則 → 紅；macro 移除 flat 分支 → 紅；改 cursor 值 → 紅。
+    """
+
+    def _css(self) -> str:
+        return SOURCE_PILL_CSS.read_text(encoding="utf-8")
+
+    def _macro(self) -> str:
+        return SOURCE_PILL_MACRO.read_text(encoding="utf-8")
+
+    def test_flat_rule_defines_cursor_default(self):
+        """`.source-pill--flat { cursor: default; }` 存在（覆寫 base cursor: grab）。"""
+        css = self._css()
+        m = re.search(r"\.source-pill--flat\s*\{([^}]*)\}", css)
+        assert m, "source-pill.css 缺 .source-pill--flat 規則（74b T1 enabler）"
+        assert "cursor: default" in m.group(1), (
+            f".source-pill--flat 必須 cursor: default（關掉 base grab）；body: {m.group(1)!r}"
+        )
+
+    def test_flat_hover_negates_lift(self):
+        """`.source-pill--flat:hover` 關掉 base hover 的 transform + box-shadow。"""
+        css = self._css()
+        m = re.search(r"\.source-pill--flat:hover\s*\{([^}]*)\}", css)
+        assert m, "source-pill.css 缺 .source-pill--flat:hover 規則"
+        body = m.group(1)
+        assert "transform: none" in body, (
+            f".source-pill--flat:hover 必須 transform: none（關掉 base lift）；body: {body!r}"
+        )
+        assert "box-shadow: none" in body, (
+            f".source-pill--flat:hover 必須 box-shadow: none（關掉 base shadow）；body: {body!r}"
+        )
+
+    def test_macro_emits_flat_class_cross_file(self):
+        """cross-file：macro variant='flat' 分支輸出 source-pill--flat（CSS 規則的唯一消費路徑）。"""
+        macro = self._macro()
+        assert "source-pill--flat" in macro, (
+            "source_pill.html 未輸出 source-pill--flat — flat CSS 將無消費者（cross-file 契約斷裂）"
+        )
+
+
+class TestRescrapePreviewSourcePill:
+    """TASK-74b-T2(US3): 換源預覽 flat 唯讀膠囊 template contract（element-bound）。
+
+    preview 步驟以 macro flat 膠囊取代純文字「· sourceName」；name null-safe（CD-74b-11）；
+    動態有碼/無碼 :class（sourceCensored）；不含舊純文字 span。
+    過「三問」：改 variant 非 flat → 紅；name 去掉 `&&` guard → 紅；舊純文字復活 → 紅。
+    """
+
+    def _modal(self) -> str:
+        return RESCRAPE_MODAL_HTML.read_text(encoding="utf-8")
+
+    def _preview_pill_call(self, html: str) -> str:
+        """抽出 preview 的 source_pill macro 呼叫（錨 extra_classes='rescrape-preview-source-pill'）。"""
+        m = re.search(r"\{\{\s*source_pill\((.*?)\)\s*\}\}", html, re.DOTALL)
+        assert m, "_rescrape_modal.html 找不到 source_pill macro 呼叫"
+        call = m.group(1)
+        assert "rescrape-preview-source-pill" in call, (
+            f"抽到的 source_pill 呼叫非 preview 膠囊（缺 rescrape-preview-source-pill）；call: {call!r}"
+        )
+        return call
+
+    def test_macro_import_present(self):
+        """檔頂 import source_pill macro（modal 是獨立檔，74a 只在 search.html import）。"""
+        assert "{% from '_macros/source_pill.html' import source_pill %}" in self._modal(), (
+            "_rescrape_modal.html 缺 source_pill macro import"
+        )
+
+    def test_preview_pill_is_flat_variant(self):
+        """preview 膠囊用 variant='flat'（唯讀）。"""
+        call = self._preview_pill_call(self._modal())
+        assert re.search(r"variant\s*=\s*'flat'", call), (
+            f"preview 膠囊必須 variant='flat'（唯讀）；call: {call!r}"
+        )
+
+    def test_preview_pill_name_null_safe(self):
+        """name 為 null-safe `rescrapePreview && rescrapePreview.sourceName`（CD-74b-11，防 pick 步驟 TypeError）。"""
+        call = self._preview_pill_call(self._modal())
+        assert "rescrapePreview && rescrapePreview.sourceName" in call, (
+            f"preview 膠囊 name 必須 null-safe（含 && guard），不得裸 rescrapePreview.sourceName；call: {call!r}"
+        )
+
+    def test_preview_pill_readonly_attrs(self):
+        """attrs 含 tabindex=\"-1\"（移出 tab 序）+ 動態 uncensored :class（sourceCensored），且無 @click。"""
+        call = self._preview_pill_call(self._modal())
+        assert 'tabindex=\\"-1\\"' in call or 'tabindex="-1"' in call, (
+            f"preview 膠囊必須 tabindex=-1（唯讀移出 tab 序）；call: {call!r}"
+        )
+        assert "source-pill--uncensored" in call and "sourceCensored" in call, (
+            f"preview 膠囊必須動態 :class 注入 uncensored（依 sourceCensored）；call: {call!r}"
+        )
+        assert "@click" not in call, (
+            f"preview 膠囊唯讀，不得有 @click；call: {call!r}"
+        )
+
+    def test_old_plaintext_source_removed(self):
+        """舊純文字「&nbsp;·&nbsp;<span x-text=...sourceName>」已移除（不與膠囊重複）。"""
+        html = self._modal()
+        assert '&nbsp;·&nbsp;<span x-text="rescrapePreview && rescrapePreview.sourceName"' not in html, (
+            "_rescrape_modal.html 仍含舊純文字 · sourceName span — 應由 flat 膠囊取代"
+        )
+
+
+class TestRescrapePreviewEffectiveSource:
+    """TASK-74b-T2(US3): rescrapePreview 組裝算 effective source + sourceCensored（element-bound，CD-74b-2）。
+
+    auto 重刮顯示後端實際源（data._source）而非「自動」；sourceName 用 previewSourceId、加 sourceCensored 欄位。
+    過「三問」：刪 auto 分支 → 紅；sourceName 改回裸 sourceId → 紅；刪 sourceCensored 欄位 → 紅。
+    """
+
+    def _assembly(self) -> str:
+        """抽出 const previewSourceId ... this.rescrapePreview = { ... }; 區塊（綁定兩者相鄰）。"""
+        js = STATE_RESCRAPE_JS.read_text(encoding="utf-8")
+        m = re.search(
+            r"const previewSourceId =.*?this\.rescrapePreview = \{(.*?)\};",
+            js, re.DOTALL,
+        )
+        assert m, "state-rescrape.js 找不到 previewSourceId + rescrapePreview 組裝區塊"
+        return m.group(0), m.group(1)
+
+    def test_effective_source_auto_branch(self):
+        """previewSourceId 在 auto 時取 data._source（effective source）。"""
+        whole, _ = self._assembly()
+        assert "sourceId === 'auto'" in whole and "data._source" in whole, (
+            f"previewSourceId 必須在 auto 時用 data._source 解析 effective source；region: {whole!r}"
+        )
+
+    def test_source_name_uses_effective_id(self):
+        """sourceName 用 previewSourceId 解析（非裸 sourceId）。"""
+        _, body = self._assembly()
+        assert "_resolveSourceName(previewSourceId)" in body, (
+            f"sourceName 必須 _resolveSourceName(previewSourceId)（非裸 sourceId）；body: {body!r}"
+        )
+
+    def test_source_censored_field(self):
+        """rescrapePreview 加 sourceCensored 欄位，找不到 source → ?? true（藍 fallback）。"""
+        _, body = self._assembly()
+        assert "sourceCensored" in body and "is_censored" in body and "?? true" in body, (
+            f"rescrapePreview 必須含 sourceCensored: ...is_censored ?? true；body: {body!r}"
+        )
