@@ -4692,8 +4692,9 @@ class TestSearchCssHardcoded:
     HARDCODED_RGBA_ALLOWLIST = {
         # 75b-T2 search.css US1 重排插入 ~54 行（@ ~L107）後行號順移：788→840；90 在插入點上方不變。
         # T9-port 在 L718 後插入 blocks：840→902；T9 Codex-P2 fix 補註解 +4 行：902→906。
+        # T11：在 L753 後插入 hero 規則（~14 行）：906→920。
         90: "drop-shadow rgba 0.3 — §2 例外（drop-shadow 跟封面去背形狀，非矩形 box-shadow 無法用 --fluent-shadow-* token）",
-        906: "var(--bg-card, rgba(0, 0, 0, 0.05)) fallback — defensive fallback，非硬編碼違規",
+        920: "var(--bg-card, rgba(0, 0, 0, 0.05)) fallback — defensive fallback，非硬編碼違規",
     }
 
     SIX_PX_ALLOWLIST = {
@@ -12093,4 +12094,142 @@ class TestUS9SearchGridMobileFix:
         )
         assert "min-height: 0" in css, (
             "showcase.css T8 min-height: 0 應保留（T9 回歸護欄）"
+        )
+
+
+# ============================================================================
+# TASK-75b-T11：≤480px hero 卡（女優精準匹配入口）直式比例修正守衛
+# showcase + search 兩頁 video-mode grid ≤480px hero 卡改 0.71 直式 + img cover
+# ============================================================================
+
+class TestUS11HeroCardMobileFix:
+    """TASK-75b-T11：showcase + search 兩頁 ≤480px hero 卡改直式 poster 比例守衛。
+
+    根因：T4/T5/T9 的 :not(.hero-card) 排除 hero → hero 落回 theme.css 基準 3/2（寬短）→
+    圖高 62px vs 鄰卡 131px → row 死白 110px + 女優照 letterbox。
+    修正：≤480px hero .av-card-preview-img → aspect-ratio: var(--poster-crop-ratio, 0.71)；
+          hero img → object-fit: cover（覆蓋 hero 既有 contain）。
+    selector 規則：showcase 後代 :is(…) .showcase-grid；search 複合 :is(…).search-grid（Codex P2）。
+    三問：
+      - showcase：拔 aspect-ratio → 紅；img object-fit: cover 移除 → 紅
+      - search：同上；compound→descendant（加空格）→ 紅；後代形式存在 → 紅
+    """
+
+    @staticmethod
+    def _strip_comments(text: str) -> str:
+        """移除 /* ... */ 註解——避免守衛被註解內提及的 selector 字串騙過。"""
+        return re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+
+    def _showcase_css(self):
+        return SHOWCASE_CSS.read_text(encoding="utf-8")
+
+    def _search_css(self):
+        return SEARCH_CSS.read_text(encoding="utf-8")
+
+    # --- showcase hero guard ---
+
+    def test_showcase_hero_has_portrait_aspect_ratio(self):
+        """showcase.css ≤480px block 含 hero-card .av-card-preview-img aspect-ratio: var(--poster-crop-ratio。
+        rule-bound：驗 aspect-ratio 規則自身 selector 帶 :is(…) scope + .showcase-grid + .hero-card。
+        三問：拔 aspect-ratio → 紅；移除 :is() scope → 紅；移出 ≤480px block → 紅。
+        """
+        css = self._strip_comments(self._showcase_css())
+        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        target = [b for b in blocks if ".av-card-preview.hero-card .av-card-preview-img" in b]
+        assert target, (
+            "showcase.css 找不到含 .av-card-preview.hero-card .av-card-preview-img 的 ≤480px block"
+            "（T11 showcase hero 規則缺失）"
+        )
+        block = target[0]
+        # rule-bound：aspect-ratio 規則 selector 帶正確 scope + hero class
+        m = re.search(r'([^{}]*)\{[^{}]*aspect-ratio: var\(--poster-crop-ratio[^{}]*\}', block, re.DOTALL)
+        assert m, "showcase.css ≤480px hero block 找不到 aspect-ratio: var(--poster-crop-ratio) 規則"
+        sel = m.group(1)
+        assert ":is(#ds-gallery-components, .ds-gallery-composition)" in sel, (
+            "showcase hero aspect-ratio 規則 selector 必帶 :is(#ds-gallery-components, .ds-gallery-composition) scope；"
+            f"目前 selector: {sel.strip()!r}"
+        )
+        assert ".showcase-grid" in sel, (
+            "showcase hero aspect-ratio 規則 selector 必帶 .showcase-grid；"
+            f"目前 selector: {sel.strip()!r}"
+        )
+        assert ".hero-card" in sel, (
+            "showcase hero aspect-ratio 規則 selector 必帶 .hero-card；"
+            f"目前 selector: {sel.strip()!r}"
+        )
+
+    def test_showcase_hero_img_has_object_fit_cover(self):
+        """showcase.css ≤480px hero img 規則含 object-fit: cover（覆蓋 hero 桌面 contain）。
+        三問：移除 object-fit: cover → 紅；移出 ≤480px block → 紅。
+        """
+        css = self._strip_comments(self._showcase_css())
+        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        target = [b for b in blocks if ".av-card-preview.hero-card .av-card-preview-img" in b]
+        assert target, "showcase.css 找不到含 hero-card .av-card-preview-img 的 ≤480px block"
+        block = target[0]
+        m = re.search(r'([^{}]*)\{[^{}]*object-fit: cover[^{}]*\}', block, re.DOTALL)
+        assert m, "showcase.css ≤480px hero block 找不到 object-fit: cover 規則"
+        sel = m.group(1)
+        assert ".hero-card" in sel, (
+            "object-fit: cover 規則 selector 必帶 .hero-card（確認是 hero img 規則，非鄰卡）"
+        )
+
+    # --- search hero guard ---
+
+    def test_search_hero_has_portrait_aspect_ratio(self):
+        """search.css ≤480px block 含 hero-card .av-card-preview-img aspect-ratio: var(--poster-crop-ratio。
+        rule-bound：驗 selector 帶 :is(…).search-grid（複合）+ .hero-card。
+        三問：拔 aspect-ratio → 紅；移除 :is() scope → 紅；移出 ≤480px block → 紅。
+        """
+        css = self._strip_comments(self._search_css())
+        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        target = [b for b in blocks if ".av-card-preview.hero-card .av-card-preview-img" in b]
+        assert target, (
+            "search.css 找不到含 .av-card-preview.hero-card .av-card-preview-img 的 ≤480px block"
+            "（T11 search hero 規則缺失）"
+        )
+        block = target[0]
+        m = re.search(r'([^{}]*)\{[^{}]*aspect-ratio: var\(--poster-crop-ratio[^{}]*\}', block, re.DOTALL)
+        assert m, "search.css ≤480px hero block 找不到 aspect-ratio: var(--poster-crop-ratio) 規則"
+        sel = m.group(1)
+        assert ":is(#ds-gallery-components, .ds-gallery-composition)" in sel, (
+            "search hero aspect-ratio 規則 selector 必帶 :is(#ds-gallery-components, .ds-gallery-composition) scope；"
+            f"目前 selector: {sel.strip()!r}"
+        )
+        assert ".hero-card" in sel, (
+            "search hero aspect-ratio 規則 selector 必帶 .hero-card；"
+            f"目前 selector: {sel.strip()!r}"
+        )
+
+    def test_search_hero_scope_is_compound_not_descendant(self):
+        """Codex P2 回歸守衛：search hero 規則 selector 必須是複合 :is(…).search-grid（無空格）。
+        後代形式 :is(…) .search-grid .av-card-preview.hero-card（有空格）在 search 永不命中（silent no-op）。
+        三問：hero 規則 compound→descendant（加空格）→ 紅；後代形式 hero 存在 → 紅。
+        """
+        css = self._strip_comments(self._search_css())
+        # 正向：複合形式 .hero-card 規則存在
+        assert ":is(#ds-gallery-components, .ds-gallery-composition).search-grid .av-card-preview.hero-card" in css, (
+            "search.css hero 規則 selector 必須用複合 :is(…).search-grid（scope class 在 grid 本身，非祖先；"
+            "後代 :is(…) .search-grid 在 search 永不命中 → silent no-op）"
+        )
+        # 負向：後代形式 hero 規則不得存在（P2 回歸護欄）
+        assert ":is(#ds-gallery-components, .ds-gallery-composition) .search-grid .av-card-preview.hero-card" not in css, (
+            "search.css 不得有後代 :is(…) .search-grid .av-card-preview.hero-card（有空格）——"
+            "scope class 在 grid 本身，後代選擇器永不命中（Codex P2 P11 hero 回歸）"
+        )
+
+    def test_search_hero_img_has_object_fit_cover(self):
+        """search.css ≤480px hero img 規則含 object-fit: cover（覆蓋 hero 桌面 contain）。
+        三問：移除 object-fit: cover → 紅；移出 ≤480px block → 紅。
+        """
+        css = self._strip_comments(self._search_css())
+        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        target = [b for b in blocks if ".av-card-preview.hero-card .av-card-preview-img" in b]
+        assert target, "search.css 找不到含 hero-card .av-card-preview-img 的 ≤480px block"
+        block = target[0]
+        m = re.search(r'([^{}]*)\{[^{}]*object-fit: cover[^{}]*\}', block, re.DOTALL)
+        assert m, "search.css ≤480px hero block 找不到 object-fit: cover 規則"
+        sel = m.group(1)
+        assert ".hero-card" in sel, (
+            "object-fit: cover 規則 selector 必帶 .hero-card（確認是 hero img 規則，非鄰卡）"
         )

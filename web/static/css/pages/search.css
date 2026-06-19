@@ -750,6 +750,20 @@
     :is(#ds-gallery-components, .ds-gallery-composition).search-grid .av-card-preview:not(.hero-card) .av-card-preview-footer .footer-default .av-actress {
         display: none;
     }
+
+    /* T11：search 頁平行修正（同 showcase）。
+       ★ Codex P2：search grid 的 ds-gallery-composition 在 .search-grid 本身（非祖先）→ 用複合
+       :is(…).search-grid（無空格、同元素）。後代 :is(…) .search-grid 在 search 永不命中（silent no-op）。
+       :is(#id,…) 帶 (1,0,0) 使複合 (1,4,0) 勝 theme.css 基準 :is(…) .av-card-preview-img (1,0,1)。 */
+    :is(#ds-gallery-components, .ds-gallery-composition).search-grid .av-card-preview.hero-card .av-card-preview-img {
+        aspect-ratio: var(--poster-crop-ratio, 0.71);
+        height: auto;
+    }
+
+    :is(#ds-gallery-components, .ds-gallery-composition).search-grid .av-card-preview.hero-card .av-card-preview-img img {
+        object-fit: cover;
+        transform-origin: center center;
+    }
 }
 
 /* T9-port：≤480px ∩ touch 裝置 — search 影片格還原 .footer-default（番號可讀層）。

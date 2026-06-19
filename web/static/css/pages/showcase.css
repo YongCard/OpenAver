@@ -332,6 +332,22 @@
     :is(#ds-gallery-components, .ds-gallery-composition) .showcase-grid .av-card-preview:not(.hero-card) .av-card-preview-footer .footer-default .av-actress {
         display: none; /* narrow 下次要資訊，空間不足 */
     }
+
+    /* T11：≤480px hero 卡（女優精準匹配入口）改直式 poster 比例，對齊同列 0.71 鄰卡 → 消 row 死白/錯位。
+       值引用 --poster-crop-ratio（與鄰卡同源，單一真理）。img 改 object-fit:cover（女優照 0.826 略寬胖，
+       cover 填滿僅輕裁上下、無 letterbox），覆蓋 hero 既有 contain（L2342）。
+       selector 帶 :is(#id,…) scope → (1,4,0) 勝 theme.css 基準 (1,0,1)；showcase 的 ds-gallery-composition
+       在 .showcase-container 祖先 → 用後代 :is(…) .showcase-grid（與 L313 同 pattern）。
+       hero 在女優收藏模式不存在（showFavoriteActresses gate），故只影響 video-mode grid。 */
+    :is(#ds-gallery-components, .ds-gallery-composition) .showcase-grid .av-card-preview.hero-card .av-card-preview-img {
+        aspect-ratio: var(--poster-crop-ratio, 0.71);
+        height: auto;
+    }
+
+    :is(#ds-gallery-components, .ds-gallery-composition) .showcase-grid .av-card-preview.hero-card .av-card-preview-img img {
+        object-fit: cover;             /* 覆蓋 hero 桌面 contain（L2342）；女優照填滿、無 letterbox */
+        transform-origin: center center;
+    }
 }
 
 /* ==================== Actress Grid — Collection Wall (44c-T6) ==================== */
