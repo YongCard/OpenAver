@@ -16,6 +16,9 @@ module.exports = {
       'box-shadow': ['/\\brgba\\(\\s*\\d/'],
       'border-radius': ['/^\\d+px/'],
       'object-position': ['/100%\\s+20%/'],
+      // feature/76：禁手動把 view-transition-name 設為 root（root 是隱式預設，手動覆寫會
+      // 與主題切換的 ::view-transition-*(root) 機制混亂）。命名一律走 sidebar/main-content/none。
+      'view-transition-name': ['root'],
     },
     'selector-disallowed-list': ['/:is\\([^)]*manual-input/'],
     // Standard config rules relaxed for OpenAver's existing CSS conventions
