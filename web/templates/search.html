@@ -471,69 +471,7 @@
                         <i class="bi bi-box-arrow-up-right"></i>
                     </button>
                 </div>
-                <div class="av-card-full-body">
-                    <div class="info-row">
-                        <span class="info-label">{{ t('search.label.actor') }}</span>
-                        <span class="info-value" id="resultActors" x-text="(current().actors || []).join(', ') || '-'">-</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">{{ t('search.label.date') }}</span>
-                        <span class="info-value" id="resultDate" x-text="current().date || '-'">-</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">{{ t('search.label.maker') }}</span>
-                        <span class="info-value" id="resultMaker" x-text="current().maker || '-'">-</span>
-                    </div>
-                    <div class="info-row" x-show="current().director">
-                        <span class="info-label">{{ t('search.label.director') }}</span>
-                        <span class="info-value" x-text="current().director">-</span>
-                    </div>
-                    <div class="info-row" x-show="current().duration">
-                        <span class="info-label">{{ t('search.label.duration') }}</span>
-                        <span class="info-value" x-text="current().duration + ' ' + t('search.unit.minutes')">-</span>
-                    </div>
-                    <div class="info-row" x-show="current().label">
-                        <span class="info-label">{{ t('search.label.label') }}</span>
-                        <span class="info-value" x-text="current().label">-</span>
-                    </div>
-                    <div class="info-row" x-show="current().series">
-                        <span class="info-label">{{ t('search.label.series') }}</span>
-                        <span class="info-value" x-text="current().series">-</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">{{ t('search.label.tags') }}</span>
-                        <span class="info-value" id="resultTags">
-                            <!-- 字幕標籤 -->
-                            <span x-show="hasSubtitle()" class="badge tag-badge subtitle">{{ t('search.badge.subtitle') }}</span>
-                            <!-- Fix-1: 版本標記 badges -->
-                            <template x-for="sfx in currentSuffixes()" :key="sfx">
-                                <span class="badge tag-badge suffix-badge" x-text="sfx"></span>
-                            </template>
-                            <!-- 系統標籤 -->
-                            <template x-for="tag in (current().tags || [])" :key="tag">
-                                <span class="badge tag-badge" x-text="tag"></span>
-                            </template>
-                            <!-- 用戶標籤 -->
-                            <template x-for="tag in currentUserTags()" :key="'u_' + tag">
-                                <span class="badge tag-badge user-tag">
-                                    <span x-text="tag"></span>
-                                    <span class="tag-remove" @click="removeUserTag(tag)">&times;</span>
-                                </span>
-                            </template>
-                            <!-- 新增標籤按鈕：僅 file 模式且有路徑才顯示 -->
-                            <button x-show="!addingTag && listMode === 'file' && !!fileList[currentFileIndex]?.path" @click="showAddTagInput()" class="btn btn-sm tag-add-btn" title="{{ t('search.action.add_tag') }}">+</button>
-                            <!-- 新增標籤輸入框 -->
-                            <span x-show="addingTag" class="tag-input-wrapper">
-                                <input type="text" x-ref="tagInput" x-model="newTagValue"
-                                       @keydown.enter="confirmAddTag()" @keydown.escape="cancelAddTag()"
-                                       class="tag-input" placeholder="{{ t('search.placeholder.tag') }}" maxlength="20">
-                                <button @click="confirmAddTag()" class="btn btn-sm tag-confirm">✓</button>
-                                <button @click="cancelAddTag()" class="btn btn-sm tag-cancel">✕</button>
-                            </span>
-                        </span>
-                    </div>
-                </div>
-                <div class="av-card-full-footer">
+                <div class="av-card-full-title">
                     <div class="av-card-full-footer-content">
                         <span class="info-label">{{ t('search.label.title') }}</span>
                         <!-- 顯示模式 -->
@@ -598,6 +536,78 @@
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+                <div class="av-card-full-body">
+                    <!-- 短值雙欄配對 1：日期 | 片長 -->
+                    <div class="info-grid-pair">
+                        <div class="info-cell">
+                            <span class="info-label">{{ t('search.label.date') }}</span>
+                            <span class="info-value" id="resultDate" x-text="current().date || '-'">-</span>
+                        </div>
+                        <div class="info-cell" x-show="current().duration">
+                            <span class="info-label">{{ t('search.label.duration') }}</span>
+                            <span class="info-value" x-text="current().duration + ' ' + t('search.unit.minutes')">-</span>
+                        </div>
+                    </div>
+                    <!-- 短值雙欄配對 2：片商 | 廠牌 -->
+                    <div class="info-grid-pair">
+                        <div class="info-cell">
+                            <span class="info-label">{{ t('search.label.maker') }}</span>
+                            <span class="info-value" id="resultMaker" x-text="current().maker || '-'">-</span>
+                        </div>
+                        <div class="info-cell" x-show="current().label">
+                            <span class="info-label">{{ t('search.label.label') }}</span>
+                            <span class="info-value" x-text="current().label">-</span>
+                        </div>
+                    </div>
+                    <!-- 長值獨行：演員 -->
+                    <div class="info-row">
+                        <span class="info-label">{{ t('search.label.actor') }}</span>
+                        <span class="info-value" id="resultActors" x-text="(current().actors || []).join(', ') || '-'">-</span>
+                    </div>
+                    <!-- 長值獨行：系列 -->
+                    <div class="info-row" x-show="current().series">
+                        <span class="info-label">{{ t('search.label.series') }}</span>
+                        <span class="info-value" x-text="current().series">-</span>
+                    </div>
+                    <!-- 長值獨行：導演 -->
+                    <div class="info-row" x-show="current().director">
+                        <span class="info-label">{{ t('search.label.director') }}</span>
+                        <span class="info-value" x-text="current().director">-</span>
+                    </div>
+                    <!-- 長值獨行：Tags -->
+                    <div class="info-row">
+                        <span class="info-label">{{ t('search.label.tags') }}</span>
+                        <span class="info-value" id="resultTags">
+                            <!-- 字幕標籤 -->
+                            <span x-show="hasSubtitle()" class="badge tag-badge subtitle">{{ t('search.badge.subtitle') }}</span>
+                            <!-- Fix-1: 版本標記 badges -->
+                            <template x-for="sfx in currentSuffixes()" :key="sfx">
+                                <span class="badge tag-badge suffix-badge" x-text="sfx"></span>
+                            </template>
+                            <!-- 系統標籤 -->
+                            <template x-for="tag in (current().tags || [])" :key="tag">
+                                <span class="badge tag-badge" x-text="tag"></span>
+                            </template>
+                            <!-- 用戶標籤 -->
+                            <template x-for="tag in currentUserTags()" :key="'u_' + tag">
+                                <span class="badge tag-badge user-tag">
+                                    <span x-text="tag"></span>
+                                    <span class="tag-remove" @click="removeUserTag(tag)">&times;</span>
+                                </span>
+                            </template>
+                            <!-- 新增標籤按鈕：僅 file 模式且有路徑才顯示 -->
+                            <button x-show="!addingTag && listMode === 'file' && !!fileList[currentFileIndex]?.path" @click="showAddTagInput()" class="btn btn-sm tag-add-btn" title="{{ t('search.action.add_tag') }}">+</button>
+                            <!-- 新增標籤輸入框 -->
+                            <span x-show="addingTag" class="tag-input-wrapper">
+                                <input type="text" x-ref="tagInput" x-model="newTagValue"
+                                       @keydown.enter="confirmAddTag()" @keydown.escape="cancelAddTag()"
+                                       class="tag-input" placeholder="{{ t('search.placeholder.tag') }}" maxlength="20">
+                                <button @click="confirmAddTag()" class="btn btn-sm tag-confirm">✓</button>
+                                <button @click="cancelAddTag()" class="btn btn-sm tag-cancel">✕</button>
+                            </span>
+                        </span>
                     </div>
                 </div>
             </div>
