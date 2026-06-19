@@ -35,7 +35,7 @@ module.exports = {
     'value-keyword-case': null,
     'property-no-vendor-prefix': null,
     'value-no-vendor-prefix': null,
-    'at-rule-no-unknown': [true, { ignoreAtRules: ['tailwind', 'apply', 'layer', 'screen', 'variants', 'responsive', 'theme', 'plugin', 'config', 'source', 'utility', 'custom-variant', 'reference'] }],
+    'at-rule-no-unknown': [true, { ignoreAtRules: ['tailwind', 'apply', 'layer', 'screen', 'variants', 'responsive', 'theme', 'plugin', 'config', 'source', 'utility', 'custom-variant', 'reference', 'view-transition'] }],
     'no-empty-source': null,
     'no-invalid-position-at-import-rule': null,
     'rule-empty-line-before': null,

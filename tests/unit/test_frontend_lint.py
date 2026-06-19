@@ -102,6 +102,54 @@ DESIGN_SYSTEM_HTML = Path(__file__).parent.parent.parent / "web" / "templates" /
 THEME_CSS = Path(__file__).parent.parent.parent / "web" / "static" / "css" / "theme.css"
 TAILWIND_CSS = Path(__file__).parent.parent.parent / "web" / "static" / "css" / "tailwind.css"
 
+BASE_HTML_T76 = Path(__file__).parent.parent.parent / "web" / "templates" / "base.html"
+
+
+class TestPageTransitionDomGuard:
+    """feature/76 T1: Cross-Document View Transitions DOM + CSS 契約守衛。
+
+    全 substring/regex 正向存在性（非行號 allowlist）。守衛 base.html 命名錨點 +
+    theme.css opt-in / 命名 / showcase opt-out。settings.css root 作用域化屬 T1a，
+    head skipTransition script 屬 T-showcase，皆不在此守衛。
+    """
+
+    def _base(self):
+        return BASE_HTML_T76.read_text(encoding="utf-8")
+
+    def _theme(self):
+        return THEME_CSS.read_text(encoding="utf-8")
+
+    def test_base_html_main_content_id(self):
+        """base.html <main> 含 id="main-content"（CD-4，T1 新增的命名錨點）"""
+        assert 'id="main-content"' in self._base(), \
+            "base.html <main> 缺少 id=\"main-content\"（feature/76 CD-4）"
+
+    def test_base_html_sidebar_id(self):
+        """base.html <nav> 含 id="sidebar"（現狀錨點，防回歸——VT 持久化依賴此 id）"""
+        assert 'id="sidebar"' in self._base(), \
+            "base.html <nav> 缺少 id=\"sidebar\"（feature/76 CD-3 sidebar 持久化依賴）"
+
+    def test_theme_css_view_transition_opt_in(self):
+        """theme.css 含 @view-transition + navigation: auto（CD-1 全站 opt-in）"""
+        css = self._theme()
+        assert "@view-transition" in css, "theme.css 缺少 @view-transition at-rule（feature/76 CD-1）"
+        assert re.search(r"@view-transition\s*\{\s*navigation:\s*auto", css), \
+            "theme.css @view-transition 缺少 navigation: auto（feature/76 CD-1）"
+
+    def test_theme_css_named_elements(self):
+        """theme.css 含 sidebar / main-content 兩個 view-transition-name（CD-2/CD-3）"""
+        css = self._theme()
+        assert "view-transition-name: sidebar" in css, \
+            "theme.css 缺少 view-transition-name: sidebar（feature/76 CD-3）"
+        assert "view-transition-name: main-content" in css, \
+            "theme.css 缺少 view-transition-name: main-content（feature/76 CD-2）"
+
+    def test_theme_css_showcase_optout(self):
+        """theme.css 含 showcase opt-out 單行（CD-11 輔助：.page-showcase + name:none）"""
+        css = self._theme()
+        assert re.search(r"\.page-showcase\s+#main-content\s*\{\s*view-transition-name:\s*none", css), \
+            "theme.css 缺少 .page-showcase #main-content { view-transition-name: none }（feature/76 CD-11 輔助）"
+
 
 class TestHelpPopoverGuard:
     """38e: help-popover CSS class usage guard (method folded)"""
