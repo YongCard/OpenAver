@@ -4690,16 +4690,16 @@ class TestSearchCssHardcoded:
     SEARCH_CSS = PROJECT_ROOT / "web/static/css/pages/search.css"
 
     HARDCODED_RGBA_ALLOWLIST = {
-        # T2.1 commit 41f2a5b 後狀態（75a-T2 search.css US3a 插入 +8 行後行號順移）：
+        # 75b-T2 search.css US1 重排插入 ~54 行（@ ~L107）後行號順移：788→840；90 在插入點上方不變。
         90: "drop-shadow rgba 0.3 — §2 例外（drop-shadow 跟封面去背形狀，非矩形 box-shadow 無法用 --fluent-shadow-* token）",
-        788: "var(--bg-card, rgba(0, 0, 0, 0.05)) fallback — defensive fallback，非硬編碼違規",
+        840: "var(--bg-card, rgba(0, 0, 0, 0.05)) fallback — defensive fallback，非硬編碼違規",
     }
 
     SIX_PX_ALLOWLIST = {
-        # T2.2 commit 89d52b6 後狀態（75a-T2 search.css US3a 插入 +8 行後 516/571 順移為 524/579；235 在插入點上方不變）：
-        235: "row inline btn optical 6px — T2.2 加 optical 註記（btn-sm 12px padding 對 row inline 太寬）",
-        524: ".batch-progress-bar height: 6px — intrinsic dimension（非 §4 spacing）",
-        579: "chip optical 6px — T2.2 加 optical 註記（對齊 showcase .lb-tag-add-btn）",
+        # 75b-T2 search.css US1 重排插入 ~54 行（@ ~L107）後行號順移：235→282、524→576、579→631（皆在插入點下方）。
+        282: "row inline btn optical 6px — T2.2 加 optical 註記（btn-sm 12px padding 對 row inline 太寬）",
+        576: ".batch-progress-bar height: 6px — intrinsic dimension（非 §4 spacing）",
+        631: "chip optical 6px — T2.2 加 optical 註記（對齊 showcase .lb-tag-add-btn）",
     }
 
     def _scan(self, regex: str, allowlist=None):
@@ -10824,10 +10824,16 @@ class TestSwitchSourceBtnRemoved:
         )
 
     def test_switch_source_btn_arrow_repeat_icon_gone(self):
-        """強化：原 🔄 icon bi-arrow-repeat 隨按鈕一併消失於 .av-card-full-header 區段。"""
+        """強化：原 🔄 icon bi-arrow-repeat 隨按鈕一併消失於 .av-card-full-header 區段。
+
+        TASK-75b-T6（Codex F3）：US1 把 .av-card-full-title 插在 header 與 body 之間，
+        原終止錨點 `<div class="av-card-full-body">` 不再緊接 header → lazy (.*?) 會吞掉
+        整個 title block（測試不紅但 silent 失準）。終止錨點改 adjacency-independent 的
+        `(?:title|body)`，讓 group(1) 仍只取 header 自身（停在 header 的 </div> → title）。
+        """
         html = SEARCH_HTML.read_text(encoding="utf-8")
         m = re.search(
-            r'<div class="av-card-full-header">(.*?)</div>\s*<div class="av-card-full-body">',
+            r'<div class="av-card-full-header">(.*?)</div>\s*<div class="av-card-full-(?:title|body)">',
             html, re.DOTALL,
         )
         assert m, "search.html 找不到 .av-card-full-header 區段"
@@ -11462,3 +11468,241 @@ class TestSimilarCssSafetyAndGridGuard:
             "@media (max-width: 960px) similar-open must contain min(38vh cover override"
         assert "height: 40vh" in after[:500], \
             "@media (max-width: 960px) similar-open must contain height: 40vh override"
+
+
+# ============================================================================
+# TASK-75b-T6：US1 搜尋詳情重排 + US5 影片卡 poster 格 守衛
+# search.html DOM 結構 / search.css + showcase.css element-bound CSS read
+# ============================================================================
+
+SEARCH_CSS = Path(__file__).parent.parent.parent / "web" / "static" / "css" / "pages" / "search.css"
+
+
+class TestUS1TitleAboveMetadata:
+    """TASK-75b-T1：翻譯標題區塊（.av-card-full-title）置於 .av-card-full-body 之上。
+
+    DOM 順序 contract（非單純 presence）：用字串位置比較。
+    三問：把 title 搬回 body 下方 → 紅（index 反轉）；刪 title → 紅（找不到）；註解化 → 紅（class 字串不在）。
+    """
+
+    def test_title_block_precedes_body(self):
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+        idx_title = html.find('class="av-card-full-title"')
+        idx_body = html.find('class="av-card-full-body"')
+        assert idx_title >= 0, "search.html 缺 .av-card-full-title（翻譯標題區塊未置頂）"
+        assert idx_body >= 0, "search.html 缺 .av-card-full-body"
+        assert idx_title < idx_body, (
+            "av-card-full-title 必須在 av-card-full-body 之前（標題置頂，US1）；"
+            f"目前 title@{idx_title} body@{idx_body}"
+        )
+
+
+class TestUS1InfoGridPairPresent:
+    """TASK-75b-T1：metadata 雙欄配對——≥2 個 .info-grid-pair，且日期+片長在同一對。
+
+    三問：刪一個 grid-pair → 紅（count<2）；把 duration 移出該對 → 紅（不在第一對 slice）；註解化 → 紅。
+    """
+
+    def test_two_grid_pairs_and_date_duration_paired(self):
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+        assert html.count('class="info-grid-pair"') >= 2, (
+            "search.html 應有 ≥2 個 .info-grid-pair（日期｜片長、片商｜廠牌）"
+        )
+        # 第一對 = 第一個 info-grid-pair 到第二個 info-grid-pair 之間
+        first = html.find('class="info-grid-pair"')
+        second = html.find('class="info-grid-pair"', first + 1)
+        assert second > first, "找不到第二個 info-grid-pair"
+        first_pair = html[first:second]
+        assert "search.label.date" in first_pair and "search.label.duration" in first_pair, (
+            "日期(search.label.date)與片長(search.label.duration)必須在同一個 info-grid-pair"
+        )
+        assert "search.label.maker" not in first_pair, (
+            "片商(search.label.maker)不應在日期｜片長那一對（應在第二對）— 配對串位"
+        )
+
+
+class TestUS1FooterClassRemoved:
+    """TASK-75b-T1/T3：search.html 不再含 wrapper class="av-card-full-footer"（已改名 av-card-full-title）。
+
+    僅讀 SEARCH_HTML（不全 repo 掃——motion_lab/design-system/theme.css/tailwind.css 合法保留，Codex F6）。
+    精確比對 wrapper（帶結尾引號），不誤殺子 class -content / -actions（search.html title block 內部仍用）。
+    三問：把 wrapper 改回 av-card-full-footer → 紅。
+    """
+
+    def test_footer_wrapper_class_gone_in_search_html_only(self):
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+        assert 'class="av-card-full-footer"' not in html, (
+            "search.html wrapper 應改名 av-card-full-title，不得殘留 class=\"av-card-full-footer\""
+        )
+        # 子 class 仍應存在（title block 內部結構未改名）
+        assert 'class="av-card-full-footer-content"' in html, (
+            "title block 內部 .av-card-full-footer-content 應保留（只 wrapper 改名）"
+        )
+
+
+class TestUS1InfoCellInBody:
+    """TASK-75b-T1：.av-card-full-body 範圍內含 .info-cell（雙欄 cell 結構存在）。
+
+    三問：把 info-cell 移到 body 之外（title/header）→ 紅（body slice 不含）；刪 info-cell → 紅。
+    """
+
+    def test_info_cell_inside_body(self):
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+        idx_body = html.find('class="av-card-full-body"')
+        assert idx_body >= 0, "search.html 缺 .av-card-full-body"
+        body_onward = html[idx_body:]
+        assert 'class="info-cell"' in body_onward, (
+            ".av-card-full-body 內應含 .info-cell（雙欄 cell）"
+        )
+        assert body_onward.count('class="info-cell"') == 4, (
+            f"body 內應有 4 個 info-cell（2 對×2），實得 {body_onward.count('class=\"info-cell\"')}"
+        )
+
+
+class TestUS1IdPreserved:
+    """TASK-75b-T1：重排後 DOM id 全保留（JS / 其他守衛可能依賴）。
+
+    三問：重排時漏刪任一 id → 紅。
+    """
+
+    def test_result_ids_preserved(self):
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+        for _id in ['id="resultActors"', 'id="resultDate"', 'id="resultMaker"', 'id="resultTags"']:
+            assert _id in html, f"search.html 缺 {_id}（重排時誤刪）"
+
+
+class TestUS1SearchCssLayout:
+    """TASK-75b-T2：search.css 右欄重排 element-bound CSS read。
+
+    斷言 override 存在性（require-presence，stylelint 無法 require → 走 pytest）：
+    右欄 flex: 0 0 390px、body top-pack flex:none、雙欄 grid 1fr 1fr、≤1024px collapse 回單欄。
+    不斷言 theme.css 無 flex:1（全域刻意保留，CD-75b-4，測它消失會誤紅）。
+    """
+
+    def _css(self):
+        return SEARCH_CSS.read_text(encoding="utf-8")
+
+    def test_info_column_widened_to_390(self):
+        css = self._css()
+        m = re.search(r'\.search-container \.av-card-full-info \{([^}]*)\}', css)
+        assert m, "search.css 找不到 .search-container .av-card-full-info 規則"
+        assert "flex: 0 0 390px" in m.group(1), (
+            "右欄應加寬為 flex: 0 0 390px（CD-75b-1）；目前: " + m.group(1).strip()
+        )
+
+    def test_body_flex_none_scope_override(self):
+        css = self._css()
+        # bare .search-container .av-card-full-body { ... }（body 後直接 {，非 descendant selector）
+        m = re.search(r'\.search-container \.av-card-full-body \{([^}]*)\}', css)
+        assert m, "search.css 找不到 .search-container .av-card-full-body top-pack override"
+        assert "flex: none" in m.group(1), (
+            "search.css 應有 .search-container .av-card-full-body { flex: none }（top-pack，CD-75b-4）"
+        )
+
+    def test_info_grid_pair_two_columns_desktop(self):
+        css = self._css()
+        m = re.search(r'\.search-container \.av-card-full-body \.info-grid-pair \{([^}]*)\}', css)
+        assert m, "search.css 找不到 .info-grid-pair 桌面規則"
+        assert "grid-template-columns: 1fr 1fr" in m.group(1), (
+            "桌面 .info-grid-pair 應為 grid-template-columns: 1fr 1fr（CD-75b-2）"
+        )
+
+    def test_grid_pair_collapses_single_column_under_1024(self):
+        css = self._css()
+        # 抓 @media (max-width: 1024px) block（close 為行首 }）
+        m = re.search(r'@media \(max-width: 1024px\) \{(.*?)\n\}', css, re.DOTALL)
+        assert m, "search.css 找不到 @media (max-width: 1024px) block"
+        block = m.group(1)
+        m2 = re.search(r'\.info-grid-pair \{([^}]*)\}', block)
+        assert m2, "≤1024px block 內找不到 .info-grid-pair collapse 規則（spec §US1 強制）"
+        # 帶分號：防 `1fr 1fr` 子字串誤過（`1fr;` 不是 `1fr 1fr;` 的子串）
+        assert "grid-template-columns: 1fr;" in m2.group(1), (
+            "≤1024px .info-grid-pair 應 collapse 回單欄 grid-template-columns: 1fr;（spec §US1 L97/L113）"
+        )
+
+
+class TestUS5ShowcaseGridIs3Col:
+    """TASK-75b-T4：showcase.css ≤480px 的 .showcase-grid 為 repeat(3, 1fr)（非 1fr）。
+
+    鎖定含 .showcase-grid 的那個 @media (max-width: 480px) block（另有 actress-grid 的同寬 block）。
+    三問：改回 1fr → 紅；刪 3-col 規則 → 紅。
+    """
+
+    def _css(self):
+        return SHOWCASE_CSS.read_text(encoding="utf-8")
+
+    def test_showcase_grid_3col_at_480(self):
+        css = self._css()
+        # 所有 @media (max-width: 480px) block（close = 行首 }）
+        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        assert blocks, "showcase.css 找不到 @media (max-width: 480px) block"
+        target = [b for b in blocks if re.search(r'\.showcase-grid \{', b)]
+        assert target, "找不到含 .showcase-grid 的 ≤480px block"
+        block = target[0]
+        m = re.search(r'\.showcase-grid \{([^}]*)\}', block)
+        assert m, "≤480px block 內找不到 .showcase-grid 規則"
+        rule = m.group(1)
+        assert "repeat(3, 1fr)" in rule, (
+            "≤480px .showcase-grid 應為 repeat(3, 1fr)（CD-75b-7）；目前: " + rule.strip()
+        )
+        assert "grid-template-columns: 1fr;" not in rule, (
+            "≤480px .showcase-grid 不應殘留單欄 grid-template-columns: 1fr;"
+        )
+
+
+class TestUS5PosterCropScoped:
+    """TASK-75b-T4/T5：影片卡 poster-crop + caption 截斷帶正確 specificity scope。
+
+    斷言 ≤480px 影片卡規則帶 :is(#ds-gallery-components, .ds-gallery-composition) + :not(.hero-card)，
+    引用 var(--poster-crop-ratio)，子 img object-position: right center，caption .av-actress display:none。
+    三問：拔 :is() 前綴 → 紅（silent no-op 不會被擋，靠此守衛擋）；用錯 class .av-maker → 紅。
+    """
+
+    def _css(self):
+        return SHOWCASE_CSS.read_text(encoding="utf-8")
+
+    @staticmethod
+    def _strip_comments(text: str) -> str:
+        """移除 /* ... */ 註解——避免守衛被註解內提及的 selector 字串騙過（comment 內含 :is(...) 說明）。"""
+        return re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+
+    def test_poster_crop_rules_scoped_and_token_referenced(self):
+        css = self._strip_comments(self._css())
+        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        target = [b for b in blocks if ".av-card-preview-img" in b]
+        assert target, "找不到含 .av-card-preview-img poster-crop 的 ≤480px block"
+        block = target[0]
+        # rule-bound：鎖定「含 aspect-ratio: var(--poster-crop-ratio) 的那條規則自身的 selector」，
+        # 確認該規則本身帶 scope（避免「caption 規則有 :is() 就過關、但關鍵 aspect-ratio 規則漏 :is() → silent no-op」）。
+        m = re.search(r'([^{}]*)\{[^{}]*aspect-ratio: var\(--poster-crop-ratio[^{}]*\}', block, re.DOTALL)
+        assert m, "找不到 aspect-ratio: var(--poster-crop-ratio) 規則"
+        sel = m.group(1)
+        assert ":is(#ds-gallery-components, .ds-gallery-composition)" in sel, (
+            "aspect-ratio 規則 selector 必帶 :is(#ds-gallery-components,…) scope（否則 (0,4,0) 輸基準 (1,0,1) → silent no-op）；"
+            f"目前 selector: {sel.strip()!r}"
+        )
+        assert ":not(.hero-card)" in sel, (
+            "aspect-ratio 規則 selector 必帶 :not(.hero-card)（排除女優 hero 卡）"
+        )
+        # object-position 規則同樣 rule-bound 檢查 scope
+        m2 = re.search(r'([^{}]*)\{[^{}]*object-position: right center[^{}]*\}', block, re.DOTALL)
+        assert m2, "找不到 object-position: right center 規則"
+        sel2 = m2.group(1)
+        assert ":is(#ds-gallery-components, .ds-gallery-composition)" in sel2 and ":not(.hero-card)" in sel2, (
+            "object-position 規則 selector 必帶 :is(…) scope + :not(.hero-card)"
+        )
+
+    def test_caption_truncation_uses_av_actress(self):
+        css = self._css()
+        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        target = [b for b in blocks if ".footer-default" in b and ".av-actress" in b]
+        assert target, "找不到含 caption 截斷（.footer-default .av-actress）的 ≤480px block"
+        block = target[0]
+        # .av-actress 隱藏
+        m = re.search(r'\.footer-default \.av-actress \{([^}]*)\}', block)
+        assert m, "找不到 .footer-default .av-actress 規則"
+        assert "display: none" in m.group(1), ".av-actress（女優名次行）應 display:none"
+        # .av-num ellipsis
+        m2 = re.search(r'\.footer-default \.av-num \{([^}]*)\}', block)
+        assert m2, "找不到 .footer-default .av-num 規則"
+        assert "text-overflow: ellipsis" in m2.group(1), ".av-num（番號）應單行 ellipsis"
