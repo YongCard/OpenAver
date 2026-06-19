@@ -36,6 +36,33 @@ class TestShowcaseMetadataGuard:
             "showcase.html missing: series searchFromMetadata call"
 
 
+class TestStatePageCloakGuard:
+    """showcase / search 的 state-page 框必須有 x-cloak（防 Alpine hydration 前 FOUC 裸露）。
+
+    無 x-cloak 時，Alpine 啟動前瀏覽器把 x-show 尚未生效的框同時裸露一幀、疊閃。
+    用 BeautifulSoup `select` 抓全部 div.state-page（attribute 順序無關，避免 regex 只認
+    class 為首屬性的假陽性，Codex P3）；逐節點斷言 has_attr('x-cloak')，並鎖定確切數量。
+    """
+
+    def _assert_all_state_pages_cloaked(self, path, expected_count):
+        from bs4 import BeautifulSoup
+        html = path.read_text(encoding="utf-8")
+        divs = BeautifulSoup(html, "html.parser").select("div.state-page")
+        assert len(divs) == expected_count, \
+            f"{path.name}: div.state-page 數 {len(divs)} != 預期 {expected_count}（新增/移除狀態框需同步更新守衛）"
+        for d in divs:
+            assert d.has_attr("x-cloak"), \
+                f"{path.name} state-page div 缺 x-cloak（Alpine hydration 前 FOUC）: x-show={d.get('x-show', '')!r}"
+
+    def test_showcase_state_pages_cloaked(self):
+        """showcase.html 5 個 state-page（3 頂層 + 2 actress）皆 x-cloak"""
+        self._assert_all_state_pages_cloaked(SHOWCASE_HTML, 5)
+
+    def test_search_state_pages_cloaked(self):
+        """search.html 2 個 state-page（emptyState 初始可見 / errorState）皆 x-cloak"""
+        self._assert_all_state_pages_cloaked(SEARCH_HTML, 2)
+
+
 SEARCH_HTML = Path(__file__).parent.parent.parent / "web" / "templates" / "search.html"
 
 
