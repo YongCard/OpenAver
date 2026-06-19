@@ -12267,3 +12267,99 @@ class TestUS11HeroCardMobileFix:
         assert ".hero-card" in sel, (
             "object-fit: cover 規則 selector 必帶 .hero-card（確認是 hero img 規則，非鄰卡）"
         )
+
+
+class TestCoverCacheBustGuard:
+    """BUGfix-lightbox-cover-stale: refreshVideoData 必須對 cover_url 與 cover_full_url 都追加 cache-bust。
+    守衛契約：擋「只 bust 一邊」回歸——任何人把任一欄位的 &t= 移除，對應守衛即紅。
+    三問：
+      1. 移除 cover_url &t= → test_cover_url_has_cache_bust 紅；cover_full_url bust 仍在 → 其守衛獨立 GREEN ✓
+      2. 移除 cover_full_url &t= → test_cover_full_url_has_cache_bust 紅；cover_url bust 仍在 → 其守衛獨立 GREEN ✓
+      3. 把 bust 搬出 refreshVideoData 函式體 → 兩條都紅 ✓
+      4. 只在 comment 留 '&t=' 字串但移除實作 → 紅（守衛先過濾純注釋行，不被 comment 騙過）✓
+    每條 regex 只匹配「同一條賦值語句內」：[^;\\n]* 不跨 ; 與換行，鎖在單一 statement，
+    防止 re.DOTALL 跨行把兩個欄位的 &t= 混用。
+    """
+
+    _LIGHTBOX_JS = (
+        Path(__file__).parent.parent.parent
+        / "web" / "static" / "js" / "pages" / "showcase" / "state-lightbox.js"
+    )
+
+    def _js(self):
+        return self._LIGHTBOX_JS.read_text(encoding="utf-8")
+
+    def _extract_refreshVideoData_body(self, js):
+        """定位 refreshVideoData 函式體（從函式宣告到第一個同層 closing brace）。
+        用計數括弧深度的方式抓完整函式體，確保邊界正確。
+        """
+        # 找 refreshVideoData 宣告起點
+        m = re.search(r'async\s+refreshVideoData\s*\(', js)
+        assert m, "state-lightbox.js 找不到 async refreshVideoData 函式宣告"
+        start = m.start()
+        # 從宣告後面找第一個 '{' 並計數到同層 '}'
+        body_start = js.index('{', start)
+        depth = 0
+        for i, ch in enumerate(js[body_start:], body_start):
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    return js[body_start:i + 1]
+        raise AssertionError("state-lightbox.js: refreshVideoData 函式體找不到對應的結束括弧")
+
+    @staticmethod
+    def _strip_line_comments(body: str) -> str:
+        """移除函式體內的 // 注釋——整行注釋與「行內尾注釋」都砍。
+        去注釋後 regex 才不會被注釋裡的 `+ '&t='` 騙過：例如
+        `data.video.cover_url = data.video.cover_url // + '&t='`（bust 移進行內注釋）
+        若不砍行內注釋，[^;\\n]* 仍會配到注釋內的 + '&t=' 造成 false-pass。
+        以 (?<!:)// 切除，保護 URL 的 `://`（https:// 等不被誤砍；/api 單斜線不觸發）。
+        state-lightbox.js refreshVideoData 函式體內字串無 `//`、未用區塊注釋（/* */），
+        此 heuristic 對本守衛充分。
+        """
+        return "\n".join(
+            re.sub(r"(?<!:)//.*$", "", line)
+            for line in body.splitlines()
+        )
+
+    def test_cover_url_has_cache_bust(self):
+        """refreshVideoData 函式體內必須對 cover_url 賦值並串接 '&t=' cache-bust。
+        要求：必須匹配「data.video.cover_url = ... + '&t='」賦值結構，
+        且 regex 只匹配同一條賦值語句內（[^;\\n]* 不跨 ; 與換行），
+        不被跨語句的 DOTALL 匹配混淆——保證 cover_url 守衛與 cover_full_url 守衛彼此獨立。
+        先過濾純注釋行，確保配對只落在實際程式碼。
+        """
+        js = self._js()
+        body = self._strip_line_comments(self._extract_refreshVideoData_body(js))
+        m = re.search(
+            r"data\.video\.cover_url\s*=\s*[^;\n]*\+\s*['\"]&t=",
+            body
+        )
+        assert m, (
+            "refreshVideoData 函式體找不到 'data.video.cover_url = ... + &t=' 賦值語句。\n"
+            "cover_url 分支的 cache-bust 遺失，grid 封面更新後瀏覽器可能吃舊快取。\n"
+            f"當前函式體（去注釋後）：\n{body[:500]}"
+        )
+
+    def test_cover_full_url_has_cache_bust(self):
+        """refreshVideoData 函式體內必須對 cover_full_url 賦值並串接 '&t=' cache-bust。
+        這是本 bug 的核心守衛：lightbox overlay（.lb-full）用 cover_full_url，
+        URL 不變會吃瀏覽器 max-age=86400 舊快取。
+        要求：必須匹配「data.video.cover_full_url = ... + '&t='」賦值結構，
+        且 regex 只匹配同一條賦值語句內（[^;\\n]* 不跨 ; 與換行），
+        不被跨語句的 DOTALL 匹配混淆——保證 cover_full_url 守衛與 cover_url 守衛彼此獨立。
+        先過濾注釋行，確保不被注釋裡的 cover_full_url 字樣或別欄位的 &t= 騙過。
+        """
+        js = self._js()
+        body = self._strip_line_comments(self._extract_refreshVideoData_body(js))
+        m = re.search(
+            r"data\.video\.cover_full_url\s*=\s*[^;\n]*\+\s*['\"]&t=",
+            body
+        )
+        assert m, (
+            "refreshVideoData 函式體找不到 'data.video.cover_full_url = ... + &t=' 賦值語句。\n"
+            "lightbox overlay（.lb-full `:src='cover_full_url'`）不加 cache-bust 會吃 max-age=86400 舊快取。\n"
+            f"當前函式體（去注釋後）：\n{body[:500]}"
+        )
