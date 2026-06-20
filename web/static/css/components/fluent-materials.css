@@ -736,3 +736,29 @@
         inset 0 1px 0 var(--glass-overlay-edge-top),
         var(--fluent-shadow-16);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * B-T3: Media frame — 星空中央封面 + slot 共用 neutral hairline (dim-only)
+ * Token: --media-frame-stroke (white 22%) — declared in the A-T1 dim token block.
+ * .similar-main-static: adds a border (none in showcase.css) + box-sizing so the
+ *   178×250 external size is preserved (1px-per-side inner shrink on the replaced
+ *   <img> is acceptable per CD-B9 / DoD §4.6).
+ * .similar-slot: only recolors the existing content-tinted border to the shared
+ *   neutral stroke — width/style/transition/layout untouched.
+ * CSS-only: no coordinate / z-index / GSAP / DOM changes.
+ * NO transition:transform (showcase.css:2978 C21 guard — slot hover scale is GSAP).
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/* Rule 43 — CD-B9: .similar-main-static dim border (no competing border upstream)
+ * Specificity (0,2,0) — unopposed (showcase.css:3073 .similar-main-static has no border). */
+[data-theme="dim"] .similar-main-static {
+    border: 1px solid var(--media-frame-stroke);
+    box-sizing: border-box;
+}
+
+/* Rule 44 — CD-B9: .similar-slot dim border-color unification
+ * Specificity (0,2,0) — beats showcase.css:2994 .similar-slot (0,1,0).
+ * Only border-color recolored; the 1px solid width/style stays from showcase.css. */
+[data-theme="dim"] .similar-slot {
+    border-color: var(--media-frame-stroke);
+}
