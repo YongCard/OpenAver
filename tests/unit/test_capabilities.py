@@ -67,6 +67,11 @@ EXPECTED_TOOL_NAMES = {
     "tags_top",
     "scraper_sources_list",
     "video_rescrape_with_source",
+    "library_migration_inventory",
+    "library_migration_plan",
+    "library_migration_apply",
+    "library_migration_verify",
+    "library_migration_rollback",
 }
 
 REQUIRED_TOOL_FIELDS = [
@@ -113,9 +118,9 @@ class TestCapabilitiesEndpoint:
         data = client.get("/api/capabilities").json()
         assert "retry_hint" in data["error_format"]
 
-    def test_tools_count_is_39(self, client):
+    def test_tools_count_is_44(self, client):
         data = client.get("/api/capabilities").json()
-        assert len(data["tools"]) == 39
+        assert len(data["tools"]) == 44
 
     def test_all_tool_names_present(self, client):
         data = client.get("/api/capabilities").json()

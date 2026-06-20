@@ -1249,6 +1249,135 @@ _TOOLS: list[dict] = [
     },
 ]
 
+_TOOLS.extend([
+    {
+        "name": "library_migration_inventory",
+        "description": "盤點既有影片庫並備份 NFO、圖片、字幕、設定與資料庫；不搬移影片",
+        "method": "POST",
+        "path": "/api/library-migration/inventory",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "root": {"type": "string", "description": "影片庫根目錄的原生檔案系統路徑"},
+                "run_id": {"type": "string", "description": "可選的執行識別碼"},
+            },
+            "required": ["root"],
+        },
+        "output_schema": {
+            "run_id": "string",
+            "run_dir": "string — 備份與清單目錄",
+            "video_count": "integer",
+            "video_bytes": "integer",
+            "sidecar_count": "integer",
+        },
+        "side_effect": True,
+        "confirmation_required": False,
+        "idempotent": False,
+        "retry_safe": False,
+        "_example_template": "curl -X POST -H 'Content-Type: application/json' -d '{{\"root\":\"/library\"}}' {base}/api/library-migration/inventory",
+    },
+    {
+        "name": "library_migration_plan",
+        "description": "根據 inventory、NFO 與 OpenAver DB 產生固定 JSON/CSV 搬移預演；不搬移影片",
+        "method": "POST",
+        "path": "/api/library-migration/plan",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "run_dir": {"type": "string", "description": "inventory 回傳的 run_dir"},
+                "max_path": {"type": "integer", "default": 240},
+                "unknown_actor": {"type": "string", "default": "未知女優"},
+                "manual_folder": {"type": "string", "default": "#待人工整理"},
+            },
+            "required": ["run_dir"],
+        },
+        "output_schema": {
+            "manifest": "string — 固定 manifest.json 路徑",
+            "ready": "integer",
+            "conflicts": "integer",
+            "review": "integer",
+        },
+        "side_effect": True,
+        "confirmation_required": False,
+        "idempotent": True,
+        "retry_safe": True,
+        "_example_template": "curl -X POST -H 'Content-Type: application/json' -d '{{\"run_dir\":\"/library/.openaver-migration/demo\"}}' {base}/api/library-migration/plan",
+    },
+    {
+        "name": "library_migration_apply",
+        "description": "套用固定 manifest；每次最多搬移 20 部，不覆蓋任何檔案",
+        "method": "POST",
+        "path": "/api/library-migration/apply",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "manifest": {"type": "string"},
+                "confirm_run": {"type": "string", "description": "必須等於 manifest 的 run_id"},
+                "batch_size": {"type": "integer", "minimum": 1, "maximum": 20, "default": 20},
+            },
+            "required": ["manifest", "confirm_run"],
+        },
+        "output_schema": {
+            "moved_this_batch": "integer",
+            "remaining": "integer",
+            "journal": "string",
+        },
+        "side_effect": True,
+        "confirmation_required": True,
+        "idempotent": True,
+        "retry_safe": True,
+        "_example_template": "curl -X POST -H 'Content-Type: application/json' -d '{{\"manifest\":\"/library/.openaver-migration/demo/manifest.json\",\"confirm_run\":\"demo\",\"batch_size\":20}}' {base}/api/library-migration/apply",
+    },
+    {
+        "name": "library_migration_verify",
+        "description": "驗證影片數量、總位元組、影片指紋與伴隨檔案雜湊",
+        "method": "POST",
+        "path": "/api/library-migration/verify",
+        "input_schema": {
+            "type": "object",
+            "properties": {"manifest": {"type": "string"}},
+            "required": ["manifest"],
+        },
+        "output_schema": {
+            "success": "boolean",
+            "moved": "integer",
+            "video_count": "integer",
+            "video_bytes": "integer",
+            "problems": "array",
+        },
+        "side_effect": False,
+        "confirmation_required": False,
+        "idempotent": True,
+        "retry_safe": True,
+        "_example_template": "curl -X POST -H 'Content-Type: application/json' -d '{{\"manifest\":\"/library/.openaver-migration/demo/manifest.json\"}}' {base}/api/library-migration/verify",
+    },
+    {
+        "name": "library_migration_rollback",
+        "description": "按完整影片條目逆序回滾最近批次，連同伴隨檔案恢復原路徑",
+        "method": "POST",
+        "path": "/api/library-migration/rollback",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "manifest": {"type": "string"},
+                "confirm_run": {"type": "string"},
+                "batch_size": {"type": "integer", "minimum": 1, "maximum": 20, "default": 20},
+            },
+            "required": ["manifest", "confirm_run"],
+        },
+        "output_schema": {
+            "rolled_back_entries": "integer",
+            "rolled_back_operations": "integer",
+            "remaining_operations": "integer",
+        },
+        "side_effect": True,
+        "confirmation_required": True,
+        "idempotent": False,
+        "retry_safe": False,
+        "_example_template": "curl -X POST -H 'Content-Type: application/json' -d '{{\"manifest\":\"/library/.openaver-migration/demo/manifest.json\",\"confirm_run\":\"demo\",\"batch_size\":20}}' {base}/api/library-migration/rollback",
+    },
+])
+
 
 def _build_tools(base: str) -> list[dict]:
     tools = []
