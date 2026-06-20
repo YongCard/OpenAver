@@ -339,9 +339,15 @@
         var(--fluent-shadow-8);
 }
 
-/* Rule 13b — desktop only (≥1024px): B floating treatment */
+/* Rule 13b — desktop only (≥1024px): B floating treatment
+ * 77d-T1: theme-agnostic (was [data-theme="dim"]). Float geometry carries no
+ *   light/dark value diff (margin/radius/border-token/grid are identical in both
+ *   themes) → unscoped so light gets the same shape. Specificity (0,2,0)→(0,1,0),
+ *   tying showcase.css:21 .showcase-toolbar (0,1,0) → fluent-materials.css loads
+ *   last → source order wins. Material (Rule 13a) stays dim-scoped until 77d-T2.
+ *   grid-template-columns kept (central-column layout, theme-agnostic). */
 @media (min-width: 1024px) {
-    [data-theme="dim"] .showcase-toolbar {
+    .showcase-toolbar {
         margin: 0 1rem;
         border-radius: var(--fluent-radius-xl);
         border: 1px solid var(--glass-shell-border);
@@ -774,9 +780,15 @@
  * search-bar is NOT sticky (CD-A7) — the float bar scrolls with the page. (CD-C1)
  * ───────────────────────────────────────────────────────────────────────────── */
 
-/* Rule 45 — CD-C1: .search-bar B floating treatment (desktop ≥1024px) */
+/* Rule 45 — CD-C1 / 77d-T1: .search-bar B floating treatment (desktop ≥1024px)
+ * 77d-T1: theme-agnostic (was [data-theme="dim"]). Float geometry is theme-independent
+ *   → unscoped so light gets the same shape. Specificity (0,2,0)→(0,1,0), tying
+ *   search.css:12 .search-bar (0,1,0) → source order wins (fluent-materials.css last).
+ *   In dim the border-bottom-color is still pinned by the dim-scoped Rule 12 (0,2,0) to
+ *   the SAME var(--glass-shell-border) → zero dim regression. Rule 12 material unscoped
+ *   in 77d-T2; until then the light border color is IACVT (T1+T2 ship together). */
 @media (min-width: 1024px) {
-    [data-theme="dim"] .search-bar {
+    .search-bar {
         margin: 0 1rem;
         border-radius: var(--fluent-radius-xl);
         border: 1px solid var(--glass-shell-border);
@@ -795,16 +807,24 @@
  *   tying Rule 10/11 — appended later → source order wins.
  * ───────────────────────────────────────────────────────────────────────────── */
 
-/* Rule 46 — CD-C2: flush-left padding fix (all widths)
- * padding shorthand fully overrides Rule 10/11 `padding: 1rem 0` (horizontal 0). */
-[data-theme="dim"] :is(.settings-header, .avlist-header) {
+/* Rule 46 — CD-C2 / 77d-T1: flush-left padding fix (all widths)
+ * padding shorthand fully overrides Rule 10/11 `padding: 1rem 0` (horizontal 0).
+ * 77d-T1: theme-agnostic (was [data-theme="dim"]). Padding carries no theme value diff
+ *   → unscoped so light headers also get flush-left padding. (0,2,0)→(0,1,0), tying
+ *   settings.css:211 / scanner.css:13 (0,1,0) → source order wins. */
+:is(.settings-header, .avlist-header) {
     padding: 1rem 1.5rem;
 }
 
-/* Rule 47 — CD-C2: B floating treatment (desktop ≥1024px)
- * 4-side border overrides Rule 10/11 border-bottom-color via source order. NO margin. */
+/* Rule 47 — CD-C2 / 77d-T1: B floating treatment (desktop ≥1024px)
+ * 4-side border overrides Rule 10/11 border-bottom-color via source order. NO margin
+ *   (C-夾4: column-width alignment for centered 900/800px columns).
+ * 77d-T1: theme-agnostic (was [data-theme="dim"]). Float geometry is theme-independent
+ *   → unscoped so light headers float too. (0,2,0)→(0,1,0); in dim the bottom border
+ *   color stays pinned by dim-scoped Rule 10/11 (0,2,0) to the same var(--glass-shell-border)
+ *   → zero dim regression. Light border color IACVT until Rule 10/11 unscoped in 77d-T2. */
 @media (min-width: 1024px) {
-    [data-theme="dim"] :is(.settings-header, .avlist-header) {
+    :is(.settings-header, .avlist-header) {
         border-radius: var(--fluent-radius-xl);
         border: 1px solid var(--glass-shell-border);
     }
