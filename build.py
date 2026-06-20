@@ -11,13 +11,11 @@ OpenAver Windows 打包腳本
     3. 解壓 wheel 到 site-packages
     4. 打包成 ZIP
 """
-import os
 import sys
 import shutil
 import zipfile
 import urllib.request
 import subprocess
-import tempfile
 from pathlib import Path
 
 # ============ 配置 ============
@@ -70,6 +68,7 @@ EXCLUDE_PACKAGES = {
 
     # 開發工具
     'pip', 'setuptools', 'wheel', 'twine', 'build',
+    'ruff',
 
     # 文檔工具
     'docutils', 'pygments', 'readme-renderer',

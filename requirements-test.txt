@@ -25,3 +25,4 @@ httpx>=0.25.0
 mypy>=1.0.0
 types-requests
 pytest-playwright>=0.4.0  # e2e testing
+ruff>=0.15.0

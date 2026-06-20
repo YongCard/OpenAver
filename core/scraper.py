@@ -6,14 +6,13 @@ Scraper 模組（向後相容層）
 """
 import re
 import time
-from pathlib import Path
 
 from core.logger import get_logger
 from core.config import load_config
 
 logger = get_logger(__name__)
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Optional, List, Dict, Union, Any, Callable, Type
+from typing import Optional, List, Dict, Any, Callable, Type
 
 # 引入新版爬蟲模組
 from core.scrapers import (
@@ -297,12 +296,12 @@ def search_jav(number: str, source: str = 'auto', proxy_url: str = '', javbus_la
         if metatube_shims:
             with ThreadPoolExecutor(max_workers=min(len(metatube_shims), 5)) as ex:
                 futs = [(sid, ex.submit(shim.search, number)) for sid, shim in metatube_shims]
-                for sid, fut in futs:  # 按 user order 收（submit 順序 = user order；非 as_completed）
+                for _sid, fut in futs:  # 按 user order 收（submit 順序 = user order；非 as_completed）
                     try:
                         v = fut.result()
                         if v:
                             results_by_source[v.source] = v
-                    except Exception:
+                    except Exception:  # noqa: S112 — intentional skip-on-error in parallel scraper loop; individual source failure should not abort others
                         continue
 
         # rebuild all_data 按 enabled_sids（user-drag）順序，保全 merge 優先度契約
