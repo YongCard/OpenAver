@@ -109,6 +109,7 @@ from web.routers import scraper_sources as scraper_sources_router
 from web.routers import settings_metatube as settings_metatube_router
 from web.routers import cf as cf_router
 from web.routers import diagnostics as diagnostics_router
+from web.routers import library_migration as library_migration_router
 # Module-level imports for startup_reconnect / _fire_probe so that
 # patch("web.app.startup_reconnect") / patch("web.app._fire_probe") target the
 # correct use-site binding (TASK-63e-1; function-local import would defeat patch).
@@ -137,6 +138,7 @@ app.include_router(scraper_sources_router.router)
 app.include_router(settings_metatube_router.router)
 app.include_router(cf_router.router)
 app.include_router(diagnostics_router.router)
+app.include_router(library_migration_router.router)
 
 
 @app.exception_handler(RequestValidationError)
