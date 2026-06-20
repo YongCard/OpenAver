@@ -347,3 +347,163 @@
         grid-template-columns: 1fr min(var(--spotlight-width), 100% - 30rem) 1fr;
     }
 }
+
+/* ==========================================================================
+   A-T5: Glass panel — dim-scoped override
+   Panel role: large reading surfaces (Settings / Help / Scanner / Search).
+   Uses --fluent-blur (30px) — heavier than shell's --fluent-blur-light (12px).
+   Exclusions NOT touched: semantic-color states, terminals/code, modal, popover,
+   dropdown, drag-overlay, staging-anchor, row dividers, grid cards, shell surfaces.
+   Sub-panels inside a glass card use sub-tint ONLY (no backdrop-filter) to avoid
+   double-blur (muddy + GPU cost). Q1/Q2/Q3/Q4 decided by Opus → adopted below.
+   ========================================================================== */
+
+/* ── Full panel glass (9 selectors) ──────────────────────────────────────── */
+
+/* Rule 14 — Settings: main card panel */
+[data-theme="dim"] #settings-components .card {
+    background: var(--glass-panel-gradient), var(--glass-panel-fill);
+    backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    -webkit-backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    border-color: var(--glass-panel-border);
+    box-shadow:
+        inset 0 1px 0 var(--glass-panel-edge-top),
+        inset 1px 0 0 var(--glass-panel-edge-left),
+        inset 0 -1px 0 var(--glass-panel-edge-bottom),
+        var(--fluent-shadow-16);
+}
+
+/* Rule 15 — Help: help-card panel (×15) */
+[data-theme="dim"] .help-card {
+    background: var(--glass-panel-gradient), var(--glass-panel-fill);
+    backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    -webkit-backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    border-color: var(--glass-panel-border);
+    box-shadow:
+        inset 0 1px 0 var(--glass-panel-edge-top),
+        inset 1px 0 0 var(--glass-panel-edge-left),
+        inset 0 -1px 0 var(--glass-panel-edge-bottom),
+        var(--fluent-shadow-16);
+}
+
+/* Rule 16 — Scanner: avlist-card panel */
+[data-theme="dim"] :is(#ds-gallery-components, .ds-gallery-composition) .avlist-card {
+    background: var(--glass-panel-gradient), var(--glass-panel-fill);
+    backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    -webkit-backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    border-color: var(--glass-panel-border);
+    box-shadow:
+        inset 0 1px 0 var(--glass-panel-edge-top),
+        inset 1px 0 0 var(--glass-panel-edge-left),
+        inset 0 -1px 0 var(--glass-panel-edge-bottom),
+        var(--fluent-shadow-16);
+}
+
+/* Rule 17 — Scanner: stats-card panel */
+[data-theme="dim"] :is(#ds-gallery-components, .ds-gallery-composition) .stats-card {
+    background: var(--glass-panel-gradient), var(--glass-panel-fill);
+    backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    -webkit-backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    border-color: var(--glass-panel-border);
+    box-shadow:
+        inset 0 1px 0 var(--glass-panel-edge-top),
+        inset 1px 0 0 var(--glass-panel-edge-left),
+        inset 0 -1px 0 var(--glass-panel-edge-bottom),
+        var(--fluent-shadow-16);
+}
+
+/* Rule 18 — Scanner: actress-alias-card panel (×2 instances in scanner.html) */
+[data-theme="dim"] :is(#ds-gallery-components, .ds-gallery-composition) .actress-alias-card {
+    background: var(--glass-panel-gradient), var(--glass-panel-fill);
+    backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    -webkit-backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    border-color: var(--glass-panel-border);
+    box-shadow:
+        inset 0 1px 0 var(--glass-panel-edge-top),
+        inset 1px 0 0 var(--glass-panel-edge-left),
+        inset 0 -1px 0 var(--glass-panel-edge-bottom),
+        var(--fluent-shadow-16);
+}
+
+/* Rule 19 — Search: state-page panel (empty + error states) */
+[data-theme="dim"] .search-container .state-page {
+    background: var(--glass-panel-gradient), var(--glass-panel-fill);
+    backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    -webkit-backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    border-color: var(--glass-panel-border);
+    box-shadow:
+        inset 0 1px 0 var(--glass-panel-edge-top),
+        inset 1px 0 0 var(--glass-panel-edge-left),
+        inset 0 -1px 0 var(--glass-panel-edge-bottom),
+        var(--fluent-shadow-16);
+}
+
+/* Rule 20 — Search: progress-container panel (Q3→A: glass; overrides search.css:361 solid bg) */
+[data-theme="dim"] .progress-container {
+    background: var(--glass-panel-gradient), var(--glass-panel-fill);
+    backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    -webkit-backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    border-color: var(--glass-panel-border);
+    box-shadow:
+        inset 0 1px 0 var(--glass-panel-edge-top),
+        inset 1px 0 0 var(--glass-panel-edge-left),
+        inset 0 -1px 0 var(--glass-panel-edge-bottom),
+        var(--fluent-shadow-16);
+}
+
+/* Rule 21 — Search: av-card-full detail panel (Q4→A: search-scoped only) */
+[data-theme="dim"] .search-container .av-card-full {
+    background: var(--glass-panel-gradient), var(--glass-panel-fill);
+    backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    -webkit-backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    border-color: var(--glass-panel-border);
+    box-shadow:
+        inset 0 1px 0 var(--glass-panel-edge-top),
+        inset 1px 0 0 var(--glass-panel-edge-left),
+        inset 0 -1px 0 var(--glass-panel-edge-bottom),
+        var(--fluent-shadow-16);
+}
+
+/* Rule 22 — Search: file-list-section panel */
+[data-theme="dim"] .file-list-section {
+    background: var(--glass-panel-gradient), var(--glass-panel-fill);
+    backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    -webkit-backdrop-filter: blur(var(--fluent-blur)) saturate(var(--glass-panel-saturate));
+    border-color: var(--glass-panel-border);
+    box-shadow:
+        inset 0 1px 0 var(--glass-panel-edge-top),
+        inset 1px 0 0 var(--glass-panel-edge-left),
+        inset 0 -1px 0 var(--glass-panel-edge-bottom),
+        var(--fluent-shadow-16);
+}
+
+/* ── Sub-tint ONLY — in-card sub-panels (Q1→A: no backdrop-filter) ────────
+   These elements are nested inside a .card that already carries backdrop-filter.
+   Adding a second backdrop-filter would blur-on-blur (muddy + GPU waste).
+   Pattern: POC .settings-card-header — sub-tint + border only, no elevation.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Rule 23 — Settings: card header sub-tint */
+[data-theme="dim"] #settings-components .settings-card-header {
+    background: var(--glass-panel-header-tint);
+    border-bottom-color: var(--glass-panel-header-border);
+}
+
+/* Rule 24 — Settings: sources batchbar sub-tint (nested in .card → no backdrop-filter) */
+[data-theme="dim"] #settings-components .settings-sources-batchbar {
+    background: var(--glass-panel-header-tint);
+    border-color: var(--glass-panel-header-border);
+}
+
+/* Rule 25 — Settings: metatube connect form sub-tint (nested in .card → no backdrop-filter)
+ * Border intentionally NOT overridden: settings.css:634 uses `border: 1px dashed` as a
+ * deliberate drop-zone/form cue — recoloring it to the glass hairline would dilute that cue. */
+[data-theme="dim"] #settings-components .settings-mt-connect-form {
+    background: var(--glass-panel-header-tint);
+}
+
+/* Rule 26 — Settings: collapsible content sub-tint (nested in .card → no backdrop-filter) */
+[data-theme="dim"] :is(#settings-components, #ds-settings-components) .collapsible-content {
+    background: var(--glass-panel-header-tint);
+    border-color: var(--glass-panel-header-border);
+}
