@@ -28,7 +28,11 @@ fi
 # --- OpenAver 執行中偵測 ---
 # macOS rm 對 advisory lock 不會 fail，故 rm 成敗不是權威信號，pgrep 才是。
 is_openaver_running() {
-    pgrep -f "$INSTALL_DIR/OpenAver.command" > /dev/null 2>&1 || \
+    # 權威信號：app 一律以 python3 -c "...from windows.standalone import main..." 啟動。
+    # 不能靠 OpenAver.command（wrapper 用 nohup & 後即 exit、不在 process list），
+    # 也不能靠絕對路徑 python（argv[0] 是相對的 ./python/bin/python3 → false negative）。
+    # 改抓 -c 內這串 OpenAver 獨有、與安裝位置無關的字串。
+    pgrep -f "from windows.standalone import main" > /dev/null 2>&1 || \
     pgrep -f "$INSTALL_DIR/python/bin" > /dev/null 2>&1
 }
 
