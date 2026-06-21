@@ -45,7 +45,9 @@ jobs:
         run: python build.py
 
       - name: Run artifact audit
-        run: python scripts/audit_build_artifact.py "dist/*-Windows-*.zip" --platform win --max-mb 55
+        # --strict：T2 已移除 uvloop → uvloop/langdetect 由 WARN 翻 hard-fail（擋 release）
+        # --max-mb 48：T2 後 ZIP ~34.6MB（uvloop 16MB 已除）；收緊以擋未來 bloat 回歸
+        run: python scripts/audit_build_artifact.py "dist/*-Windows-*.zip" --platform win --max-mb 48 --strict
 
       - name: Prepare artifact
         run: |
