@@ -12037,7 +12037,7 @@ class TestUS5PosterCropScoped:
     def test_poster_crop_rules_scoped_and_token_referenced(self):
         css = self._strip_comments(self._css())
         # T10（US-10）：poster-crop 樣式已從 ≤480 擴到 ≤899（481–899 4 欄 poster 格共用）。
-        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)
+        blocks = re.findall(r'@media \(max-width: 899px\) \{(.*?)\n\}', css, re.DOTALL)
         target = [b for b in blocks if ".av-card-preview-img" in b]
         assert target, "找不到含 .av-card-preview-img poster-crop 的 ≤899px block"
         block = target[0]
@@ -12064,7 +12064,7 @@ class TestUS5PosterCropScoped:
     def test_caption_truncation_uses_av_actress(self):
         css = self._css()
         # T10（US-10）：caption 規則隨 poster-crop 擴到 ≤899。
-        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)
+        blocks = re.findall(r'@media \(max-width: 899px\) \{(.*?)\n\}', css, re.DOTALL)
         target = [b for b in blocks if ".footer-default" in b and ".av-actress" in b]
         assert target, "找不到含 caption 截斷（.footer-default .av-actress）的 ≤899px block"
         block = target[0]
@@ -12087,7 +12087,7 @@ class TestUS5PosterCropScoped:
         css = self._strip_comments(self._css())
         # T10（US-10）：≤480∩coarse footer 還原規則隨 poster-crop 擴到 ≤899∩coarse。
         m = re.search(
-            r'@media \(max-width: (?:480|899)px\) and \(pointer: coarse\) \{(.*?)\n\}',
+            r'@media \(max-width: 899px\) and \(pointer: coarse\) \{(.*?)\n\}',
             css, re.DOTALL,
         )
         assert m, "找不到 @media (max-width: 899px) and (pointer: coarse) 交集 block（Codex P1 fix 缺失）"
@@ -12307,7 +12307,7 @@ class TestUS9SearchGridMobileFix:
         """
         css = self._strip_comments(self._search_css())
         # T10（US-10）：poster-crop 樣式已從 ≤480 擴到 ≤899（481–899 4 欄 poster 格共用）。
-        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)
+        blocks = re.findall(r'@media \(max-width: 899px\) \{(.*?)\n\}', css, re.DOTALL)
         target = [b for b in blocks if ".av-card-preview-img" in b and ".search-grid" in b]
         assert target, "找不到含 .av-card-preview-img + .search-grid 的 ≤899px block（T9-T5 poster-crop 缺失）"
         block = target[0]
@@ -12364,7 +12364,7 @@ class TestUS9SearchGridMobileFix:
         css = self._strip_comments(self._search_css())
         # T10（US-10）：≤480∩coarse footer 還原規則隨 poster-crop 擴到 ≤899∩coarse。
         m = re.search(
-            r'@media \(max-width: (?:480|899)px\) and \(pointer: coarse\) \{(.*?)\n\}',
+            r'@media \(max-width: 899px\) and \(pointer: coarse\) \{(.*?)\n\}',
             css, re.DOTALL,
         )
         assert m, "search.css 找不到 @media (max-width: 899px) and (pointer: coarse) block（T9-T5 coarse 還原缺失）"
@@ -12509,7 +12509,7 @@ class TestUS11HeroCardMobileFix:
         三問：拔 aspect-ratio → 紅；移除 :is() scope → 紅；移出 ≤480px block → 紅。
         """
         css = self._strip_comments(self._showcase_css())
-        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)  # T10: hero poster-crop 擴 ≤899
+        blocks = re.findall(r'@media \(max-width: 899px\) \{(.*?)\n\}', css, re.DOTALL)  # T10: hero poster-crop 擴 ≤899
         target = [b for b in blocks if ".av-card-preview.hero-card .av-card-preview-img" in b]
         assert target, (
             "showcase.css 找不到含 .av-card-preview.hero-card .av-card-preview-img 的 ≤480px block"
@@ -12538,7 +12538,7 @@ class TestUS11HeroCardMobileFix:
         三問：移除 object-fit: cover → 紅；移出 ≤480px block → 紅。
         """
         css = self._strip_comments(self._showcase_css())
-        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)  # T10: hero poster-crop 擴 ≤899
+        blocks = re.findall(r'@media \(max-width: 899px\) \{(.*?)\n\}', css, re.DOTALL)  # T10: hero poster-crop 擴 ≤899
         target = [b for b in blocks if ".av-card-preview.hero-card .av-card-preview-img" in b]
         assert target, "showcase.css 找不到含 hero-card .av-card-preview-img 的 ≤480px block"
         block = target[0]
@@ -12557,7 +12557,7 @@ class TestUS11HeroCardMobileFix:
         三問：拔 aspect-ratio → 紅；移除 :is() scope → 紅；移出 ≤480px block → 紅。
         """
         css = self._strip_comments(self._search_css())
-        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)  # T10: hero poster-crop 擴 ≤899
+        blocks = re.findall(r'@media \(max-width: 899px\) \{(.*?)\n\}', css, re.DOTALL)  # T10: hero poster-crop 擴 ≤899
         target = [b for b in blocks if ".av-card-preview.hero-card .av-card-preview-img" in b]
         assert target, (
             "search.css 找不到含 .av-card-preview.hero-card .av-card-preview-img 的 ≤480px block"
@@ -12598,7 +12598,7 @@ class TestUS11HeroCardMobileFix:
         三問：移除 object-fit: cover → 紅；移出 ≤480px block → 紅。
         """
         css = self._strip_comments(self._search_css())
-        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)  # T10: hero poster-crop 擴 ≤899
+        blocks = re.findall(r'@media \(max-width: 899px\) \{(.*?)\n\}', css, re.DOTALL)  # T10: hero poster-crop 擴 ≤899
         target = [b for b in blocks if ".av-card-preview.hero-card .av-card-preview-img" in b]
         assert target, "search.css 找不到含 hero-card .av-card-preview-img 的 ≤480px block"
         block = target[0]
