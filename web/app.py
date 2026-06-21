@@ -13,7 +13,7 @@ mimetypes.add_type("text/css", ".css")
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from web.static_cache import NoCacheStaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -145,7 +145,58 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
+# ============ LAN 存取閘門 ============
+
+# loopback 主機集合 —— 單一真理，middleware 短路與決策核心共用（避免兩處定義漂移）。
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1"})
+
+
+def _lan_access_allowed(client_host, server_mode):
+    """LAN access gate decision-core (testable, no I/O)。
+
+    這是 middleware 實際委派的決策函式（非平行複製）——middleware 在非 loopback
+    分支呼叫本函式，loopback 短路同樣比對 `_LOOPBACK_HOSTS`，故測得即所跑。
+    """
+    if client_host in _LOOPBACK_HOSTS:
+        return True
+    return bool(server_mode)
+
+
+@app.middleware("http")
+async def lan_access_gate(request: Request, call_next):
+    """
+    非 loopback 流量依 general.server_mode 決定放行或 403。
+    Loopback 短路：不讀 config，零成本（與 _lan_access_allowed 共用 _LOOPBACK_HOSTS）。
+    不信任 X-Forwarded-For（無反向 proxy；只用 TCP 對端 request.client.host）。
+    """
+    client = request.client
+    client_host = client.host if client else None
+    # loopback 短路：桌面 App 自連，零 config I/O
+    if client_host in _LOOPBACK_HOSTS:
+        return await call_next(request)
+    # 非 loopback：讀 config 後委派決策核心（測得即所跑）
+    server_mode = load_config().get("general", {}).get("server_mode", False)
+    if _lan_access_allowed(client_host, server_mode):
+        return await call_next(request)
+    return PlainTextResponse("Forbidden", status_code=403)
+
+
 # ============ 輔助函數 ============
+
+
+def get_lan_ip():
+    """主要區網 IP（預設路由網卡）；取不到回 None。"""
+    import socket
+    s = None
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))  # 不送資料，只查預設路由本地位址
+        return s.getsockname()[0]
+    except Exception:
+        return None
+    finally:
+        if s is not None:
+            s.close()
 
 def get_common_context(request: Request) -> dict:
     """取得共用的模板 Context (包含設定)"""
@@ -214,6 +265,7 @@ def get_common_context(request: Request) -> dict:
         "config": config,
         "proxy_configured": proxy_configured,
         "cf_transport_available": _cf_transport_available,
+        "lan_ip": get_lan_ip(),
         "theme": config.get('general', {}).get('theme', 'light'),
         "sidebar_collapsed": config.get('general', {}).get('sidebar_collapsed', False),
         "font_size": font_size,

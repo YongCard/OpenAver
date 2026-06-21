@@ -27,7 +27,8 @@ import webview
 from pywebview_api import api, bind_events
 
 # 配置
-HOST = "127.0.0.1"
+BIND_HOST = "0.0.0.0"      # uvicorn 監聽所有介面（含 LAN）
+CLIENT_HOST = "127.0.0.1"  # 桌面 App 自連：find_free_port、health 探活、WebView URL
 PORT = 49152  # 使用動態/私有端口範圍 (49152-65535)，避免權限問題
 STARTUP_TIMEOUT = 30  # 最多等待 30 秒
 
@@ -138,7 +139,7 @@ def find_free_port(start_port=49152, logger=None, max_attempts=100):
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             # 設置超時避免卡住
             sock.settimeout(1)
-            sock.bind((HOST, port))
+            sock.bind((CLIENT_HOST, port))
             sock.close()
 
             # 記錄成功找到的端口
@@ -185,7 +186,7 @@ def find_free_port(start_port=49152, logger=None, max_attempts=100):
 
 def wait_for_server(port, timeout=STARTUP_TIMEOUT):
     """等待伺服器啟動"""
-    url = f"http://{HOST}:{port}/api/health"
+    url = f"http://{CLIENT_HOST}:{port}/api/health"
     start_time = time.time()
 
     while time.time() - start_time < timeout:
@@ -215,7 +216,7 @@ def run_server(port, debug_mode=False):
 
     config = uvicorn.Config(
         app,
-        host=HOST,
+        host=BIND_HOST,
         port=port,
         log_level=log_level,
         access_log=access_log,
@@ -291,7 +292,7 @@ def main():
 
     window = webview.create_window(
         'OpenAver',
-        f'http://{HOST}:{port}',
+        f'http://{CLIENT_HOST}:{port}',
         **create_kwargs,
     )
 
