@@ -47,11 +47,14 @@ COPY_ITEMS = [
 
 # uvicorn[standard] 裡的 win-safe extras（uvloop 不含，Windows 用不到）
 # websockets 已是 requirements.txt 頂層，不重複
+# 精確釘版本（==）確保可重現 build：同 git tag = 同 ZIP（與 EXTRA_DEPS_NO_DEPS 同規範）。
+# 版本來源：.build_cache/wheels/ 實際解析的 wheel 檔名（cross-check dist/ ZIP site-packages）。
+# 升版時與 requirements.txt 的 uvicorn[standard]==X.Y.Z 同步評估。
 _UVICORN_WIN_SAFE_EXTRAS = [
-    "httptools",
-    "watchfiles",
-    "python-dotenv",
-    "PyYAML",
+    "httptools==0.8.0",
+    "watchfiles==1.2.0",
+    "python-dotenv==1.2.2",
+    "PyYAML==6.0.3",
 ]
 
 # pure-Python sdist-only 套件（PyPI 從未發 wheel）

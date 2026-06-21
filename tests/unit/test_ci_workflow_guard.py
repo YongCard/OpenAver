@@ -292,6 +292,21 @@ def test_extra_deps_no_deps_all_pinned():
     )
 
 
+def test_uvicorn_win_safe_extras_all_pinned():
+    """_UVICORN_WIN_SAFE_EXTRAS 每個項目都必須精確 pin（==）。
+
+    httptools / watchfiles / python-dotenv / PyYAML 是 uvicorn[standard] 的 win-safe 子集，
+    經 Phase 1 with-deps 下載。若無 pin，cold cache 或任一套件發佈新版時，pip 抓最新
+    → 不同時間 / 不同機器建出不同版本 → 破壞可重現 build 契約（與 EXTRA_DEPS_NO_DEPS 同規範）。
+    """
+    import build
+    unpinned = [dep for dep in build._UVICORN_WIN_SAFE_EXTRAS if "==" not in dep]
+    assert not unpinned, (
+        f"_UVICORN_WIN_SAFE_EXTRAS 有未 exact-pin（==）的項目：{unpinned}\n"
+        "所有 win-safe extras 必須精確釘版本，確保 reproducible build（同 git tag = 同 ZIP）。"
+    )
+
+
 def test_parse_allowlist_rewrites_only_uvicorn_standard():
     """uvicorn[standard]==X → uvicorn==X（去 extra）；其餘無 extra 的行原樣保留。"""
     import build
