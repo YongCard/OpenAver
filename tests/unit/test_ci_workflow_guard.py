@@ -318,3 +318,86 @@ def test_parse_allowlist_fails_closed_on_unexpected_extra():
     # uvicorn 帶非 standard extra 也須 fail-closed（只認 [standard]）
     with pytest.raises(SystemExit):
         build._parse_allowlist_lines(["uvicorn[foo]==0.46.0"])
+
+
+# ============================================================
+# TASK-80-BUILD-T4b：build.py 模型「三禁」契約（防退回舊模型）
+# 與 T2 的 allowlist 斷言互補：T2 驗「解析結果對」，本段驗「模型沒退回」。
+# 與 T4a（build.yml 真實 ZIP 產物斷言）互補：本段早、快、便宜，在 PR pytest 階段先報紅。
+# 三禁：① 不得回到 pip freeze 取安裝集 ② 不得 glob 整個 cache extract ③ 不得平台不符 fallback。
+# ============================================================
+
+def _build_source_no_comments() -> str:
+    """build.py 原始碼，逐行剝除 `#` 註解（避免註解中提到的字觸發守衛誤判）。"""
+    src = (_REPO_ROOT / "build.py").read_text(encoding="utf-8")
+    return "\n".join(line.split("#", 1)[0] for line in src.splitlines())
+
+
+def test_build_no_pip_freeze():
+    """① build.py 不得用 pip freeze 取安裝集（T2 棄 freeze；舊函式 get_all_dependencies 須消失）。
+
+    freeze 凍結的是「當前 dev venv」→ 任何測試/orphan 套件混入即被打包（denylist 漂移根因）。
+    註解可提及 freeze（歷史說明），但程式碼不得再呼叫。
+    """
+    import build
+    assert not hasattr(build, "get_all_dependencies"), (
+        "build.py 仍有 get_all_dependencies（pip freeze 取安裝集的舊函式）；T2 已改 allowlist，應移除"
+    )
+    code = _build_source_no_comments()
+    assert "freeze" not in code, (
+        "build.py 程式碼（非註解）仍出現 'freeze'；不得退回 pip freeze 取安裝集模型"
+    )
+
+
+def test_build_extract_uses_manifest_not_glob_all():
+    """② extract 必須只解壓 extract_manifest，不得 glob 整個 cache（殘留 orphan 會被帶入）。"""
+    code = _build_source_no_comments()
+    assert "for f in extract_manifest" in code, (
+        "build.py 未見『for f in extract_manifest』；extract 應只迭代本次解析的 manifest"
+    )
+    assert 'glob("*.whl")' not in code, (
+        "build.py 出現 glob(\"*.whl\")（舊 extract-整個-cache 模式）；應改 manifest-based extract"
+    )
+
+
+class _FakePipFail:
+    """模擬 pip download 失敗的 CompletedProcess。"""
+    returncode = 1
+    stdout = ""
+    stderr = "ERROR: No matching distribution found"
+
+
+def test_build_download_fail_closed_no_platform_fallback(monkeypatch, tmp_path):
+    """③ 必要套件無 win wheel → 硬失敗、且只嘗試一次（無平台不符 fallback retry）。
+
+    舊模型：win wheel 失敗 → 再 `pip download`（不限平台）拉 Linux wheel（uvloop .so 混入途徑）。
+    本守衛 mock pip 失敗，斷言 _download_one_package 對非 skip 套件 SystemExit 且只呼叫 pip 一次。
+    """
+    import build
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return _FakePipFail()
+
+    monkeypatch.setattr(build.subprocess, "run", fake_run)
+    with pytest.raises(SystemExit):
+        build._download_one_package("somerequiredpkg==1.0.0", tmp_path)
+    assert len(calls) == 1, (
+        f"非 skip 套件無 win wheel 時應只嘗試一次（無 fallback retry），實際 {len(calls)} 次"
+    )
+
+
+def test_build_download_skip_if_no_win_wheel(monkeypatch, tmp_path):
+    """SKIP_IF_NO_WIN_WHEEL 成員（uvloop）無 win wheel → skip（不 raise）、回空集、只嘗試一次。"""
+    import build
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return _FakePipFail()
+
+    monkeypatch.setattr(build.subprocess, "run", fake_run)
+    result = build._download_one_package("uvloop==0.22.1", tmp_path)
+    assert result == set(), f"uvloop 應 skip 並回空集，實際 {result}"
+    assert len(calls) == 1, f"應只嘗試一次（不 fallback），實際 {len(calls)} 次"
