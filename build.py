@@ -25,7 +25,7 @@ PYTHON_VERSION = "3.12.4"
 PYTHON_EMBED_URL = f"https://www.python.org/ftp/python/{PYTHON_VERSION}/python-{PYTHON_VERSION}-embed-amd64.zip"
 
 # 專案結構
-PROJECT_ROOT = Path(__file__).parent
+PROJECT_ROOT = Path(__file__).resolve().parent
 BUILD_DIR = PROJECT_ROOT / "build"
 DIST_DIR = PROJECT_ROOT / "dist"
 CACHE_DIR = PROJECT_ROOT / ".build_cache"  # 緩存目錄（不會被清理）
@@ -39,73 +39,82 @@ COPY_ITEMS = [
     "maker_mapping.json",
 ]
 
-# 主要套件（會自動解析依賴）
-PACKAGES = [
-    "fastapi",
-    "uvicorn[standard]",
-    "jinja2",
-    "python-multipart",
-    "requests",
-    "beautifulsoup4",
-    "lxml",
-    "curl_cffi",
-    "websockets",
-    "pillow",
-    "pywebview",
-    "httpx",  # Required for FastAPI TestClient and async HTTP
+# ============ Allowlist 模型（T2：棄 pip freeze + denylist） ============
+#
+# Windows 打包依賴來源 = requirements.txt 顯式 allowlist（程式碼層調整）
+# + extra_deps（Windows pywebview backend 專用）。
+# 不再 pip freeze dev venv，根除 denylist 漂移與 orphan 污染。
+
+# uvicorn[standard] 裡的 win-safe extras（uvloop 不含，Windows 用不到）
+# websockets 已是 requirements.txt 頂層，不重複
+_UVICORN_WIN_SAFE_EXTRAS = [
+    "httptools",
+    "watchfiles",
+    "python-dotenv",
+    "PyYAML",
 ]
 
-def _test_only_packages() -> set:
-    """從 requirements-test.txt 抽出『純測試/開發』套件名（跳 `-r` / 註解 / 空行）。
+# pure-Python sdist-only 套件（PyPI 從未發 wheel）
+SDIST_OK: set[str] = {"proxy-tools"}
 
-    requirements-test.txt 用 `-r requirements.txt` 繼承 runtime，其餘直列項即「runtime
-    之外額外裝」的測試/開發工具（pytest* / ruff / playwright / PyYAML…）——絕不該進
-    用戶 ZIP。從此檔自動 derive，避免日後新增測試套件忘了同步 EXCLUDE（denylist 漂移）。
+# 無 win_amd64 wheel 但 Windows 合法缺席的套件（skip + warning 而非 hard-fail）
+# 理論上 uvloop 在機制 1 已不應被請求；此集是防禦性後備
+SKIP_IF_NO_WIN_WHEEL: set[str] = {"uvloop"}
+
+# Windows pywebview backend 專用依賴（有 win32 marker，Linux pip 不自動解析）→ Phase 2 逐一 --no-deps
+# 所有項目均釘精確版本（==），確保：
+#   1. stale-cleanup 能偵測版本不匹配並強制重下（防 CI cache 送出舊版）
+#   2. 相同 git tag = 相同 ZIP（可重現 build）
+# pythonnet + clr_loader 釘精確版本：3.0.5 + 0.2.10 是已驗證的相容對；
+# pythonnet 3.1.0 需要 clr_loader>=0.3.1，不可混版。
+# 模組級常數（非函式內 local）：供守衛測試 import 驗證、防新增 extra dep 漏守衛。
+EXTRA_DEPS_NO_DEPS: list[str] = [
+    "pywebview==6.2.1",       # no-deps：pywebview→proxy-tools 無 wheel 會讓 with-deps 失敗
+    "bottle==0.13.4",         # pin：防 CI cache 送舊版（stale-reuse bug fix）
+    "proxy-tools==0.1.0",     # SDIST_OK：PyPI 只有 tar.gz；pin 確保 stale-cleanup 作用
+    "clr_loader==0.2.10",     # pin：與 pythonnet 3.0.5 的相容版本
+    "pythonnet==3.0.5",       # pin：3.1.0 需要 clr_loader>=0.3.1（會破壞現有組合）
+    "win32-setctime==1.2.0",  # pin：防 CI cache 送舊版（stale-reuse bug fix）
+    "colorama==0.4.6",        # pin：防 CI cache 送舊版（stale-reuse bug fix）
+]
+
+
+def _parse_allowlist_lines(lines: list[str]) -> list[str]:
+    """解析 requirements 行 → Windows build 頂層依賴清單。
+
+    extras 處理（fail-closed）：
+    - 只有 `uvicorn[standard]==X.Y.Z` 會被改寫成 `uvicorn==X.Y.Z`（其 win-safe 子套件
+      由 _UVICORN_WIN_SAFE_EXTRAS 明列補回）。
+    - 任何「其他」帶 extra 的依賴（如 `redis[hiredis]`）→ **hard-fail**，不靜默剝除。
+      原因：blanket 剝 extra 會讓該 extra 的子依賴從 Windows ZIP 無聲消失——正是 T2
+      要根除的漂移。新增帶 extra 的依賴時，須先在 build.py 明列其 win-safe 子依賴再放行。
     """
-    names = set()
-    req = PROJECT_ROOT / "requirements-test.txt"
-    if req.exists():
-        for line in req.read_text(encoding="utf-8").splitlines():
-            s = line.split("#", 1)[0].strip()
-            if not s or s.startswith("-"):  # 跳 `-r requirements.txt` / 註解 / 空行
-                continue
-            # 取套件名（去版本/extras）並標準化（pip 視 - 與 _ 等價、大小寫不敏感）
-            name = re.split(r"[=<>!~\[]", s, maxsplit=1)[0].strip().lower().replace("_", "-")
-            if name:
-                names.add(name)
-    return names
+    extra_re = re.compile(r"\[[^\]]*\]")
+    deps: list[str] = []
+    for line in lines:
+        s = line.split("#", 1)[0].strip()
+        if not s or s.startswith("-"):
+            continue
+        m = extra_re.search(s)
+        if m:
+            name = re.split(r"[\[=<>!~]", s, maxsplit=1)[0].strip().lower().replace("_", "-")
+            if name == "uvicorn" and m.group(0) == "[standard]":
+                s = extra_re.sub("", s)  # uvicorn[standard]==X → uvicorn==X
+            else:
+                raise SystemExit(
+                    f"[BUILD ERROR] requirements.txt 有未處理的 extra：{s!r}。\n"
+                    f"build.py 只改寫 uvicorn[standard]（win-safe 子套件已在 "
+                    f"_UVICORN_WIN_SAFE_EXTRAS 明列）。新增帶 extra 的依賴時，請先在 build.py "
+                    f"明列其 win-safe 子依賴再放行——不可讓 extra 被靜默剝除（T2 fail-closed）。"
+                )
+        deps.append(s)
+    return deps
 
 
-# 打包時排除的套件（測試/開發工具，不影響運行）。
-# = requirements-test.txt 的純測試套件（自動 derive）∪ 其 transitive ∪ orphan/開發工具。
-EXCLUDE_PACKAGES = {
-    # 測試工具 transitive（不直接列於 requirements-test.txt，需手動補）
-    'coverage', 'pluggy', 'iniconfig',
-
-    # ⚠️ mypy 殘留：feature/78 從 requirements/mypy.ini 移除「設定」，但套件本體常仍
-    # 物理留在 dev venv（pip freeze 抓得到）→ build.py 若 freeze venv 會把 mypy 含其
-    # 18MB mypyc 編譯 .pyd 打進 ZIP（曾 +11MB）。mypy 不在任一 requirements 檔（orphan），
-    # 故 _test_only_packages() 抓不到，須在此顯式排除（+ 其編譯/相依產物）。
-    'mypy', 'mypyc', 'mypy-extensions',
-    'types-beautifulsoup4', 'types-html5lib',
-
-    # ⚠️ playwright transitive：pytest-playwright（在 requirements-test.txt）的直接依賴是
-    # playwright（36MB wheel，解壓 102MB）和 pyee。_test_only_packages() 只抓直列套件名
-    # 「pytest-playwright」，抓不到其 transitive 的 playwright 本體（wheel 命名 playwright-*
-    # 而非 pytest-playwright-*）→ build.py 解壓 wheel cache 時 playwright 被含入（曾 +32MB）。
-    # greenlet 也是 playwright 的 transitive，但體積極小（<1MB）；本次只止血 playwright 主體
-    # （+pyee），系統性清 transitive 屬 T2 allowlist 範圍，故不在此 denylist 追加（避免 whack-a-mole）。
-    'playwright', 'pyee',
-
-    # 開發/打包工具
-    'pip', 'setuptools', 'wheel', 'twine', 'build',
-
-    # 文檔工具
-    'docutils', 'pygments', 'readme-renderer',
-
-    # 未使用
-    'langdetect',
-} | _test_only_packages()  # pytest* / ruff / pytest-playwright / PyYAML… 自動納入
+def parse_requirements_allowlist() -> list[str]:
+    """從 requirements.txt 解析 Windows build 頂層依賴清單（見 _parse_allowlist_lines）。"""
+    req_path = PROJECT_ROOT / "requirements.txt"
+    return _parse_allowlist_lines(req_path.read_text(encoding="utf-8").splitlines())
 
 
 # ============ 工具函數 ============
@@ -218,32 +227,92 @@ import site
     return python_dir
 
 
-def get_all_dependencies():
-    """從現有 venv 獲取完整依賴列表（排除測試/開發工具）"""
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "freeze"],
-        capture_output=True, text=True
-    )
-    deps = []
-    excluded = []
-    for line in result.stdout.strip().split('\n'):
-        if '==' in line:
-            pkg_name = line.split('==')[0].strip()
-            # 標準化套件名稱（pip 用 - 和 _ 可互換）
-            pkg_normalized = pkg_name.lower().replace('_', '-')
-            if pkg_normalized in EXCLUDE_PACKAGES:
-                excluded.append(pkg_name)
+def _pkg_name_from_filename(filename: str) -> str:
+    """從 wheel/tar.gz 檔名取標準化套件名（首個 '-' 前，標準化為 lowercase + dash）。"""
+    stem = Path(filename).stem
+    # tar.gz: strip second .gz extension already removed by .stem on .tar.gz
+    # For foo-1.0.tar.gz, Path("foo-1.0.tar.gz").stem = "foo-1.0.tar"
+    # So strip trailing .tar if present
+    if stem.endswith(".tar"):
+        stem = stem[:-4]
+    return stem.split("-")[0].lower().replace("_", "-")
+
+
+def _norm_pkg_name(spec: str) -> str:
+    """從 pip spec 字串取標準化套件名（去 extras/版本/標點，lowercase + dash）。"""
+    return re.split(r"[=<>!~\[]", spec, maxsplit=1)[0].strip().lower().replace("_", "-")
+
+
+def _download_one_package(
+    pkg_spec: str,
+    wheels_dir: Path,
+) -> set[Path]:
+    """下載單一套件（spec）為 win_amd64 wheel，或 sdist（限 SDIST_OK 成員）。
+
+    Returns set of new file paths downloaded into wheels_dir.
+    Raises SystemExit on hard-fail (required dep with no win wheel).
+    """
+    pkg_name = re.split(r"[=<>!~\[]", pkg_spec, maxsplit=1)[0].strip().lower().replace("_", "-")
+    before = set(wheels_dir.glob("*.*"))
+
+    if pkg_name in SDIST_OK:
+        # sdist 例外：允許 tar.gz（純 Python，PyPI 無 wheel）
+        pip_cmd = [
+            sys.executable, "-m", "pip", "download",
+            "--dest", str(wheels_dir),
+            "--no-deps",
+            pkg_spec,
+        ]
+        result = subprocess.run(pip_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"\n[BUILD ERROR] sdist 下載失敗（{pkg_spec}）：\n{result.stderr}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        # 標準路徑：只允許 win_amd64 binary wheel
+        pip_cmd = [
+            sys.executable, "-m", "pip", "download",
+            "--dest", str(wheels_dir),
+            "--platform", "win_amd64",
+            "--python-version", "3.12",
+            "--only-binary", ":all:",
+            "--no-deps",
+            pkg_spec,
+        ]
+        result = subprocess.run(pip_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            if pkg_name in SKIP_IF_NO_WIN_WHEEL:
+                print(f"  [WARNING] {pkg_name} 無 win_amd64 wheel，已跳過（Windows 合法缺席）")
+                return set()
             else:
-                deps.append(line.strip())
+                # FAIL-CLOSED：必要依賴無 win wheel，硬失敗
+                print(
+                    f"\n[BUILD ERROR] {pkg_spec!r} 無 win_amd64 wheel 且不在 SDIST_OK / SKIP_IF_NO_WIN_WHEEL。\n"
+                    f"請確認此套件是否有 Windows binary wheel，或將其加入 SDIST_OK（純 Python）\n"
+                    f"/ SKIP_IF_NO_WIN_WHEEL（Windows 合法缺席）。\n"
+                    f"pip stderr：\n{result.stderr}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
 
-    if excluded:
-        print(f"  排除 {len(excluded)} 個測試/開發套件: {', '.join(excluded[:5])}{'...' if len(excluded) > 5 else ''}")
-
-    return deps
+    after = set(wheels_dir.glob("*.*"))
+    return after - before
 
 
 def download_and_install_packages(python_dir: Path):
-    """下載 Windows wheel 並解壓到 site-packages（使用緩存）"""
+    """下載 Windows wheel 並解壓到 site-packages（allowlist + manifest-based extract）
+
+    兩階段下載策略：
+    Phase 1（with-deps）：runtime + win-safe extras（不含 pywebview），讓 pip 解出
+      完整 transitive 依賴樹（pydantic_core / anyio / h11 / markupsafe 等）。
+      pywebview 從此排除：它的 dep proxy-tools 只有 sdist，--only-binary 會失敗。
+
+    Phase 2（--no-deps each）：pywebview + extra_deps 逐一下載，各自套用
+      SDIST_OK（proxy-tools 允許 tar.gz）/ SKIP_IF_NO_WIN_WHEEL / FAIL-CLOSED 規則。
+
+    機制 3（manifest-based extract）：
+      extract_manifest = Phase 1 新下載 + Phase 1 cache-hit + Phase 2 新下載 + Phase 2 cache-hit。
+      解壓只迭代 manifest，不 glob 整個 cache，orphan 永不被帶入。
+    """
     print("\n[3/6] 準備依賴套件...")
 
     site_packages = python_dir / "Lib" / "site-packages"
@@ -253,96 +322,188 @@ def download_and_install_packages(python_dir: Path):
     wheels_dir = CACHE_DIR / "wheels"
     wheels_dir.mkdir(parents=True, exist_ok=True)
 
-    # 從現有 venv 獲取所有已安裝的套件（帶版本號，如 "pydantic==2.11.0"）
-    all_deps = get_all_dependencies()
-    # 加入 pywebview（可能不在 venv 中）
-    dep_names = [d.split('==')[0].lower() for d in all_deps]
-    if "pywebview" not in dep_names:
-        all_deps.append("pywebview")
+    # ── 機制 1：從 requirements.txt 解析 allowlist（取代 pip freeze） ──
+    # uvicorn[standard] → uvicorn（去 extra）+ win-safe extras 明列
+    # pywebview 從 requirements.txt 讀入，但在 Phase 1 排除（proxy-tools 無 wheel）
+    runtime_deps = parse_requirements_allowlist()
+    win_safe_extras = list(_UVICORN_WIN_SAFE_EXTRAS)  # httptools/watchfiles/python-dotenv/PyYAML
 
-    # 額外依賴（手動補充 Windows 專用套件）
-    extra_deps = [
-        "bottle", "proxy-tools", "clr_loader", "pythonnet",
-        "win32-setctime", "colorama",
-    ]
-    all_deps.extend(extra_deps)
+    # Phase 1：runtime（去 pywebview）+ win-safe extras → with-deps，解 transitive
+    phase1_deps = [d for d in runtime_deps + win_safe_extras
+                   if _norm_pkg_name(d) != "pywebview"]
 
-    # 建立需要的套件版本映射（套件名 → 完整 spec）
-    needed = {}
-    for dep in all_deps:
-        name = dep.split('==')[0].lower().replace('_', '-')
-        needed[name] = dep
+    extra_deps_no_deps = EXTRA_DEPS_NO_DEPS
 
-    # ⚠️ 清掉 cache 中版本不匹配的舊 wheel（避免混版）
-    # 這段不是多餘邏輯！PyPI 上游版本更新時，cache 裡的舊 pydantic-core
-    # 會跟新 pydantic 混版，導致 Windows ZIP 執行時 SystemError。
-    # 詳見 CLAUDE.md「Windows 打包 Wheel Cache Gotcha」
+    print(f"  Phase 1 (with-deps): {len(phase1_deps)} 頂層套件")
+    print(f"  Phase 2 (no-deps):   {len(extra_deps_no_deps)} 套件（pywebview + Windows extras）")
+
+    # ⚠️ stale-cleanup Phase 1：版本不匹配的舊 wheel（只清有 == pin 的）
+    # Phase 2 套件有 pin 的也一起清；transitive（無 pin）交給 manifest orphan-cleanup
+    pinned: dict[str, str] = {}
+    for dep in phase1_deps + extra_deps_no_deps:
+        name = _norm_pkg_name(dep)
+        if "==" in dep:
+            pinned[name] = dep.split("==")[1]
     stale_count = 0
     for f in list(wheels_dir.glob("*.*")):
-        cached_name = f.stem.split('-')[0].lower().replace('_', '-')
-        if cached_name in needed and '==' in needed[cached_name]:
-            expected_ver = needed[cached_name].split('==')[1]
-            # wheel 檔名格式: name-version-...
-            parts = f.stem.split('-')
+        cached_name = _pkg_name_from_filename(f.name)
+        if cached_name in pinned:
+            expected_ver = pinned[cached_name]
+            # tar.gz 的 .stem 仍含 ".tar"（foo-1.0.tar.gz → "foo-1.0.tar"）→ 先剝除，
+            # 否則版本被解析成 "1.0.tar"、永遠 != pin 而誤刪（latent，proxy-tools 目前未 pin）
+            stem = f.stem
+            if stem.endswith(".tar"):
+                stem = stem[:-4]
+            parts = stem.split("-")
             if len(parts) >= 2 and parts[1] != expected_ver:
                 f.unlink()
                 stale_count += 1
     if stale_count:
         print(f"  清除 {stale_count} 個版本不匹配的舊 wheel")
 
-    # 檢查已緩存的套件（名稱級，舊版已清除所以不會混版）
-    cached_files = set(f.stem.split('-')[0].lower().replace('_', '-') for f in wheels_dir.glob("*.*"))
-    to_download = [dep for dep in all_deps if dep.split('==')[0].lower().replace('_', '-') not in cached_files]
+    # ── 機制 3：manifest-based extract ──
+    # extract_manifest = Phase 1 + Phase 2 本次下載/cache-hit 的所有檔案集合
+    extract_manifest: set[Path] = set()
 
-    if to_download:
-        print(f"  需下載 {len(to_download)} 個新套件（已緩存 {len(all_deps) - len(to_download)} 個）")
-        for pkg in to_download:
-            # 嘗試下載 Windows wheel
-            pip_cmd = [
-                sys.executable, "-m", "pip", "download",
-                "--dest", str(wheels_dir),
-                "--platform", "win_amd64",
-                "--python-version", "3.12",
-                "--only-binary", ":all:",
-                "--no-deps",
-                pkg,
-            ]
-            result = subprocess.run(pip_cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                # 嘗試不限平台（純 Python 套件）
-                pip_cmd = [
-                    sys.executable, "-m", "pip", "download",
-                    "--dest", str(wheels_dir),
-                    "--no-deps",
-                    pkg,
-                ]
-                subprocess.run(pip_cmd, capture_output=True, text=True)
+    # Phase 1：以 pip download（with-deps）解完整 transitive 樹
+    # 總是執行（pip 自帶 HTTP metadata cache；--dest 目錄已有的 wheel 瞬間完成）
+    # 這是確保 transitive（pydantic_core/anyio/h11/...）不缺少的唯一可靠方式
+    # 同時解析 pip stdout 的 "Saved PATH" 行，建立本次 Phase 1 精確 manifest
+    print("  Phase 1 執行中（pip 自帶 metadata cache，已緩存項目瞬間完成）...")
+    before_p1 = set(wheels_dir.glob("*.*"))
+    pip_cmd = [
+        sys.executable, "-m", "pip", "download",
+        "--dest", str(wheels_dir),
+        "--platform", "win_amd64",
+        "--python-version", "3.12",
+        "--only-binary", ":all:",
+    ] + phase1_deps
+    result = subprocess.run(pip_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        # Phase 1 失敗：hard-fail（SKIP_IF_NO_WIN_WHEEL 套件不應出現在 Phase 1）
+        print(f"\n[BUILD ERROR] Phase 1 (with-deps) 下載失敗：\n{result.stderr}", file=sys.stderr)
+        sys.exit(1)
+
+    # 解析 pip stdout 取得本次 Phase 1 精確解析集
+    # pip 行為：
+    #   新下載到 --dest → "Saved /abs/path/pkg.whl"
+    #   已在 --dest → "  File was already downloaded /abs/path/pkg.whl"
+    # 兩種行都計入 manifest（精確反映 pip 本次解析的完整依賴集）
+    p1_manifest_files: set[Path] = set()
+    for line in result.stdout.splitlines():
+        line_stripped = line.strip()
+        if line_stripped.startswith("Saved "):
+            p = Path(line_stripped[len("Saved "):].strip()).resolve()
+            if p.exists():
+                p1_manifest_files.add(p)
+        elif line_stripped.startswith("File was already downloaded "):
+            p = Path(line_stripped[len("File was already downloaded "):].strip()).resolve()
+            if p.exists():
+                p1_manifest_files.add(p)
+
+    # N3 防護：Phase 1 有頂層依賴卻解析出空 manifest → pip stdout 格式可能改變
+    # （未來 pip 版本 / --quiet 預設）。若放任，下方 orphan-cleanup 會刪光 Phase 1
+    # wheel、extract 只剩 Phase 2 → 默默產出缺套件的壞 ZIP。fail-closed 擋下。
+    if phase1_deps and not p1_manifest_files:
+        print(
+            "\n[BUILD ERROR] Phase 1 manifest 為空（pip stdout 無 'Saved'/'File was "
+            "already downloaded' 行）。pip 輸出格式可能已變更——中止以免產出缺套件的 ZIP。\n"
+            f"--- pip stdout ---\n{result.stdout}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    after_p1 = set(wheels_dir.glob("*.*"))
+    new_p1 = after_p1 - before_p1
+    if new_p1:
+        print(f"  Phase 1 新增 {len(new_p1)} 個 wheel（含 transitive）；manifest {len(p1_manifest_files)} 個")
     else:
-        print(f"  全部 {len(all_deps)} 個套件已緩存")
+        print(f"  Phase 1 全部已緩存（manifest {len(p1_manifest_files)} 個）")
 
-    # 解壓所有套件到 site-packages
+    # 清除 before_p1 中被 Phase 1 解析選中了不同版本的舊 wheel
+    # 例：cache 有 httptools-0.7.1，Phase 1 解析選 httptools-0.8.0 → 清 0.7.1
+    p1_resolved_names = {_pkg_name_from_filename(f.name) for f in p1_manifest_files}
+    p1_superseded = 0
+    for f in list(before_p1):
+        name = _pkg_name_from_filename(f.name)
+        if name in p1_resolved_names and f not in p1_manifest_files and f.exists():
+            f.unlink()
+            p1_superseded += 1
+    if p1_superseded:
+        print(f"  Phase 1 清除 {p1_superseded} 個被升版取代的舊 wheel")
+
+    extract_manifest.update(p1_manifest_files)
+
+    # Phase 2：逐一下載 pywebview + extra_deps（--no-deps，SDIST_OK / fail-closed）
+    p2_names_in_cache = {_pkg_name_from_filename(f.name) for f in wheels_dir.glob("*.*")}
+    phase2_to_download = [dep for dep in extra_deps_no_deps
+                          if _norm_pkg_name(dep) not in p2_names_in_cache]
+    if phase2_to_download:
+        print(f"  Phase 2 需下載 {len(phase2_to_download)} 個套件")
+        for pkg in phase2_to_download:
+            new_files = _download_one_package(pkg, wheels_dir)
+            extract_manifest.update(new_files)
+    else:
+        print("  Phase 2 全部已緩存")
+
+    # Phase 2 cache-hit 加入 manifest
+    p2_names_set = {_norm_pkg_name(d) for d in extra_deps_no_deps}
+    for f in wheels_dir.glob("*.*"):
+        if _pkg_name_from_filename(f.name) in p2_names_set:
+            extract_manifest.add(f)
+
+    # 延伸 stale-cleanup：移除不在本次 manifest 的 cache 檔（防 cache 無限長大）
+    orphan_removed = 0
+    for f in list(wheels_dir.glob("*.*")):
+        if f not in extract_manifest:
+            f.unlink()
+            orphan_removed += 1
+    if orphan_removed:
+        print(f"  清除 {orphan_removed} 個 cache orphan（不在本次 manifest）")
+
+    # ── 防禦性 dedup：每個套件名最多一個檔案進 extract_manifest ──
+    # 理論上 stale-cleanup + 版本 pin 已排除重複；此 pass 作為不變式驗證，
+    # 防止任何路徑（cache 污染 / 未來程式碼改動）讓兩個不同版本都進入解壓，
+    # 否則先寫的被後寫的覆蓋（last-writer-wins corruption）。
+    deduped: dict[str, Path] = {}  # 標準化套件名 → 保留的檔案
+    for f in sorted(extract_manifest, key=lambda x: x.name):  # 排序讓結果確定
+        pkg = _pkg_name_from_filename(f.name)
+        if pkg not in deduped:
+            deduped[pkg] = f
+        else:
+            # 若有重複，保留版本號較大者（字串比較對 SemVer 大多數情況足夠）
+            existing_stem = deduped[pkg].stem
+            if existing_stem.endswith(".tar"):
+                existing_stem = existing_stem[:-4]
+            new_stem = f.stem
+            if new_stem.endswith(".tar"):
+                new_stem = new_stem[:-4]
+            existing_ver = existing_stem.split("-")[1] if "-" in existing_stem else ""
+            new_ver = new_stem.split("-")[1] if "-" in new_stem else ""
+            kept, dropped = (f, deduped[pkg]) if new_ver > existing_ver else (deduped[pkg], f)
+            deduped[pkg] = kept
+            print(
+                f"  [WARNING] manifest 含同套件兩個版本（{pkg}）："
+                f" 捨棄 {dropped.name}，保留 {kept.name}"
+            )
+    if len(deduped) < len(extract_manifest):
+        extract_manifest = set(deduped.values())
+
+    # ── 解壓：只提取 manifest 內的檔案（不 glob 整個 cache） ──
     print("\n[4/6] 安裝套件到 site-packages...")
-    wheel_files = list(wheels_dir.glob("*.whl"))
-    tar_files = list(wheels_dir.glob("*.tar.gz"))
-    print(f"  找到 {len(wheel_files)} 個 wheel, {len(tar_files)} 個 tar.gz")
+    wheel_files = [f for f in extract_manifest if f.suffix == ".whl"]
+    tar_files = [f for f in extract_manifest if f.name.endswith(".tar.gz")]
+    print(f"  Manifest: {len(wheel_files)} 個 wheel, {len(tar_files)} 個 tar.gz")
 
-    for wheel_file in wheel_files:
-        pkg_name = wheel_file.stem.split('-')[0].lower().replace('_', '-')
-        if pkg_name in EXCLUDE_PACKAGES:
-            print(f"  跳過（排除）: {wheel_file.name}")
-            continue
+    for wheel_file in sorted(wheel_files, key=lambda f: f.name):
         print(f"  安裝: {wheel_file.name}")
         extract_wheel(wheel_file, site_packages)
 
-    for tar_file in tar_files:
-        pkg_name = tar_file.name.split('-')[0].lower().replace('_', '-')
-        if pkg_name in EXCLUDE_PACKAGES:
-            print(f"  跳過（排除）: {tar_file.name}")
-            continue
+    for tar_file in sorted(tar_files, key=lambda f: f.name):
         print(f"  安裝: {tar_file.name}")
         extract_tar_gz(tar_file, site_packages)
 
-    # 保留緩存（不清理 wheels_dir）
+    # 保留緩存（wheels_dir 只含本次 manifest 需要的套件）
 
 
 def copy_project_files():

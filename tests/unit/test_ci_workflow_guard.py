@@ -137,10 +137,10 @@ def test_requirements_test_has_no_mypy():
 
 
 # ============================================================
-# build.py EXCLUDE_PACKAGES 契約：測試/開發工具不得進用戶 ZIP
-# 緣起：mypy（orphan，殘留在 dev venv 但不在任一 requirements 檔）被 build.py 的
-# pip-freeze 打包 → +11MB（含 18MB mypyc .pyd）。build.py 改為 EXCLUDE 自動 derive
-# requirements-test.txt + 顯式排除 mypy orphan。本守衛防回退。
+# build.py Allowlist 模型契約（T2：棄 pip freeze + denylist）
+# 緣起：T1 前 denylist 反覆漏 transitive（mypy orphan +11MB、playwright +32MB、uvloop +16MB）。
+# T2 改為 allowlist 模型（requirements.txt 解析 + manifest extract），根除漂移根因。
+# 本段守衛驗「allowlist 解析結果不含測試/開發工具、含必備 runtime」合約。
 # ============================================================
 
 def _direct_pkgs(req_path: Path) -> set:
@@ -156,43 +156,165 @@ def _direct_pkgs(req_path: Path) -> set:
     return names
 
 
-def test_build_excludes_mypy_orphan():
-    """mypy 殘留必須在 build.py EXCLUDE（orphan，requirements 檔抓不到）——防 +11MB 回歸。"""
-    import build
-    for pkg in ("mypy", "mypyc", "mypy-extensions"):
-        assert pkg in build.EXCLUDE_PACKAGES, \
-            f"build.py EXCLUDE_PACKAGES 缺 {pkg!r}（mypy orphan 會被 freeze 打包進 ZIP，曾 +11MB）"
+def _get_allowlist_names() -> set[str]:
+    """取得 build.py allowlist 解析結果的套件名集合（標準化）。
 
-
-def test_build_excludes_playwright_transitive():
-    """playwright（pytest-playwright 的 transitive dep）必須在 EXCLUDE——防 +32MB 回歸。
-
-    pytest-playwright 在 requirements-test.txt，_test_only_packages() 只抓直列名
-    「pytest-playwright」，但 wheel cache 裡的 playwright 本體 wheel 命名為 playwright-*
-    （不含 pytest- 前綴），build.py 解壓時無法靠 pytest-playwright 的 EXCLUDE entry 擋住
-    → playwright（36MB wheel / 102MB 解壓）被含入 ZIP（曾使 ZIP 從 56MB 膨脹至 81MB）。
-    必須在 EXCLUDE 顯式列出其 transitive：playwright + pyee。
+    包含 parse_requirements_allowlist() + _UVICORN_WIN_SAFE_EXTRAS + extra_deps。
     """
     import build
-    for pkg in ("playwright", "pyee"):
-        assert pkg in build.EXCLUDE_PACKAGES, (
-            f"build.py EXCLUDE_PACKAGES 缺 {pkg!r}（pytest-playwright 的 transitive dep，"
-            f"會被 wheel-cache 掃描帶入 ZIP；playwright 曾 +32MB）"
+    import re as _re
+
+    def _norm(spec: str) -> str:
+        return _re.split(r"[=<>!~\[]", spec, maxsplit=1)[0].strip().lower().replace("_", "-")
+
+    names: set[str] = set()
+    for dep in build.parse_requirements_allowlist():
+        names.add(_norm(dep))
+    for dep in build._UVICORN_WIN_SAFE_EXTRAS:
+        names.add(_norm(dep))
+    # extra_deps 改讀模組級常數 EXTRA_DEPS_NO_DEPS（N2）：新增 extra dep 即被守衛涵蓋，
+    # 不再用 hardcoded list 代理（避免漏守衛）。proxy-tools 亦在此清單，SDIST_OK 另有專門守衛。
+    for dep in build.EXTRA_DEPS_NO_DEPS:
+        names.add(_norm(dep))
+    return names
+
+
+def test_build_allowlist_excludes_dev_tools():
+    """allowlist 解析結果不得含 uvloop / playwright / mypy / pytest / ruff 等測試/開發工具。
+
+    T2 allowlist 模型：依賴來源 = requirements.txt，無 pip freeze，無 dev venv 污染。
+    uvloop 尤其重要：曾以 Linux .so（16MB）混入每個 release ZIP（P2 bug）。
+    playwright 曾 +32MB；mypy 曾 +11MB——三者在 T1/T2 前長期隨 release 送到用戶。
+    """
+    banned = {"uvloop", "playwright", "mypy", "mypyc", "mypy-extensions",
+              "pytest", "pytest-asyncio", "pytest-mock", "pytest-cov",
+              "pytest-playwright", "ruff", "pyee", "langdetect"}
+    names = _get_allowlist_names()
+    found = sorted(banned & names)
+    assert not found, (
+        f"build.py allowlist 含不應出現的測試/開發工具：{found}\n"
+        f"（T2 allowlist 模型：這些套件不在 requirements.txt，不應被 parse_requirements_allowlist 引入）"
+    )
+
+
+def test_build_allowlist_contains_required_runtime():
+    """allowlist 必須含所有必備 runtime 套件——否則 build 缺套件、用戶端壞掉。"""
+    required = {
+        "fastapi", "uvicorn", "starlette", "jinja2", "python-multipart",
+        "requests", "httpx", "beautifulsoup4", "lxml", "curl-cffi",
+        "pydantic", "websockets", "pillow", "pywebview",
+        "httptools", "watchfiles", "python-dotenv", "pyyaml",
+        "bottle", "clr-loader", "pythonnet", "win32-setctime", "colorama",
+        "proxy-tools",
+    }
+    names = _get_allowlist_names()
+    # 標準化比較（curl_cffi → curl-cffi, clr_loader → clr-loader 等）
+    missing = sorted(required - names)
+    assert not missing, (
+        f"build.py allowlist 缺少必備 runtime 套件（會做出缺套件的 ZIP）：{missing}"
+    )
+
+
+def test_build_allowlist_no_uvicorn_standard_extra():
+    """allowlist 中 uvicorn 不應帶 [standard] extra。
+
+    uvicorn[standard] 在 pip download --platform win_amd64 時會嘗試解 uvloop
+    （marker sys_platform != 'win32' 不被求值）→ 無 win_amd64 wheel → build 失敗。
+    T2 fix：uvicorn 去 [standard]，win-safe extras 改由 _UVICORN_WIN_SAFE_EXTRAS 明列。
+    """
+    import build
+    for dep in build.parse_requirements_allowlist():
+        assert "[standard]" not in dep, (
+            f"parse_requirements_allowlist() 仍含 uvicorn[standard]：{dep!r}\n"
+            f"應改為 uvicorn（去 extra），win-safe extras 由 _UVICORN_WIN_SAFE_EXTRAS 明列"
         )
 
 
-def test_build_excludes_all_test_only_packages():
-    """requirements-test.txt 的純測試套件（pytest*/ruff/playwright/PyYAML…）一律須被排除。
-    自動 derive 防 denylist 漂移：日後新增測試套件忘了同步 EXCLUDE 即 RED。"""
+def test_build_sdist_ok_contains_proxy_tools():
+    """SDIST_OK 必須含 proxy-tools（PyPI 只有 sdist，無 wheel）。"""
     import build
-    test_only = _direct_pkgs(_REQUIREMENTS)
-    missing = sorted(p for p in test_only if p not in build.EXCLUDE_PACKAGES)
-    assert not missing, f"build.py EXCLUDE 未涵蓋測試套件（會被打進用戶 ZIP）：{missing}"
+    assert "proxy-tools" in build.SDIST_OK, (
+        "build.SDIST_OK 缺 'proxy-tools'（PyPI 從未發 wheel，只有 proxy_tools-0.1.0.tar.gz）"
+    )
 
 
-def test_build_does_not_exclude_runtime():
-    """runtime 依賴（requirements.txt）絕不可被排除，否則 build 缺套件、用戶端壞掉。"""
+def test_build_skip_if_no_win_wheel_contains_uvloop():
+    """SKIP_IF_NO_WIN_WHEEL 必須含 uvloop（Windows 合法缺席，無 win_amd64 wheel）。"""
     import build
-    runtime = _direct_pkgs(_REQUIREMENTS_RUNTIME)
-    wrongly = sorted(p for p in runtime if p in build.EXCLUDE_PACKAGES)
-    assert not wrongly, f"build.py EXCLUDE 誤排除 runtime 依賴（會做出缺套件的 ZIP）：{wrongly}"
+    assert "uvloop" in build.SKIP_IF_NO_WIN_WHEEL, (
+        "build.SKIP_IF_NO_WIN_WHEEL 缺 'uvloop'（uvloop 無 win_amd64 wheel，應 skip + warning）"
+    )
+
+
+def test_build_greenlet_not_wrongly_excluded():
+    """greenlet 不應被 allowlist 模型排除（pywebview Windows backend 的合法 transitive）。
+
+    T1 前的 denylist 模型曾被誤列；T2 allowlist 模型無 denylist，greenlet 由 pip 依賴解析
+    自動帶入（若 pywebview 需要）。此守衛確保 greenlet 未被誤加入任何排除機制。
+    """
+    import build
+    # T2 無 EXCLUDE_PACKAGES；確認 SKIP_IF_NO_WIN_WHEEL 和 SDIST_OK 也未誤含 greenlet
+    assert "greenlet" not in build.SKIP_IF_NO_WIN_WHEEL, (
+        "SKIP_IF_NO_WIN_WHEEL 誤含 greenlet（greenlet 有 win_amd64 wheel，不應 skip）"
+    )
+    assert "greenlet" not in build.SDIST_OK, (
+        "SDIST_OK 誤含 greenlet（greenlet 有 win_amd64 wheel，非 sdist-only）"
+    )
+
+
+def test_build_no_exclude_packages_attribute():
+    """T2 後 build.py 不再有 EXCLUDE_PACKAGES（已由 allowlist 模型取代）。
+
+    EXCLUDE_PACKAGES 是 denylist 模型的遺跡，必須移除。
+    若此 test 失敗，代表 denylist 被復活——需重新評估是否違反 T2 設計。
+    """
+    import build
+    assert not hasattr(build, "EXCLUDE_PACKAGES"), (
+        "build.py 仍有 EXCLUDE_PACKAGES（denylist 模型遺跡）；"
+        "T2 改為 allowlist + manifest-based extract，EXCLUDE_PACKAGES 應移除"
+    )
+
+
+def test_extra_deps_no_deps_all_pinned():
+    """EXTRA_DEPS_NO_DEPS 每個項目都必須精確 pin（==）。
+
+    未 pin 的 Phase 2 套件有兩個失效路徑：
+    1. CI cache 有舊版 → 名稱命中跳下載 → 出貨舊版（stale-reuse）。
+    2. cache 同時有多版 → cache-hit loop 全部加入 manifest → 兩版都解壓
+       → last-writer-wins 覆蓋（multi-version corruption）。
+    Pin 後 stale-cleanup 能靠版本號偵測並強制重下，確保 reproducible build。
+    """
+    import build
+    unpinned = [dep for dep in build.EXTRA_DEPS_NO_DEPS if "==" not in dep]
+    assert not unpinned, (
+        f"EXTRA_DEPS_NO_DEPS 有未 exact-pin（==）的項目：{unpinned}\n"
+        "所有 Phase 2 套件必須精確釘版本，防止 CI cache stale-reuse 和多版本解壓污染。"
+    )
+
+
+def test_parse_allowlist_rewrites_only_uvicorn_standard():
+    """uvicorn[standard]==X → uvicorn==X（去 extra）；其餘無 extra 的行原樣保留。"""
+    import build
+    out = build._parse_allowlist_lines([
+        "uvicorn[standard]==0.46.0",
+        "fastapi==0.136.1",
+        "# comment",
+        "-r requirements.txt",
+    ])
+    assert "uvicorn==0.46.0" in out, f"uvicorn[standard] 未正確改寫：{out}"
+    assert all("[standard]" not in d for d in out), f"殘留 [standard]：{out}"
+    assert "fastapi==0.136.1" in out
+
+
+def test_parse_allowlist_fails_closed_on_unexpected_extra():
+    """非 uvicorn[standard] 的任何 extra → hard-fail（不靜默剝除子依賴）。
+
+    Codex P2：blanket 剝 extra 會讓未來 `pkg[extra]==...` 的子依賴從 Windows ZIP
+    無聲消失（正是 T2 要根除的漂移）。必須 fail-closed，逼維護者顯式處理。
+    """
+    import build
+    with pytest.raises(SystemExit):
+        build._parse_allowlist_lines(["redis[hiredis]==5.0.0"])
+    # uvicorn 帶非 standard extra 也須 fail-closed（只認 [standard]）
+    with pytest.raises(SystemExit):
+        build._parse_allowlist_lines(["uvicorn[foo]==0.46.0"])
