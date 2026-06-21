@@ -5013,8 +5013,9 @@ class TestSearchCssHardcoded:
         # 75b-T2 search.css US1 重排插入 ~54 行（@ ~L107）後行號順移：788→840；90 在插入點上方不變。
         # T9-port 在 L718 後插入 blocks：840→902；T9 Codex-P2 fix 補註解 +4 行：902→906。
         # T11：在 L753 後插入 hero 規則（~14 行）：906→920。
+        # T10（US-10）：poster-crop / coarse block 註解 +4 行（481–899 擴斷點）：920→924。
         90: "drop-shadow rgba 0.3 — §2 例外（drop-shadow 跟封面去背形狀，非矩形 box-shadow 無法用 --fluent-shadow-* token）",
-        920: "var(--bg-card, rgba(0, 0, 0, 0.05)) fallback — defensive fallback，非硬編碼違規",
+        924: "var(--bg-card, rgba(0, 0, 0, 0.05)) fallback — defensive fallback，非硬編碼違規",
     }
 
     SIX_PX_ALLOWLIST = {
@@ -12035,9 +12036,10 @@ class TestUS5PosterCropScoped:
 
     def test_poster_crop_rules_scoped_and_token_referenced(self):
         css = self._strip_comments(self._css())
-        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        # T10（US-10）：poster-crop 樣式已從 ≤480 擴到 ≤899（481–899 4 欄 poster 格共用）。
+        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)
         target = [b for b in blocks if ".av-card-preview-img" in b]
-        assert target, "找不到含 .av-card-preview-img poster-crop 的 ≤480px block"
+        assert target, "找不到含 .av-card-preview-img poster-crop 的 ≤899px block"
         block = target[0]
         # rule-bound：鎖定「含 aspect-ratio: var(--poster-crop-ratio) 的那條規則自身的 selector」，
         # 確認該規則本身帶 scope（避免「caption 規則有 :is() 就過關、但關鍵 aspect-ratio 規則漏 :is() → silent no-op」）。
@@ -12061,9 +12063,10 @@ class TestUS5PosterCropScoped:
 
     def test_caption_truncation_uses_av_actress(self):
         css = self._css()
-        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        # T10（US-10）：caption 規則隨 poster-crop 擴到 ≤899。
+        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)
         target = [b for b in blocks if ".footer-default" in b and ".av-actress" in b]
-        assert target, "找不到含 caption 截斷（.footer-default .av-actress）的 ≤480px block"
+        assert target, "找不到含 caption 截斷（.footer-default .av-actress）的 ≤899px block"
         block = target[0]
         # .av-actress 隱藏
         m = re.search(r'\.footer-default \.av-actress \{([^}]*)\}', block)
@@ -12082,11 +12085,12 @@ class TestUS5PosterCropScoped:
         三問：刪此交集 block → 紅（找不到 480+coarse block）；把 footer-default opacity 改回 0 → 紅。
         """
         css = self._strip_comments(self._css())
+        # T10（US-10）：≤480∩coarse footer 還原規則隨 poster-crop 擴到 ≤899∩coarse。
         m = re.search(
-            r'@media \(max-width: 480px\) and \(pointer: coarse\) \{(.*?)\n\}',
+            r'@media \(max-width: (?:480|899)px\) and \(pointer: coarse\) \{(.*?)\n\}',
             css, re.DOTALL,
         )
-        assert m, "找不到 @media (max-width: 480px) and (pointer: coarse) 交集 block（Codex P1 fix 缺失）"
+        assert m, "找不到 @media (max-width: 899px) and (pointer: coarse) 交集 block（Codex P1 fix 缺失）"
         block = m.group(1)
         # footer-default 規則自身帶 scope + 還原 opacity:1
         md = re.search(r'([^{}]*\.footer-default)\s*\{([^}]*)\}', block)
@@ -12300,9 +12304,10 @@ class TestUS9SearchGridMobileFix:
         三問：拔 :is() 前綴 → 紅；用錯 class .av-maker → 紅；拔 :not(.hero-card) → 紅。
         """
         css = self._strip_comments(self._search_css())
-        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        # T10（US-10）：poster-crop 樣式已從 ≤480 擴到 ≤899（481–899 4 欄 poster 格共用）。
+        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)
         target = [b for b in blocks if ".av-card-preview-img" in b and ".search-grid" in b]
-        assert target, "找不到含 .av-card-preview-img + .search-grid 的 ≤480px block（T9-T5 poster-crop 缺失）"
+        assert target, "找不到含 .av-card-preview-img + .search-grid 的 ≤899px block（T9-T5 poster-crop 缺失）"
         block = target[0]
 
         # rule-bound：aspect-ratio 規則自身 selector 必帶 :is() + :not(.hero-card)
@@ -12355,11 +12360,12 @@ class TestUS9SearchGridMobileFix:
         三問：刪此 block → 紅；把 footer-default opacity 改回 0 → 紅。
         """
         css = self._strip_comments(self._search_css())
+        # T10（US-10）：≤480∩coarse footer 還原規則隨 poster-crop 擴到 ≤899∩coarse。
         m = re.search(
-            r'@media \(max-width: 480px\) and \(pointer: coarse\) \{(.*?)\n\}',
+            r'@media \(max-width: (?:480|899)px\) and \(pointer: coarse\) \{(.*?)\n\}',
             css, re.DOTALL,
         )
-        assert m, "search.css 找不到 @media (max-width: 480px) and (pointer: coarse) block（T9-T5 coarse 還原缺失）"
+        assert m, "search.css 找不到 @media (max-width: 899px) and (pointer: coarse) block（T9-T5 coarse 還原缺失）"
         block = m.group(1)
 
         assert ".search-grid" in block, "coarse 交集 block 應 scope 到 .search-grid"
@@ -12499,7 +12505,7 @@ class TestUS11HeroCardMobileFix:
         三問：拔 aspect-ratio → 紅；移除 :is() scope → 紅；移出 ≤480px block → 紅。
         """
         css = self._strip_comments(self._showcase_css())
-        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)  # T10: hero poster-crop 擴 ≤899
         target = [b for b in blocks if ".av-card-preview.hero-card .av-card-preview-img" in b]
         assert target, (
             "showcase.css 找不到含 .av-card-preview.hero-card .av-card-preview-img 的 ≤480px block"
@@ -12528,7 +12534,7 @@ class TestUS11HeroCardMobileFix:
         三問：移除 object-fit: cover → 紅；移出 ≤480px block → 紅。
         """
         css = self._strip_comments(self._showcase_css())
-        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)  # T10: hero poster-crop 擴 ≤899
         target = [b for b in blocks if ".av-card-preview.hero-card .av-card-preview-img" in b]
         assert target, "showcase.css 找不到含 hero-card .av-card-preview-img 的 ≤480px block"
         block = target[0]
@@ -12547,7 +12553,7 @@ class TestUS11HeroCardMobileFix:
         三問：拔 aspect-ratio → 紅；移除 :is() scope → 紅；移出 ≤480px block → 紅。
         """
         css = self._strip_comments(self._search_css())
-        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)  # T10: hero poster-crop 擴 ≤899
         target = [b for b in blocks if ".av-card-preview.hero-card .av-card-preview-img" in b]
         assert target, (
             "search.css 找不到含 .av-card-preview.hero-card .av-card-preview-img 的 ≤480px block"
@@ -12588,7 +12594,7 @@ class TestUS11HeroCardMobileFix:
         三問：移除 object-fit: cover → 紅；移出 ≤480px block → 紅。
         """
         css = self._strip_comments(self._search_css())
-        blocks = re.findall(r'@media \(max-width: 480px\) \{(.*?)\n\}', css, re.DOTALL)
+        blocks = re.findall(r'@media \(max-width: (?:480|899)px\) \{(.*?)\n\}', css, re.DOTALL)  # T10: hero poster-crop 擴 ≤899
         target = [b for b in blocks if ".av-card-preview.hero-card .av-card-preview-img" in b]
         assert target, "search.css 找不到含 hero-card .av-card-preview-img 的 ≤480px block"
         block = target[0]
@@ -13360,3 +13366,127 @@ class TestSettingsHelpMobilePatch:
             ".hero-terminal 須含 overflow-x: auto"
         assert re.search(r"word-break:\s*break-all", body), \
             ".hero-terminal 須含 word-break: break-all"
+
+
+# ── feature/81 T10 (US-10): 481–899px 影片 grid → 4-col 直式右裁 poster ────────
+class TestPosterCropExtended:
+    """feature/81 T10（US-10 / CD-11）：481–899px 兩頁影片 grid → repeat(4,1fr) 直式右裁 poster。
+
+    純 CSS 靜態守衛（showcase ↔ search 兩頁 parity）。斷言：
+    - 481–899 段 .showcase-grid / .search-grid = repeat(4, 1fr)，且該段內無殘留 repeat(2, 1fr)。
+    - poster-crop 樣式（aspect-ratio: var(--poster-crop-ratio) + object-position: right center）
+      落在 @media (max-width: 899px) 區塊（非僅 480）——兩頁皆是。
+    - 非回歸：≤480 仍 repeat(3, 1fr)；900–1099 段仍 repeat(3, 1fr)（≥900 橫式未波及）。
+    - 兩頁 parity：兩檔都有 481–899 → repeat(4,1fr)（防只改一頁）。
+    selector 形式（showcase 後代 / search 複合）與 caption 視覺細節由 owner 真機 hard-gate。
+    """
+
+    def _showcase(self):
+        return SHOWCASE_CSS.read_text(encoding="utf-8")
+
+    def _search(self):
+        return SEARCH_CSS.read_text(encoding="utf-8")
+
+    @staticmethod
+    def _media_blocks(css, condition_regex):
+        """擷取符合 condition_regex 的 @media query 的 body（balanced-brace 掃描）。"""
+        blocks = []
+        for m in re.finditer(r"@media\b([^{]*)\{", css):
+            header = m.group(1)
+            if not re.search(condition_regex, header):
+                continue
+            # balanced brace scan from the opening { of this @media
+            depth = 1
+            i = m.end()
+            while i < len(css) and depth > 0:
+                if css[i] == "{":
+                    depth += 1
+                elif css[i] == "}":
+                    depth -= 1
+                i += 1
+            blocks.append(css[m.end():i - 1])
+        return blocks
+
+    def _481_899_bodies(self, css):
+        """481–899 段（含 showcase 拆 481–679 / 680–899 兩段，或合併單段）的 body 集合。"""
+        bodies = self._media_blocks(css, r"min-width:\s*481px")
+        # 只保留 max-width 落在 ≤899（排除 ≥900 段，那些 min-width 不是 481）
+        return bodies
+
+    def test_showcase_481_899_four_col(self):
+        """showcase.css 481–899 段 .showcase-grid = repeat(4, 1fr)，無殘留 repeat(2, 1fr)。"""
+        bodies = self._481_899_bodies(self._showcase())
+        assert bodies, "showcase.css 找不到 min-width:481px 的 @media 段（481–899 grid）"
+        joined = "\n".join(bodies)
+        assert re.search(r"\.showcase-grid\b", joined), \
+            "showcase.css 481–899 段未含 .showcase-grid 規則"
+        assert re.search(r"grid-template-columns:\s*repeat\(\s*4\s*,\s*1fr\s*\)", joined), \
+            "showcase.css 481–899 段 .showcase-grid 欄數未改為 repeat(4, 1fr)"
+        assert not re.search(r"grid-template-columns:\s*repeat\(\s*2\s*,\s*1fr\s*\)", joined), \
+            "showcase.css 481–899 段殘留 repeat(2, 1fr)（US-10 應全改 4 欄）"
+
+    def test_search_481_899_four_col(self):
+        """search.css 481–899 段 .search-grid = repeat(4, 1fr)，無殘留 repeat(2, 1fr)。"""
+        bodies = self._481_899_bodies(self._search())
+        assert bodies, "search.css 找不到 min-width:481px 的 @media 段（481–899 grid）"
+        joined = "\n".join(bodies)
+        assert re.search(r"\.search-grid\b", joined), \
+            "search.css 481–899 段未含 .search-grid 規則"
+        assert re.search(r"grid-template-columns:\s*repeat\(\s*4\s*,\s*1fr\s*\)", joined), \
+            "search.css 481–899 段 .search-grid 欄數未改為 repeat(4, 1fr)"
+        assert not re.search(r"grid-template-columns:\s*repeat\(\s*2\s*,\s*1fr\s*\)", joined), \
+            "search.css 481–899 段殘留 repeat(2, 1fr)（US-10 應全改 4 欄）"
+
+    def test_parity_both_pages_four_col(self):
+        """CD-11：兩檔都有 481–899 → repeat(4,1fr)（防只改一頁）。"""
+        for css, name in ((self._showcase(), "showcase.css"), (self._search(), "search.css")):
+            joined = "\n".join(self._481_899_bodies(css))
+            assert re.search(r"grid-template-columns:\s*repeat\(\s*4\s*,\s*1fr\s*\)", joined), \
+                f"{name} 缺少 481–899 → repeat(4, 1fr)（CD-11 兩頁 parity）"
+
+    def test_poster_crop_covers_899_showcase(self):
+        """showcase.css poster-crop 樣式落在 @media (max-width: 899px) 區塊（非僅 480）。"""
+        bodies = self._media_blocks(self._showcase(), r"max-width:\s*899px")
+        assert bodies, "showcase.css 找不到 @media (max-width: 899px) 區塊（poster-crop 未擴）"
+        joined = "\n".join(bodies)
+        assert re.search(r"aspect-ratio:\s*var\(--poster-crop-ratio", joined), \
+            "showcase.css @max-width:899px 內缺 aspect-ratio: var(--poster-crop-ratio)（poster-crop 卡裁切未擴 ≤899）"
+        assert re.search(r"object-position:\s*right\s+center", joined), \
+            "showcase.css @max-width:899px 內缺 object-position: right center（poster-crop img 右裁未擴 ≤899）"
+
+    def test_poster_crop_covers_899_search(self):
+        """search.css poster-crop 樣式落在 @media (max-width: 899px) 區塊（非僅 480）。"""
+        bodies = self._media_blocks(self._search(), r"max-width:\s*899px")
+        assert bodies, "search.css 找不到 @media (max-width: 899px) 區塊（poster-crop 未擴）"
+        joined = "\n".join(bodies)
+        assert re.search(r"aspect-ratio:\s*var\(--poster-crop-ratio", joined), \
+            "search.css @max-width:899px 內缺 aspect-ratio: var(--poster-crop-ratio)（poster-crop 卡裁切未擴 ≤899）"
+        assert re.search(r"object-position:\s*right\s+center", joined), \
+            "search.css @max-width:899px 內缺 object-position: right center（poster-crop img 右裁未擴 ≤899）"
+
+    def test_le480_still_3col_both_pages(self):
+        """非回歸：兩檔 ≤480 段影片 grid 仍 repeat(3, 1fr)（未被誤改）。"""
+        # showcase
+        sc_bodies = self._media_blocks(self._showcase(), r"max-width:\s*480px")
+        assert any(
+            re.search(r"\.showcase-grid\b[^}]*repeat\(\s*3\s*,\s*1fr\s*\)", b, re.DOTALL)
+            for b in sc_bodies
+        ), "showcase.css ≤480 .showcase-grid 不再是 repeat(3, 1fr)（誤改 ≤480）"
+        # search
+        se_bodies = self._media_blocks(self._search(), r"max-width:\s*480px")
+        assert any(
+            re.search(r"\.search-grid\b[^}]*repeat\(\s*3\s*,\s*1fr\s*\)", b, re.DOTALL)
+            for b in se_bodies
+        ), "search.css ≤480 .search-grid 不再是 repeat(3, 1fr)（誤改 ≤480）"
+
+    def test_ge900_landscape_unchanged_both_pages(self):
+        """非回歸：兩檔 900–1099 段仍 repeat(3, 1fr)（≥900 橫式未波及）。"""
+        for css, grid, name in (
+            (self._showcase(), "showcase-grid", "showcase.css"),
+            (self._search(), "search-grid", "search.css"),
+        ):
+            bodies = self._media_blocks(css, r"min-width:\s*900px\s*\)\s*and\s*\(\s*max-width:\s*1099px")
+            assert bodies, f"{name} 找不到 900–1099 @media 段"
+            joined = "\n".join(bodies)
+            assert re.search(rf"\.{grid}\b[^}}]*repeat\(\s*3\s*,\s*1fr\s*\)", joined, re.DOTALL), \
+                f"{name} 900–1099 段 .{grid} 不再是 repeat(3, 1fr)（≥900 橫式被波及）"
