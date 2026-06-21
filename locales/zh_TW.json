@@ -273,6 +273,17 @@
       "switch_light": "切換至淺色模式",
       "locale_prefix": "語系"
     },
+    "mode": {
+      "label": "連線模式：單機或伺服器",
+      "local": "單機",
+      "server": "伺服器"
+    },
+    "server_info": {
+      "copy": "複製",
+      "copied": "已複製連線網址",
+      "warning": "同一區網（Wi-Fi / LAN）內的裝置皆可用上方網址直接連線本機，請於信任的網路環境下使用。外網存取請自行配置 VPN（如 Tailscale）。",
+      "no_lan_ip": "無法自動取得本機區網 IP，請於系統網路設定查看本機 IP 後手動連線。"
+    },
     "section": {
       "search": "搜尋與刮削",
       "scraper_advanced": "進階刮削設定",
