@@ -46,24 +46,11 @@ COPY_ITEMS = [
     "maker_mapping.json",
 ]
 
-# 共用套件
-PACKAGES_COMMON = [
-    "fastapi",
-    "uvicorn[standard]",
-    "jinja2",
-    "python-multipart",
-    "requests",
-    "beautifulsoup4",
-    "lxml",
-    "curl_cffi",
-    "websockets",
-    "pillow",
-    "httpx",
-]
-
 # macOS 專用套件
+# 跨平台依賴（含 pywebview）統一由 requirements.txt 安裝（exact-pin，可重現）。
+# 此處只留 pyobjc-*：macOS-only，不在 requirements.txt（Linux 裝不了故無從 freeze
+# 取版）→ 維持不 pin（與現狀一致），於 macOS build 時額外安裝。
 PACKAGES_MACOS = [
-    "pywebview",
     "pyobjc-core",
     "pyobjc-framework-Cocoa",
     "pyobjc-framework-WebKit",
@@ -160,15 +147,18 @@ def install_packages(python_dir: Path):
     subprocess.run([str(python_path), "-m", "ensurepip", "--upgrade"], capture_output=True)
     subprocess.run([str(python_path), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"], capture_output=True)
 
-    all_packages = PACKAGES_COMMON + PACKAGES_MACOS
-    print(f"  需安裝 {len(all_packages)} 個套件")
+    # 跨平台 pinned 依賴來自 requirements.txt（== exact-pin，可重現）；
+    # macOS-only pyobjc-* 額外安裝（不在 requirements.txt）。
+    # 不加 --upgrade：會蓋掉 requirements.txt 的 == pin。
+    requirements_txt = PROJECT_ROOT / "requirements.txt"
+    print(f"  從 requirements.txt 安裝跨平台依賴 + {len(PACKAGES_MACOS)} 個 macOS-only 套件")
 
     # 使用 python -m pip install 安裝所有套件
     cmd = [
         str(python_path), "-m", "pip", "install",
-        "--upgrade",
+        "-r", str(requirements_txt),
         "--no-warn-script-location",
-    ] + all_packages
+    ] + PACKAGES_MACOS
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:

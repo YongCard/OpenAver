@@ -14,6 +14,7 @@ import yaml
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "test.yml"
 _REQUIREMENTS = _REPO_ROOT / "requirements-test.txt"
+_REQUIREMENTS_RUNTIME = _REPO_ROOT / "requirements.txt"
 
 
 @pytest.fixture(scope="module")
@@ -72,6 +73,51 @@ def test_ci_ruff_pin_matches_requirements(workflow):
     assert ci_version == req_version, (
         f"CI ruff pin（{ci_version}）與 requirements-test.txt（{req_version}）不一致；"
         "兩處必須同步（single source of truth）"
+    )
+
+
+# ── exact-pin 守衛（TASK-79-T6）─────────────────────────────────────────────
+# 兩份 requirements 必須 exact `==` pin（綠色軟體可重現 build：同 git tag = 同 ZIP）。
+# float floor（`>=` 等）→ pip 抓最新 → 不同機器/時間建出不同依賴樹。
+
+def _requirement_lines(path: Path) -> list[str]:
+    """回傳實際依賴行（去掉註解 + 空行 + pip 選項行如 `-r`；inline `# comment` 也剝除）。"""
+    lines = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        stripped = raw.split("#", 1)[0].strip()
+        if stripped and not stripped.startswith("-"):  # 跳過 `-r requirements.txt` 等 pip 選項
+            lines.append(stripped)
+    return lines
+
+
+def test_requirements_are_exact_pinned():
+    """requirements.txt / requirements-test.txt 每行都須 `==` exact-pin，
+    不得含 `>=` / `<=` / `~=` / bare `>` / bare `<`（含 uvicorn[standard]==0.46.0）。"""
+    loose = re.compile(r">=|<=|~=|>|<")
+    for path in (_REQUIREMENTS_RUNTIME, _REQUIREMENTS):
+        assert path.exists(), f"requirements 檔不存在：{path}"
+        for line in _requirement_lines(path):
+            assert "==" in line, (
+                f"{path.name} 有未 exact-pin 的依賴行（缺 `==`）：{line!r}"
+            )
+            assert not loose.search(line), (
+                f"{path.name} 有 loose 約束（>= / <= / ~= / > / <），須改 `==`：{line!r}"
+            )
+
+
+def test_requirements_test_inherits_runtime_pins():
+    """requirements-test.txt 必須以 `-r requirements.txt` 繼承 runtime pinned 依賴。
+
+    CI test job 只裝 requirements-test.txt（.github/workflows/test.yml）；若 runtime 依賴
+    （fastapi/starlette/pydantic…）不在本檔，test 就跑在浮動的 transitive 版本上，與
+    runtime/build 出貨版本不一致 → 破壞可重現性、且漏接 framework 簽名漂移
+    （見 tests/integration/test_page_routes_render.py 守的 Starlette TemplateResponse 變更）。
+    用 `-r` 繼承＝結構上保證 test 環境 = runtime pinned + 測試工具，杜絕「漏鏡像」漂移
+    （Codex T6 修正：原本 starlette 只 pin 在 requirements.txt，test 檔遺漏）。"""
+    text = _REQUIREMENTS.read_text(encoding="utf-8")
+    assert re.search(r"^\s*-r\s+requirements\.txt\s*$", text, re.MULTILINE), (
+        "requirements-test.txt 必須含 `-r requirements.txt`（繼承 runtime pinned 依賴）；"
+        "否則 CI test job 會跑在浮動的 runtime-only 依賴版本上"
     )
 
 

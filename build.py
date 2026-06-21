@@ -381,6 +381,7 @@ REM Force UTF-8 encoding and detailed error output
 set PYTHONUTF8=1
 set PYTHONUNBUFFERED=1
 set PYWEBVIEW_LOG=debug
+set OPENAVER_DEBUG=1
 
 echo [INFO] Starting OpenAver (Debug Mode)...
 echo [INFO] Log location: %USERPROFILE%\\OpenAver\\logs\\debug.log

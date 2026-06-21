@@ -4998,16 +4998,18 @@ class TestMotionInfra:
 
         content = base_html.read_text(encoding='utf-8')
 
-        assert 'gsap.min.js' in content, "base.html 缺少 GSAP CDN script"
+        # spec-79 T1：GSAP/Alpine 已 vendor 進 /static/vendor/（離線可用），
+        # 不再走 cdn.jsdelivr.net；marker 對齊 vendored 路徑（Alpine core = alpine.min.js）。
+        assert 'gsap.min.js' in content, "base.html 缺少 GSAP script"
         assert 'motion-prefs.js' in content, "base.html 缺少 motion-prefs.js"
         assert 'motion-adapter.js' in content, "base.html 缺少 motion-adapter.js"
-        assert 'alpinejs' in content, "base.html 缺少 Alpine.js"
+        assert 'alpine.min.js' in content, "base.html 缺少 Alpine.js（vendored alpine/alpine.min.js）"
 
         # 驗證載入順序：GSAP → motion-prefs → motion-adapter → Alpine
         idx_gsap = content.index('gsap.min.js')
         idx_prefs = content.index('motion-prefs.js')
         idx_adapter = content.index('motion-adapter.js')
-        idx_alpine = content.index('alpinejs')
+        idx_alpine = content.index('alpine.min.js')
 
         assert idx_gsap < idx_prefs, \
             "載入順序錯誤：gsap.min.js 應在 motion-prefs.js 之前"

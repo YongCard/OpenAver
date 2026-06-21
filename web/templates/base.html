@@ -12,6 +12,49 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}OpenAver{% endblock %}</title>
 
+    <!-- issue-#66 client diagnostics beacon: classic parser-blocking script,
+         MUST run first so the error-capture listener is installed before any
+         CDN / module / Alpine / i18n code runs (and may fail). No vendor deps,
+         no window.t, all strings hardcoded English, wrapped in try/catch so it
+         never throws and blocks parsing. Beacon target is ALWAYS the relative
+         '/api/client-log' (zero egress). -->
+    <script>
+      try {
+        var _errCount = 0, _MAX_ERR = 20, _postAlpineSent = false;
+        function _clog(p) {
+          try {
+            var body = JSON.stringify(p);
+            var sent = false;
+            if (navigator.sendBeacon) {
+              sent = navigator.sendBeacon('/api/client-log', new Blob([body], {type:'application/json'}));
+            }
+            if (!sent) {
+              fetch('/api/client-log', {method:'POST', keepalive:true, headers:{'Content-Type':'application/json'}, body:body}).catch(function(){});
+            }
+          } catch (e) {}
+        }
+        window.addEventListener('error', function(e){
+          if (_errCount >= _MAX_ERR) return;
+          _errCount++;
+          _clog({phase:'error', kind: e.error ? 'js':'resource', message: e.message || (e.target && e.target.src) || 'unknown error', source: e.filename || (e.target && (e.target.src||e.target.href)) || null, lineno: e.lineno||null, colno: e.colno||null, stack: (e.error && e.error.stack) || null, path: location.pathname});
+        }, true);
+        window.addEventListener('unhandledrejection', function(e){
+          if (_errCount >= _MAX_ERR) return;
+          _errCount++;
+          var r = e.reason;
+          _clog({phase:'error', kind:'promise', message: r ? (r.message || String(r)) : 'unhandled rejection', stack: (r && r.stack) || null, path: location.pathname});
+        });
+        _clog({phase:'boot', message:'boot', user_agent: navigator.userAgent, importmap_supported: (typeof HTMLScriptElement !== 'undefined' && typeof HTMLScriptElement.supports === 'function') ? HTMLScriptElement.supports('importmap') : null, path: location.pathname});
+        function _sendPostAlpine(){
+          if (_postAlpineSent) return;
+          _postAlpineSent = true;
+          _clog({phase:'post_alpine', message:'post_alpine', alpine_version: (window.Alpine && window.Alpine.version) || null, pywebview_api: !!(window.pywebview && window.pywebview.api), path: location.pathname});
+        }
+        document.addEventListener('alpine:init', _sendPostAlpine);
+        setTimeout(_sendPostAlpine, 5000);
+      } catch (e) {}
+    </script>
+
     <!-- Config sync: debounce + keepalive + abort previous -->
     <script>
       function configSync(field) {
@@ -71,7 +114,7 @@
     <!-- Tailwind + DaisyUI CSS -->
     <link href="/static/css/tailwind.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/static/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
     <!-- Tutorial CSS -->
     <link href="/static/css/components/tutorial.css" rel="stylesheet">
     <!-- Rotating Border Effect -->
@@ -649,14 +692,14 @@
     </script>
 
     <!-- GSAP Core (Phase E) — defer 保序：GSAP → prefs → adapter → Alpine -->
-    <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.14/dist/gsap.min.js"></script>
+    <script defer src="/static/vendor/gsap/gsap.min.js"></script>
     <!-- GSAP Plugins (全站共用) -->
-    <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.14/dist/Flip.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.14/dist/Physics2DPlugin.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.14/dist/CustomEase.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.14/dist/CustomBounce.min.js"></script>
+    <script defer src="/static/vendor/gsap/Flip.min.js"></script>
+    <script defer src="/static/vendor/gsap/Physics2DPlugin.min.js"></script>
+    <script defer src="/static/vendor/gsap/CustomEase.min.js"></script>
+    <script defer src="/static/vendor/gsap/CustomBounce.min.js"></script>
     <!-- DrawSVGPlugin（56b-T1，DrawSVG free since GSAP 3.12+ / Webflow sponsorship）-->
-    <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.14/dist/DrawSVGPlugin.min.js"></script>
+    <script defer src="/static/vendor/gsap/DrawSVGPlugin.min.js"></script>
     <!-- Path Display Utilities (T7d) -->
     <script type="module" src="/static/js/components/path-utils.js"></script>
     <!-- Motion Preferences Bridge (T4) -->
@@ -673,13 +716,13 @@
     {% block pre_alpine_module %}{% endblock %}
 
     <!-- Alpine Plugins (must load before Alpine Core) — 53a: 釘版 3.15.12，新增 focus + intersect -->
-    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/persist@3.15.12/dist/cdn.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.15.12/dist/cdn.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/focus@3.15.12/dist/cdn.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/intersect@3.15.12/dist/cdn.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/anchor@3.15.12/dist/cdn.min.js"></script>
+    <script defer src="/static/vendor/alpine/persist.min.js"></script>
+    <script defer src="/static/vendor/alpine/collapse.min.js"></script>
+    <script defer src="/static/vendor/alpine/focus.min.js"></script>
+    <script defer src="/static/vendor/alpine/intersect.min.js"></script>
+    <script defer src="/static/vendor/alpine/anchor.min.js"></script>
     <!-- Alpine Core -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.15.12/dist/cdn.min.js"></script>
+    <script defer src="/static/vendor/alpine/alpine.min.js"></script>
     <!-- Tutorial JS -->
     <script src="/static/js/components/tutorial.js"></script>
 

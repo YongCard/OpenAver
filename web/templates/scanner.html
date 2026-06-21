@@ -85,7 +85,7 @@
         <div class="output-info">
             <div class="path">
                 <i class="bi bi-file-earmark-code"></i>
-                {{ t('scanner.folder.output_prefix') }} <code id="outputPathDisplay" x-text="outputPathDisplay"></code>
+                {{ t('scanner.folder.output_prefix') }} <code x-text="outputPathDisplay"></code>
             </div>
             <a href="/settings" class="settings-link">
                 <i class="bi bi-gear"></i> {{ t('scanner.folder.settings_link') }}
@@ -112,7 +112,7 @@
     <!-- Mini Terminal (hidden by default) -->
     <div class="mini-terminal" id="progressSection" x-show="progressSectionVisible">
         <div class="mini-terminal-header">
-            <span class="title" id="progressStatus" x-text="progressStatus"></span>
+            <span class="title" x-text="progressStatus"></span>
 
             <!-- T7d: Filter Badges -->
             <div class="log-filter-group">
@@ -154,13 +154,13 @@
         <div class="stats-row">
             <div class="stat-item">
                 <i class="bi bi-collection-play"></i>
-                <span>{{ t('scanner.stats.cached_prefix') }} <span class="stat-value" id="statTotal" x-text="statTotal"></span> {{ t('scanner.stats.cached_suffix') }}</span>
+                <span>{{ t('scanner.stats.cached_prefix') }} <span class="stat-value" x-text="statTotal"></span> {{ t('scanner.stats.cached_suffix') }}</span>
                 <button class="btn btn-ghost btn-xs" @click="clearCacheModalOpen = true"
                         :disabled="isBusy" title="{{ t('scanner.stats.clear_cache_title') }}">
                     <i class="bi bi-trash3"></i>
                 </button>
             </div>
-            <div class="stat-item" id="statLastRun" x-text="statLastRun"></div>
+            <div class="stat-item" x-text="statLastRun"></div>
         </div>
         <!-- NFO Update Section (separate row) -->
         <div class="nfo-update-row" id="statNeedUpdate" x-show="nfoUpdateVisible">

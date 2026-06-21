@@ -1154,6 +1154,15 @@ export function stateLightbox() {
             }
             if (this.rescrapeOpen) return;
 
+            // C-1: 刪除確認框開啟時，Esc 只關刪除框、其餘鍵不穿透到燈箱（鏡像 removeActressModalOpen）
+            if (e.key === 'Escape' && this.deleteVideoModalOpen) {
+                this.cancelDeleteVideo();
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            if (this.deleteVideoModalOpen) return;
+
             // 2. modifier keys 停用
             if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
 
