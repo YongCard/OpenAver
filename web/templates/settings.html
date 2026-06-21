@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block content %}
-<div id="settings-components" x-data="settings">
+<div id="settings-components" x-data="settings" data-lan-ip="{{ lan_ip or '' }}">
     <div class="settings-header">
         <h4 class="mb-0">
             <i class="bi bi-gear"></i> {{ t('settings.header.title') }}
@@ -44,7 +44,42 @@
                     <i class="bi" :class="theme === 'light' ? 'bi-moon-stars' : 'bi-sun'"></i>
                 </button>
             </div>
+            <!-- Server Mode Toggle (80a-T3) -->
+            <div class="settings-server-mode">
+                <div class="settings-sources-segmented" role="group" :aria-label="window.t('settings.mode.label')">
+                    <button type="button"
+                            :class="{ 'is-on': !serverMode }"
+                            @click="setServerMode(false)"
+                            x-text="window.t('settings.mode.local')">
+                    </button>
+                    <button type="button"
+                            :class="{ 'is-on': serverMode }"
+                            @click="setServerMode(true)"
+                            x-text="window.t('settings.mode.server')">
+                    </button>
+                </div>
+            </div>
         </div>
+    </div>
+
+    <!-- Server Info Banner (80a-T3) — x-cloak 防 Alpine boot 前 FOUC；不加 CSS display:none（與 x-show 衝突） -->
+    <div class="settings-server-info" x-show="serverMode" x-cloak>
+        <div class="settings-server-info-url-row">
+            <template x-if="lanIp">
+                <div class="settings-server-info-row">
+                    <span class="settings-server-url" x-text="serverUrl()"></span>
+                    <button type="button"
+                            class="settings-server-copy-btn"
+                            @click="copyServerUrl()"
+                            x-text="window.t('settings.server_info.copy')">
+                    </button>
+                </div>
+            </template>
+            <template x-if="!lanIp">
+                <div class="settings-server-no-ip" x-text="window.t('settings.server_info.no_lan_ip')"></div>
+            </template>
+        </div>
+        <p class="settings-server-warning" x-text="window.t('settings.server_info.warning')"></p>
     </div>
 
     <!-- 64b-1: .settings-tab-bar 整段移除（6 個 .settings-tab button）；nav icon-only 嵌 header 由 64b-2 重建 -->

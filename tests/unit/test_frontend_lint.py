@@ -5165,9 +5165,13 @@ class TestJellyfinFrontend:
         # ---- 正斷言：四態 is-on（element-bound 到 segmented 區塊）----
         #   從 content 擷取 settings-form-row--external-manager 區塊後再斷言，
         #   確保 is-on 綁在外部管理器的 segmented button 而非其他地方（element-bound）
+        # 80a-T3：頁面 header 另有一個 .settings-sources-segmented[role=group]（server-mode 膠囊），
+        # 故先 anchor 到外部管理器 row 再抓 segmented，避免誤匹配 header 膠囊（regex 健化）。
+        _em_anchor = content.find("settings-form-row--external-manager")
+        assert _em_anchor != -1, "settings.html 缺少 settings-form-row--external-manager 區塊"
         seg_match = re.search(
             r'class="settings-sources-segmented" role="group".*?</div>',
-            content, re.DOTALL
+            content[_em_anchor:], re.DOTALL
         )
         assert seg_match, "settings.html 缺少 .settings-sources-segmented[role=group] 容器（外部管理器）"
         seg_block = seg_match.group(0)
@@ -12693,3 +12697,120 @@ class TestMobileSimilarDrillFallbackGuard:
             "closeSimilarMode fallback 未保留 '_similarLastDrilledItem' snapshot（孤兒列 fallback）。\n"
             "_videos 也 miss（孤兒列 / demo）時需 snapshot 兜底，不可移除。"
         )
+
+
+# ─── 80a-T3: Server Mode toggle + info banner frontend guards ───────────────
+
+SETTINGS_CSS = Path(__file__).parent.parent.parent / "web" / "static" / "css" / "pages" / "settings.css"
+
+
+class TestServerModeToggleGuard:
+    """80a-T3: settings.html + state-config.js server-mode toggle/banner 靜態守衛。
+
+    每個 assertion 都是 mutation-sensitive：刪除對應實作即 RED。
+    使用 BeautifulSoup DOM 解析（attribute 順序無關）+ substring 雙重策略，
+    鏡照既有 settings 守衛慣例（SETTINGS_HTML / SETTINGS_CONFIG_JS path 常數）。
+    """
+
+    def _html(self):
+        return SETTINGS_HTML.read_text(encoding="utf-8")
+
+    def _js(self):
+        return SETTINGS_CONFIG_JS.read_text(encoding="utf-8")
+
+    # ── HTML guards ────────────────────────────────────────────────────────────
+
+    def test_settings_root_has_data_lan_ip(self):
+        """#settings-components root div 含 data-lan-ip 屬性（傳 lanIp 到 Alpine）。
+        移除此屬性 → lanIp 永遠空字串，URL 顯示錯誤。"""
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(self._html(), "html.parser")
+        root = soup.find(id="settings-components")
+        assert root is not None, "settings.html 找不到 #settings-components"
+        assert root.has_attr("data-lan-ip"), \
+            "#settings-components 缺少 data-lan-ip 屬性（80a-T3 lanIp 傳入點）"
+
+    def test_settings_server_mode_segmented_in_header(self):
+        """header actions 內含 .settings-server-mode 包含 .settings-sources-segmented，
+        且有 2 個 button 分別呼叫 setServerMode(false) 和 setServerMode(true)。"""
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(self._html(), "html.parser")
+        wrapper = soup.find(class_="settings-server-mode")
+        assert wrapper is not None, \
+            "settings.html 缺少 .settings-server-mode wrapper（80a-T3 膠囊容器）"
+        segmented = wrapper.find(class_="settings-sources-segmented")
+        assert segmented is not None, \
+            ".settings-server-mode 缺少 .settings-sources-segmented（pill 複用）"
+        buttons = segmented.find_all("button")
+        assert len(buttons) == 2, \
+            f".settings-sources-segmented 應有 2 個 button，實際 {len(buttons)} 個"
+        click_attrs = [b.get("@click", "") for b in buttons]
+        assert any("setServerMode(false)" in a for a in click_attrs), \
+            "segmented 缺少 @click=\"setServerMode(false)\" button（單機態）"
+        assert any("setServerMode(true)" in a for a in click_attrs), \
+            "segmented 缺少 @click=\"setServerMode(true)\" button（伺服器態）"
+
+    def test_settings_server_info_banner_xshow_xcloak(self):
+        """恰好一個 .settings-server-info 元素，帶 x-show=\"serverMode\" 和 x-cloak（防 FOUC）。
+        移除 x-cloak → Alpine boot 前裸閃；移除 x-show → 橫條恆顯。"""
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(self._html(), "html.parser")
+        banners = soup.find_all(class_="settings-server-info")
+        assert len(banners) == 1, \
+            f"settings.html .settings-server-info 應恰好 1 個，實際 {len(banners)} 個"
+        banner = banners[0]
+        assert banner.get("x-show") == "serverMode", \
+            f".settings-server-info x-show 應為 'serverMode'，實際: {banner.get('x-show')!r}"
+        assert banner.has_attr("x-cloak"), \
+            ".settings-server-info 缺少 x-cloak（Alpine boot 前會 FOUC）"
+
+    def test_settings_server_info_warning_key(self):
+        """橫條內含 settings.server_info.warning i18n key 引用（警語行）。
+        移除此 key → 警語靜默，用戶不知安全風險。"""
+        html = self._html()
+        assert "settings.server_info.warning" in html, \
+            "settings.html 缺少 settings.server_info.warning i18n key 引用（警語行）"
+
+    def test_settings_server_info_copy_button(self):
+        """橫條內含 copyServerUrl() 呼叫（複製鈕 @click）。
+        移除 → 複製功能斷掉，用戶無法複製 URL。"""
+        html = self._html()
+        assert "copyServerUrl()" in html, \
+            "settings.html 缺少 copyServerUrl() 呼叫（複製鈕 @click）"
+
+    def test_settings_server_info_no_lan_ip_key(self):
+        """橫條含 settings.server_info.no_lan_ip i18n key（lanIp 為空時提示）。
+        移除 → lanIp=None 時橫條空白，用戶看不到說明。"""
+        html = self._html()
+        assert "settings.server_info.no_lan_ip" in html, \
+            "settings.html 缺少 settings.server_info.no_lan_ip i18n key（lanIp 空白提示）"
+
+    # ── JS guards ──────────────────────────────────────────────────────────────
+
+    def test_state_config_server_mode_put_endpoint(self):
+        """state-config.js 含 PUT /api/config/general/server_mode endpoint。
+        移除或改路徑 → 後端收不到，config 不持久。"""
+        js = self._js()
+        assert "/api/config/general/server_mode" in js, \
+            "state-config.js 缺少 '/api/config/general/server_mode' PUT endpoint"
+
+    def test_state_config_server_url_uses_location_port(self):
+        """serverUrl() 使用 window.location.port 而非硬編碼 port。
+        改成硬編碼 → 遠端/桌面場景 port 不符。"""
+        js = self._js()
+        assert "window.location.port" in js, \
+            "state-config.js serverUrl() 缺少 window.location.port（不可硬編碼 port）"
+
+    def test_state_config_reads_server_mode_with_nullish_coalesce(self):
+        """loadConfig() 用 ?? false 讀 config.general?.server_mode（CD#3 慣例）。
+        改成 || false → false 值會被吞（語意等同但守慣例）。"""
+        js = self._js()
+        assert "config.general?.server_mode ?? false" in js, \
+            "state-config.js loadConfig() 缺少 'config.general?.server_mode ?? false'"
+
+    def test_state_config_set_server_mode_sends_boolean(self):
+        """setServerMode() body: JSON.stringify({ value: !!val })，確保送 boolean 不送 string。
+        T1 嚴格 bool gate，送字串會 400。"""
+        js = self._js()
+        assert "value: !!val" in js, \
+            "state-config.js setServerMode() 缺少 'value: !!val'（必須送 boolean，不可送字串）"

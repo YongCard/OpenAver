@@ -1069,3 +1069,82 @@ html.theme-transition-active::view-transition-new(root) {
 [data-theme="dim"] #settings-components .settings-mt-field input:focus-visible {
     box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 40%, transparent);
 }
+
+/* ─── Server Mode (80a-T3) ─── */
+
+/* 膠囊容器（header-actions 對齊），最小化包裹，只控制外距 */
+#settings-components .settings-server-mode {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* 資訊橫條（header 下 form 上；x-show 驅動顯示，無 CSS display:none 衝突） */
+#settings-components .settings-server-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+    background: color-mix(in oklch, var(--surface-1) 60%, transparent);
+    border: 1px solid var(--stroke-subtle);
+    border-radius: var(--fluent-radius-md);
+}
+
+/* URL + 複製鈕 行 */
+#settings-components .settings-server-info-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+/* 區網 URL 顯示（等寬字，行動裝置安全換行） */
+#settings-components .settings-server-url {
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    word-break: break-all;
+}
+
+/* 複製鈕 */
+#settings-components .settings-server-copy-btn {
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--fluent-radius-sm);
+    border: 1px solid var(--stroke-subtle);
+    background: color-mix(in oklch, var(--surface-2) 60%, transparent);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: color var(--fluent-duration-fast) var(--fluent-ease-standard),
+                background var(--fluent-duration-fast) var(--fluent-ease-standard);
+}
+
+#settings-components .settings-server-copy-btn:hover {
+    color: var(--text-primary);
+    background: color-mix(in oklch, var(--surface-2) 90%, transparent);
+}
+
+/* 警語行（使用 --color-warning 狀態 token，與既有 cap-alert / sources-warn 一致） */
+#settings-components .settings-server-warning {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--color-warning);
+}
+
+/* lanIp 空白提示 */
+#settings-components .settings-server-no-ip {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* dim 主題：橫條 tint 加深（與 P11/P12 cap-alert 同邏輯） */
+[data-theme="dim"] #settings-components .settings-server-info {
+    background: color-mix(in oklch, var(--surface-1) 45%, transparent);
+    border-color: color-mix(in oklch, var(--stroke-subtle) 80%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #settings-components .settings-server-copy-btn {
+        transition: none;
+    }
+}

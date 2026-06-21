@@ -53,6 +53,10 @@ export function stateConfig() {
         // ===== i18n State =====
         locale: (window.__locale || 'zh-TW'),
 
+        // ===== Server Mode State (80a-T3) =====
+        serverMode: false,
+        lanIp: '',
+
         // ===== Dirty Check State =====
         savedState: null,
         savedOpenaiUseCustomModel: false,
@@ -307,6 +311,9 @@ export function stateConfig() {
                 this._gsapCtx = window.OpenAver.motion.createContext(this.$el);
             }
 
+            // 80a-T3: 讀 data-lan-ip attribute（T2 注入 template context）
+            this.lanIp = this.$el?.dataset?.lanIp || '';
+
             this.loadConfig().then(() => {
                 // B1: init scanner link state after config loaded
                 if (typeof this._initB1 === 'function') this._initB1();
@@ -377,6 +384,44 @@ export function stateConfig() {
                 }
             } catch (e) {
                 console.error('[i18n] cycleLocale error:', e);
+            }
+        },
+
+        // 80a-T3: Server Mode methods ─────────────────────────────────────────
+
+        serverUrl() {
+            return `http://${this.lanIp}:${window.location.port}`;
+        },
+
+        async setServerMode(val) {
+            try {
+                const resp = await fetch('/api/config/general/server_mode', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ value: !!val })
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    this.serverMode = !!val;
+                } else {
+                    console.warn('[serverMode] setServerMode failed:', result.error);
+                }
+            } catch (e) {
+                console.warn('[serverMode] setServerMode error:', e);
+            }
+        },
+
+        async copyServerUrl() {
+            if (!navigator.clipboard?.writeText) {
+                this.showToast(window.t('settings.server_info.copy'), 'info');
+                return;
+            }
+            try {
+                await navigator.clipboard?.writeText(this.serverUrl());
+                this.showToast(window.t('settings.server_info.copied'), 'success');
+            } catch (e) {
+                console.warn('[serverMode] copyServerUrl: clipboard not available', e);
+                this.showToast(window.t('settings.server_info.copy'), 'info');
             }
         },
 
@@ -470,6 +515,9 @@ export function stateConfig() {
                     if (defaultPage === 'gallery') defaultPage = 'scanner';  // 向後兼容
                     this.form.defaultPage = defaultPage;
                     // sidebar_collapsed 已移除（由 Alpine $persist + localStorage 驅動）
+
+                    // 80a-T3: Server Mode（?? false：缺 key→false；不用 ||，守 CD#3 慣例）
+                    this.serverMode = config.general?.server_mode ?? false;
 
                     // Sources（61c-2）：讀 config.sources 段填入 unified scope。
                     // FIELD-NAME TRAP：後端用 display_name_key / display_name_raw；
