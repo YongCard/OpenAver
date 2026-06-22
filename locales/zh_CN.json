@@ -21,6 +21,27 @@
     },
     "no_image": "无图片"
   },
+  "desktop": {
+    "tray": {
+      "open_app": "打开 OpenAver",
+      "close_behavior": "关闭按钮行为",
+      "ask_on_close": "每次关闭时询问",
+      "minimize_to_tray": "最小化到系统托盘",
+      "exit_program": "退出程序",
+      "quit_app": "退出 OpenAver",
+      "unavailable": "系统托盘图标无法启动，OpenAver 将保持打开。请从窗口选择退出程序。"
+    },
+    "close_dialog": {
+      "instruction": "关闭主面板",
+      "content": "请选择关闭主窗口后的操作。",
+      "minimize": "最小化到系统托盘（OpenAver 将继续在后台运行）",
+      "exit": "退出 OpenAver（同时停止后台服务）",
+      "confirm": "确定",
+      "cancel": "取消",
+      "do_not_show_again": "不再显示此提示",
+      "fallback_message": "选择“是”退出 OpenAver，选择“否”最小化到系统托盘，或选择“取消”返回。"
+    }
+  },
   "search": {
     "page_title": "搜索",
     "drag_overlay": {

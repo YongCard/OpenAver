@@ -1070,6 +1070,16 @@
                             <option value="showcase">{{ t('nav.showcase') }}</option>
                         </select>
                     </div>
+                    {% if is_windows_desktop %}
+                    <div class="settings-form-row">
+                        <label class="row-label">{{ t('settings.system.close_action_label') }}</label>
+                        <select class="select select-bordered select-sm" id="closeAction" x-model="form.closeAction">
+                            <option value="ask">{{ t('settings.system.close_action_ask') }}</option>
+                            <option value="tray">{{ t('settings.system.close_action_tray') }}</option>
+                            <option value="exit">{{ t('settings.system.close_action_exit') }}</option>
+                        </select>
+                    </div>
+                    {% endif %}
                     <div class="settings-form-row">
                         <label class="row-label">{{ t('settings.system.player_label') }}</label>
                         <div class="flex-1 flex flex-col gap-1">

@@ -213,6 +213,9 @@ No. OpenAver is a desktop app installed with a single command on Windows / macOS
 **Does OpenAver work on Mac?**
 Yes. It runs on Windows 10/11 and macOS (Apple Silicon M1–M4).
 
+**Can OpenAver keep running after I close its Windows window?**
+Yes. Clicking X lets you exit or minimize OpenAver to the system tray and remember that choice. The tray menu can reopen the window, change the close action, or exit completely. You can also adjust it later under Settings → System → On window close.
+
 **Which media servers does OpenAver support?**
 It generates standard NFO files + cover art (poster / fanart) that Jellyfin, Emby, and Kodi can read directly.
 

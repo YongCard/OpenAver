@@ -47,7 +47,8 @@ export function stateConfig() {
             viewerPlayer: '',
 
             // General
-            defaultPage: 'search'
+            defaultPage: 'search',
+            closeAction: 'ask'
         },
 
         // ===== i18n State =====
@@ -531,6 +532,7 @@ export function stateConfig() {
                     let defaultPage = config.general?.default_page || 'search';
                     if (defaultPage === 'gallery') defaultPage = 'scanner';  // 向後兼容
                     this.form.defaultPage = defaultPage;
+                    this.form.closeAction = config.general?.close_action || 'ask';
                     // sidebar_collapsed 已移除（由 Alpine $persist + localStorage 驅動）
 
                     // 80a-T3: Server Mode（?? false：缺 key→false；不用 ||，守 CD#3 慣例）
@@ -726,6 +728,7 @@ export function stateConfig() {
                 config.general = {
                     ...config.general,
                     default_page: this.form.defaultPage,
+                    close_action: this.form.closeAction,
                     theme: this.theme || document.documentElement.getAttribute('data-theme') || 'light'
                     // theme / sidebar_collapsed 由 base.html $watch 即時同步，此處僅隨整體設定一併寫入
                 };

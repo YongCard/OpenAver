@@ -21,6 +21,27 @@
     },
     "no_image": "画像なし"
   },
+  "desktop": {
+    "tray": {
+      "open_app": "OpenAver を開く",
+      "close_behavior": "閉じるボタンの動作",
+      "ask_on_close": "閉じるたびに確認",
+      "minimize_to_tray": "通知領域に最小化",
+      "exit_program": "アプリを終了",
+      "quit_app": "OpenAver を終了",
+      "unavailable": "通知領域アイコンを開始できません。OpenAver は開いたままになります。ウィンドウから終了してください。"
+    },
+    "close_dialog": {
+      "instruction": "メイン画面を閉じる",
+      "content": "メインウィンドウを閉じた後の動作を選択してください。",
+      "minimize": "通知領域に最小化（OpenAver はバックグラウンドで実行を続けます）",
+      "exit": "OpenAver を終了（バックグラウンドサービスも停止します）",
+      "confirm": "決定",
+      "cancel": "キャンセル",
+      "do_not_show_again": "今後この確認を表示しない",
+      "fallback_message": "「はい」で OpenAver を終了、「いいえ」で通知領域に最小化、「キャンセル」で戻ります。"
+    }
+  },
   "search": {
     "page_title": "検索",
     "drag_overlay": {

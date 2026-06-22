@@ -21,6 +21,27 @@
     },
     "no_image": "No Image"
   },
+  "desktop": {
+    "tray": {
+      "open_app": "Open OpenAver",
+      "close_behavior": "Close button behavior",
+      "ask_on_close": "Ask every time",
+      "minimize_to_tray": "Minimize to notification area",
+      "exit_program": "Exit application",
+      "quit_app": "Exit OpenAver",
+      "unavailable": "The notification area icon could not be started. OpenAver will remain open; exit from the main window instead."
+    },
+    "close_dialog": {
+      "instruction": "Close the main window",
+      "content": "Choose what OpenAver should do after the main window closes.",
+      "minimize": "Minimize to the notification area (OpenAver keeps running in the background)",
+      "exit": "Exit OpenAver (also stops background services)",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "do_not_show_again": "Do not show this prompt again",
+      "fallback_message": "Choose Yes to exit OpenAver, No to minimize to the notification area, or Cancel to return."
+    }
+  },
   "search": {
     "page_title": "Search",
     "drag_overlay": {

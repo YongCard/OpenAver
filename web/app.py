@@ -3,7 +3,9 @@ OpenAver Web GUI - FastAPI Application
 """
 from contextlib import asynccontextmanager
 from pathlib import Path
+import os
 import re
+import sys
 
 # issue #66：全域保險，涵蓋 /static 以外的裸 FileResponse 也用 WHATWG canonical MIME。
 import mimetypes
@@ -187,6 +189,12 @@ async def lan_access_gate(request: Request, call_next):
 from web.lan_listener import get_lan_ip  # noqa: E402 — re-export for backward compat
 
 
+def _is_windows_desktop() -> bool:
+    """True のみ Windows 桌面 App（feature/82 T4：OPENAVER_STANDALONE env + win32 雙重條件）。
+    非桌面 / 非 Windows → False，Settings 中不渲染 close_action 下拉。"""
+    return os.environ.get("OPENAVER_STANDALONE") == "1" and sys.platform == "win32"
+
+
 def get_common_context(request: Request) -> dict:
     """取得共用的模板 Context (包含設定)"""
     from core.config import load_config, mutate_config
@@ -265,6 +273,7 @@ def get_common_context(request: Request) -> dict:
         "locale": locale,
         "merged_translations": merged_translations,
         "t": _t_bound,
+        "is_windows_desktop": _is_windows_desktop(),
     }
 
 

@@ -1290,3 +1290,122 @@ class TestGeneralConfigServerMode:
 
         reloaded = load_config()
         assert reloaded["general"]["server_mode"] is True
+
+
+# ============ TASK-82-T4：GeneralConfig.close_action schema ============
+
+class TestGeneralConfigCloseAction:
+    """close_action: Literal['ask','tray','exit'] = 'ask' 欄位 schema 測試（TASK-82-T4）"""
+
+    def test_close_action_default_ask(self):
+        """GeneralConfig() 預設 close_action is 'ask'"""
+        from core.config import GeneralConfig
+        cfg = GeneralConfig()
+        assert cfg.close_action == "ask"
+
+    def test_appconfig_close_action_default_ask(self):
+        """AppConfig().general.close_action 預設 'ask'"""
+        cfg = AppConfig()
+        assert cfg.general.close_action == "ask"
+
+    def test_close_action_valid_values(self):
+        """model_validate 接受 ask / tray / exit"""
+        from core.config import GeneralConfig
+        for val in ("ask", "tray", "exit"):
+            cfg = GeneralConfig.model_validate({"close_action": val})
+            assert cfg.close_action == val
+
+    def test_close_action_invalid_coerced_to_ask(self):
+        """model_validate 路徑非法值（如 'destroy-everything'）coerce → 'ask'"""
+        from core.config import GeneralConfig
+        cfg = GeneralConfig.model_validate({"close_action": "destroy-everything"})
+        assert cfg.close_action == "ask"
+
+    def test_close_action_roundtrip(self, tmp_path, monkeypatch):
+        """close_action='tray' 存入 config → load_config 後回讀仍為 'tray'"""
+        config_path = tmp_path / "config.json"
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        cfg = AppConfig().model_dump()
+        cfg["general"]["close_action"] = "tray"
+        save_config(cfg)
+
+        reloaded = load_config()
+        assert reloaded["general"]["close_action"] == "tray"
+
+
+# ============ TASK-82-T4：additive migration general.close_action ============
+
+class TestMigrationCloseAction:
+    """general.close_action additive migration（feature/82 T4）"""
+
+    def test_close_action_added_when_missing(self, tmp_path, monkeypatch):
+        """舊 config 缺 general.close_action → migration 自動補 'ask'"""
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {"general": {"theme": "dark", "locale": "zh-TW"}})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert result.get("general", {}).get("close_action") == "ask"
+        # migration 命中 → 已寫回 config.json
+        written = json.loads(config_path.read_text(encoding="utf-8"))
+        assert written.get("general", {}).get("close_action") == "ask"
+
+    def test_close_action_not_overwritten_when_existing(self, tmp_path, monkeypatch):
+        """已存在的 close_action='tray' 不被覆蓋"""
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {"general": {"close_action": "tray"}})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert result.get("general", {}).get("close_action") == "tray"
+
+    def test_close_action_added_when_general_absent(self, tmp_path, monkeypatch):
+        """general 段完全缺失 → migration 安全建立並補 'ask'"""
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {"scraper": {"create_folder": True}})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert result.get("general", {}).get("close_action") == "ask"
+
+    def test_close_action_added_when_general_not_dict(self, tmp_path, monkeypatch):
+        """general 段非 dict（如 null）→ migration 安全建立並補 'ask'"""
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {"general": None})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert result.get("general", {}).get("close_action") == "ask"
+
+    def test_config_default_json_has_close_action(self):
+        """web/config.default.json general 區塊含 close_action（fresh-install GET 正確）"""
+        import json as _json
+        default_path = Path(__file__).parents[2] / "web" / "config.default.json"
+        data = _json.loads(default_path.read_text(encoding="utf-8"))
+        assert "close_action" in data.get("general", {}), \
+            "config.default.json general 缺 close_action 鍵"
+        assert data["general"]["close_action"] == "ask"
+
+    def test_invalid_persisted_close_action_coerced_to_ask(self, tmp_path, monkeypatch):
+        """config.json general.close_action 含非法值 → migration 修正為 'ask' 並寫回檔案"""
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {"general": {"close_action": "destroy-everything"}})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert result.get("general", {}).get("close_action") == "ask"
+        # migration must have persisted the corrected value
+        written = _read_config(config_path)
+        assert written.get("general", {}).get("close_action") == "ask"

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.9] - 2026-06-22
+
+本版主軸：**Windows 系統匣關閉行為**（feature/82）——在 Windows 點關閉視窗時可選擇「最小化到系統匣繼續背景執行」或「完整退出」並記住選擇，系統匣常駐圖示隨時喚回視窗或切換行為。核心 close-to-tray 由社群貢獻者 @YongCard（PR #77）提供，本版合併後做穩定性硬化並補上設定頁入口。
+
+### Added
+#### 🖥️ Windows 系統匣關閉行為
+- 啟動即在系統匣顯示 OpenAver 圖示；關閉主視窗時以原生單選提示選擇退出、最小化到系統匣或取消，並可勾「不再顯示」記住選擇。系統匣選單與提示會跟隨介面語系，支援單擊或雙擊重新開啟視窗、切換關閉行為及完整退出 OpenAver。（感謝 @YongCard 貢獻 PR #77）
+- **設定 → 系統設定 新增「關閉視窗時」下拉**：可事後改回每次詢問／最小化到系統匣／直接結束，與系統匣選單、關閉提示三方同步；此選項僅在 Windows 桌面 App 顯示。
+
+### Fixed
+- **完整退出時正確關閉 LAN 伺服器 listener**：先前 Windows 完整退出（關窗選結束／系統匣結束／強制關閉）皆未停掉對外 listener，可能造成下次啟動偶發 port 佔用；現統一在退出 chokepoint 關閉。
+
+### Internal
+- 關閉行為偏好從 `window_state.json` 搬到 `config.general`（單一真理；載入時非法／缺值一律矯正回 `ask`，不破壞舊設定載入）；持久化失敗時保留 session-local 偏好、不中斷關窗流程（best-effort，恢復搬遷前語義）。
+- 原生層 grep 測試改 AST 結構守衛（防誤刪、不假驗 ctypes 行為）；ctypes 行為正確性由真機驗收涵蓋。
+
+### 測試
+- 全套 pytest **4650 passed, 2 skipped**（unit + integration，排除 smoke / e2e，較 0.10.8 的 4597 +53：LAN listener 退出 regression / close_action 注入 round-trip + session-local fallback / GeneralConfig 欄位 + 非法持久值矯正 migration / is_windows_desktop 真值表 / Settings 下拉前端守衛 / 原生層 AST 守衛）+ `ruff check .` 綠 + `npm run lint`（eslint + stylelint）綠。
+- 來源金絲雀：**8 源全 PASS**（pre-merge live 健康檢查）。
+- Gemini 3.1 Pro 整支 branch 第二意見（A 原生層 / B 整合層分群）：零 P1/P2；Codex implementation review P1（持久化失敗冒泡 UI）+ P1（session 偏好失效）+ P2（非法持久值未矯正）已修。
+
 ## [0.10.8] - 2026-06-22
 
 本版主軸：**手機體驗完整化 + 觸控互動 + 伺服器模式 header 精修**（feature/81）——承接 0.10.7 LAN 伺服器模式，把「手機連進來後每頁都好用」補齊：窄螢幕破版修補、加到主畫面有專屬圖示、封面牆與燈箱可左右滑換片，並把設定頁的伺服器模式區塊收斂成更精簡的一排。純前端 / 零後端 API / DB 改動（help 網址顯示為既有 server 模式邏輯的呈現微調）。

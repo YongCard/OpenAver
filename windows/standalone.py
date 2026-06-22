@@ -11,6 +11,7 @@ import urllib.request
 import urllib.error
 import logging
 import traceback
+from pathlib import Path
 
 # 確保專案根目錄在 sys.path 中
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -25,6 +26,7 @@ if WINDOWS_DIR not in sys.path:
 from core.logger import setup_logging, get_logger
 import webview
 from pywebview_api import api, bind_events
+from tray import DesktopLifecycle, NativeTrayIcon
 
 # 配置
 CLIENT_HOST = "127.0.0.1"  # 桌面 App 自連：find_free_port、health 探活、WebView URL（loopback only）
@@ -246,7 +248,11 @@ def main():
                 logger.info("請安裝 WebView2 後重新啟動")
                 sys.exit(0)
 
-    # 1. 尋找可用端口
+    # 1. 標記為 Windows 桌面 App（feature/82 T4：_is_windows_desktop() 讀此環境變數）
+    # 必須在任何 web.app import 之前設定，確保 get_common_context 能正確判斷。
+    os.environ["OPENAVER_STANDALONE"] = "1"
+
+    # 2. 尋找可用端口
     try:
         port = find_free_port(PORT, logger)
         logger.info(f"使用端口: {port}")
@@ -260,7 +266,7 @@ def main():
         )
         sys.exit(1)
 
-    # 2. 在背景 thread 啟動 FastAPI
+    # 3. 在背景 thread 啟動 FastAPI
     logger.info("啟動伺服器...")
     server_thread = threading.Thread(target=run_server, args=(port, debug_mode), daemon=True)
     server_thread.start()
@@ -345,9 +351,37 @@ def main():
     # app-quit guard: when the main window is closing (app is quitting), let the JL
     # window close normally so we don't trap the shutdown sequence.
     _app_state = {"quitting": False}
+    lifecycle = None
+    if sys.platform == 'win32':
+        from core.config import mutate_config
+
+        def _write_close_action(action: str) -> None:
+            def _mutator(cfg):
+                cfg.setdefault("general", {})["close_action"] = action
+            mutate_config(_mutator)
+
+        lifecycle = DesktopLifecycle(
+            window,
+            jl_win,
+            saved,
+            window_state.save_state,
+            on_quit_cleanup=lan_listener.shutdown,
+            read_close_action=lambda: load_config().get("general", {}).get("close_action", "ask"),
+            write_close_action=_write_close_action,
+        )
+        tray_icon = NativeTrayIcon(
+            Path(APP_DIR) / "web" / "static" / "favicon.png",
+            lifecycle.handle_tray_command,
+            lifecycle.get_close_action,
+        )
+        lifecycle.attach_tray(tray_icon)
 
     def _on_main_closing():
-        # main window closing = app is quitting → let JL window close normally
+        if lifecycle is not None:
+            result = lifecycle.on_window_closing()
+            _app_state["quitting"] = lifecycle.quitting
+            return result
+        # Non-Windows launchers keep the original close-to-exit behaviour.
         _app_state["quitting"] = True
         if jl_win is not None:
             try:
@@ -361,7 +395,8 @@ def main():
         # (destroyed window → dead transport → JL broken until restart). Hide instead.
         # Return False to cancel the close (pywebview: closing handler returning False
         # cancels). During app quit, allow the close so we don't trap shutdown.
-        if not _app_state["quitting"]:
+        quitting = lifecycle.quitting if lifecycle is not None else _app_state["quitting"]
+        if not quitting:
             jl_win.hide()
             return False
         # app quitting → return None (allow close)
@@ -373,6 +408,9 @@ def main():
     def startup(w):
         bind_events(w)
         live = window_state.attach(w, saved)
+        if lifecycle is not None:
+            lifecycle.replace_state(live)
+            lifecycle.start_tray()
         if saved['maximized']:
             try:
                 w.maximize()
@@ -384,10 +422,14 @@ def main():
 
     # 5. 開始 GUI 事件循環（阻塞直到窗口關閉）
     # 根據平台選擇 GUI 後端
-    if sys.platform == 'darwin':
-        webview.start(startup, window)  # macOS 使用預設 (Cocoa/WebKit)
-    else:
-        webview.start(startup, window, gui='edgechromium')  # Windows
+    try:
+        if sys.platform == 'darwin':
+            webview.start(startup, window)  # macOS 使用預設 (Cocoa/WebKit)
+        else:
+            webview.start(startup, window, gui='edgechromium')  # Windows
+    finally:
+        if lifecycle is not None:
+            lifecycle.shutdown_after_loop()
 
 
 if __name__ == '__main__':

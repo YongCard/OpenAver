@@ -74,7 +74,8 @@
     "sidebar_collapsed": false,
     "tutorial_completed": false,
     "font_size": "md",
-    "locale": "zh-TW"
+    "locale": "zh-TW",
+    "close_action": "ask"
   },
   "sources": [
     {

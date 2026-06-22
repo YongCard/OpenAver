@@ -14225,3 +14225,138 @@ class TestPosterCropThresholdAlignment:
         assert all(v == 899 for v in values.values()), (
             f"posterCrop 門檻 ↔ 燈箱貼合 ↔ poster grid 斷點未全對齊 899：{values}"
         )
+
+
+# ---------------------------------------------------------------------------
+# feature/82 T4: Settings closeAction select guard
+# ---------------------------------------------------------------------------
+
+class TestSettingsCloseActionSelect:
+    """Guards for the closeAction select row in settings.html (feature/82 T4)."""
+
+    SETTINGS_HTML = (
+        Path(__file__).parents[2] / "web" / "templates" / "settings.html"
+    )
+    ZH_TW_JSON = Path(__file__).parents[2] / "locales" / "zh_TW.json"
+    SETTINGS_JS = (
+        Path(__file__).parents[2]
+        / "web" / "static" / "js" / "pages" / "settings" / "state-config.js"
+    )
+
+    def _settings_html(self) -> str:
+        return self.SETTINGS_HTML.read_text(encoding="utf-8")
+
+    def _zh_tw(self) -> dict:
+        import json
+        return json.loads(self.ZH_TW_JSON.read_text(encoding="utf-8"))
+
+    def test_close_action_select_inside_jinja_gate(self):
+        """#closeAction select element must be inside {% if is_windows_desktop %} … {% endif %}."""
+        import re
+        content = self._settings_html()
+
+        # Extract all {% if is_windows_desktop %} ... {% endif %} blocks
+        gate_pattern = re.compile(
+            r'\{%-?\s*if\s+is_windows_desktop\s*-?%\}(.*?)\{%-?\s*endif\s*-?%\}',
+            re.DOTALL,
+        )
+        gates = gate_pattern.findall(content)
+        assert gates, "No {% if is_windows_desktop %} block found in settings.html"
+
+        # closeAction select must appear inside at least one gate block
+        found_in_gate = any('id="closeAction"' in block for block in gates)
+        assert found_in_gate, (
+            '#closeAction select must be inside {% if is_windows_desktop %} block, '
+            'not outside the gate'
+        )
+
+    def test_close_action_select_not_outside_gate(self):
+        """#closeAction select must NOT appear outside the is_windows_desktop gate."""
+        import re
+        content = self._settings_html()
+
+        # Remove all gated blocks
+        gate_pattern = re.compile(
+            r'\{%-?\s*if\s+is_windows_desktop\s*-?%\}.*?\{%-?\s*endif\s*-?%\}',
+            re.DOTALL,
+        )
+        stripped = gate_pattern.sub('', content)
+        assert 'id="closeAction"' not in stripped, (
+            '#closeAction found outside {% if is_windows_desktop %} block — '
+            'non-desktop clients would receive the DOM element'
+        )
+
+    def test_close_action_select_has_x_model(self):
+        """The #closeAction select must have x-model='form.closeAction'."""
+        import re
+        content = self._settings_html()
+
+        # Find the select tag with id="closeAction"
+        m = re.search(r'<select\b[^>]*\bid="closeAction"[^>]*>', content, re.DOTALL)
+        assert m, 'select#closeAction not found in settings.html'
+        tag = m.group(0)
+        assert 'x-model="form.closeAction"' in tag, (
+            f'select#closeAction missing x-model="form.closeAction": {tag!r}'
+        )
+
+    def test_close_action_select_has_three_option_values(self):
+        """The #closeAction select must have options for ask, tray, and exit."""
+        import re
+        content = self._settings_html()
+
+        # Find the block from id="closeAction" up to closing </select>
+        m = re.search(
+            r'<select\b[^>]*\bid="closeAction"[^>]*>.*?</select>',
+            content, re.DOTALL,
+        )
+        assert m, 'select#closeAction not found in settings.html'
+        block = m.group(0)
+
+        for val in ("ask", "tray", "exit"):
+            assert f'value="{val}"' in block, (
+                f'select#closeAction missing option value="{val}": {block!r}'
+            )
+
+    def test_close_action_select_has_i18n_keys(self):
+        """Each option in the #closeAction select uses a t('settings.system.close_action_*') key."""
+        import re
+        content = self._settings_html()
+
+        m = re.search(
+            r'<select\b[^>]*\bid="closeAction"[^>]*>.*?</select>',
+            content, re.DOTALL,
+        )
+        assert m, 'select#closeAction not found in settings.html'
+        block = m.group(0)
+
+        for key in ("settings.system.close_action_ask",
+                    "settings.system.close_action_tray",
+                    "settings.system.close_action_exit"):
+            assert key in block, (
+                f'select#closeAction missing i18n key {key!r} in option text'
+            )
+
+    def test_zh_tw_has_close_action_label_key(self):
+        """zh_TW.json must contain settings.system.close_action_label."""
+        data = self._zh_tw()
+        system = data.get("settings", {}).get("system", {})
+        assert "close_action_label" in system, (
+            "zh_TW.json missing settings.system.close_action_label"
+        )
+        assert system["close_action_label"] == "關閉視窗時"
+
+    def test_zh_tw_has_close_action_option_keys(self):
+        """zh_TW.json must contain all 3 close_action option keys."""
+        data = self._zh_tw()
+        system = data.get("settings", {}).get("system", {})
+        expected = {
+            "close_action_ask": "每次詢問",
+            "close_action_tray": "最小化到系統匣",
+            "close_action_exit": "直接結束",
+        }
+        for key, value in expected.items():
+            assert key in system, f"zh_TW.json missing settings.system.{key}"
+            assert system[key] == value, (
+                f"settings.system.{key} value mismatch: "
+                f"expected {value!r}, got {system[key]!r}"
+            )

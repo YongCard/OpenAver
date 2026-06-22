@@ -21,6 +21,27 @@
     },
     "no_image": "無圖片"
   },
+  "desktop": {
+    "tray": {
+      "open_app": "開啟 OpenAver",
+      "close_behavior": "關閉按鈕行為",
+      "ask_on_close": "每次關閉時詢問",
+      "minimize_to_tray": "最小化到系統匣",
+      "exit_program": "結束程式",
+      "quit_app": "結束 OpenAver",
+      "unavailable": "系統匣圖示無法啟動，OpenAver 將保持開啟。請從視窗選擇結束程式。"
+    },
+    "close_dialog": {
+      "instruction": "關閉主面板",
+      "content": "請選擇關閉主視窗後的操作。",
+      "minimize": "最小化到系統匣（OpenAver 將繼續在背景執行）",
+      "exit": "結束 OpenAver（同時停止背景服務）",
+      "confirm": "確定",
+      "cancel": "取消",
+      "do_not_show_again": "不再顯示此提示",
+      "fallback_message": "選擇「是」結束 OpenAver，選擇「否」最小化到系統匣，或選擇「取消」返回。"
+    }
+  },
   "search": {
     "page_title": "搜尋",
     "drag_overlay": {
@@ -391,7 +412,11 @@
       "player_placeholder": "留空使用系統預設",
       "player_hint_prefix": "例如:",
       "reset_label": "重置所有設定",
-      "reset_hint": "刪除所有自訂設定，恢復預設值"
+      "reset_hint": "刪除所有自訂設定，恢復預設值",
+      "close_action_label": "關閉視窗時",
+      "close_action_ask": "每次詢問",
+      "close_action_tray": "最小化到系統匣",
+      "close_action_exit": "直接結束"
     },
     "action": {
       "test": "測試",
