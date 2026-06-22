@@ -3777,6 +3777,86 @@ class TestShowcaseSwipeGuard:
             "_lbTouchEnd 不可呼叫 preventDefault（passive 掛載）"
 
 
+class TestSearchSwipeGuard:
+    """81c-T3: 守衛 search 燈箱 swipe 掛載與 handler 契約。
+
+    靜態鎖死：search.html `.showcase-lightbox` 容器有 `@touchstart.passive` +
+    `@touchend.passive` 綁定（bs4）；grid-mode.js `_lbTouchEnd` handler 含 3 條短路
+    （`rescrapeOpen` / `sampleGalleryOpen` / `lightboxOpen`）、直呼 `prevLightboxVideo`
+    / `nextLightboxVideo`、`detectSwipe(` 呼叫、threshold `50`、passive 不
+    `preventDefault`，且**負向**不含 `showFavoriteActresses`（CD-3，search 無此 state）。
+    手勢真實行為由 owner 真機 hard-gate。
+    """
+
+    def _js(self):
+        return GRID_MODE_JS.read_text(encoding="utf-8")
+
+    def _lb_touch_end_block(self):
+        """抽出 _lbTouchEnd method 區塊（到下一個 method 定義為止）。"""
+        js = self._js()
+        start = js.index("_lbTouchEnd(e) {")
+        tail = js[start:]
+        # _lbTouchEnd 後緊接 prevLightboxVideo 的 doc comment（「Lightbox 上一部」）
+        end = tail.index("Lightbox 上一部")
+        return tail[:end]
+
+    def test_container_has_touch_bindings(self):
+        """search.html `.showcase-lightbox` 容器有 @touchstart.passive + @touchend.passive"""
+        from bs4 import BeautifulSoup
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+        el = BeautifulSoup(html, "html.parser").select_one("div.showcase-lightbox")
+        assert el is not None, "search.html 缺少 .showcase-lightbox 容器"
+        attrs = el.attrs
+        assert ("@touchstart.passive" in attrs or "x-on:touchstart.passive" in attrs), \
+            ".showcase-lightbox 缺少 @touchstart.passive 綁定"
+        assert ("@touchend.passive" in attrs or "x-on:touchend.passive" in attrs), \
+            ".showcase-lightbox 缺少 @touchend.passive 綁定"
+        ts = attrs.get("@touchstart.passive") or attrs.get("x-on:touchstart.passive") or ""
+        te = attrs.get("@touchend.passive") or attrs.get("x-on:touchend.passive") or ""
+        assert "_lbTouchStart" in ts, "@touchstart.passive 未呼叫 _lbTouchStart"
+        assert "_lbTouchEnd" in te, "@touchend.passive 未呼叫 _lbTouchEnd"
+
+    def test_lb_touch_end_intercept_chain(self):
+        """_lbTouchEnd 含 3 條攔截短路（rescrape / sampleGallery / lightboxOpen）"""
+        block = self._lb_touch_end_block()
+        for token in [
+            "rescrapeOpen",
+            "sampleGalleryOpen",
+            "lightboxOpen",
+        ]:
+            assert token in block, f"_lbTouchEnd 缺少攔截短路：{token!r}"
+
+    def test_lb_touch_end_direct_dispatch(self):
+        """_lbTouchEnd 直呼 prevLightboxVideo / nextLightboxVideo（CD-3 直呼）"""
+        block = self._lb_touch_end_block()
+        for token in [
+            "prevLightboxVideo",
+            "nextLightboxVideo",
+        ]:
+            assert token in block, f"_lbTouchEnd 缺少 dispatch 字串：{token!r}"
+
+    def test_lb_touch_end_uses_detect_swipe_with_threshold(self):
+        """_lbTouchEnd import 並呼叫 detectSwipe，傳 threshold 50"""
+        js = self._js()
+        assert "import { detectSwipe } from '@/shared/swipe.js';" in js, \
+            "grid-mode.js 缺少 detectSwipe import"
+        block = self._lb_touch_end_block()
+        assert "detectSwipe(" in block, "_lbTouchEnd 未呼叫 detectSwipe"
+        assert "50" in block, "_lbTouchEnd 未傳 threshold 50"
+
+    def test_lb_touch_end_no_prevent_default(self):
+        """_lbTouchEnd 不呼叫 preventDefault（CD-2 passive）"""
+        block = self._lb_touch_end_block()
+        assert "preventDefault" not in block, \
+            "_lbTouchEnd 不可呼叫 preventDefault（passive 掛載）"
+
+    def test_lb_touch_end_no_actress_gate(self):
+        """負向守衛：_lbTouchEnd 不含 showFavoriteActresses（CD-3，search 無此 state）"""
+        block = self._lb_touch_end_block()
+        assert "showFavoriteActresses" not in block, \
+            "_lbTouchEnd 不可含 showFavoriteActresses（search 無此 state，加 gate 會靜默失效）"
+
+
 # ─── 49b-T4cd: Actress Photo Picker UI/Alpine/SSE 整合守衛 ──────────────────
 SHOWCASE_CSS_T4CD = Path(__file__).parent.parent.parent / "web" / "static" / "css" / "pages" / "showcase.css"
 

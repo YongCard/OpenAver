@@ -3,6 +3,7 @@
  * 包含：Grid 模式切換、Lightbox 控制
  */
 import { POSTER_CROP_MAX_W } from '@/shared/breakpoints.js';
+import { detectSwipe } from '@/shared/swipe.js';
 
 export function searchStateGridMode() {
     return {
@@ -226,6 +227,49 @@ export function searchStateGridMode() {
                 if (!tl) this._lightboxAnimating = false;
             }
         });
+    },
+
+    // ==================== Lightbox Swipe (81c-T3) ====================
+
+    _lbTouchStart(e) {
+        if (e.touches && e.touches.length > 0) {
+            this._lbTouchStartX = e.touches[0].clientX;
+            this._lbTouchStartY = e.touches[0].clientY;
+        }
+    },
+
+    _lbTouchEnd(e) {
+        if (this._lbTouchStartX === null) return;
+        var endX = e.changedTouches && e.changedTouches.length > 0
+            ? e.changedTouches[0].clientX
+            : null;
+        var endY = e.changedTouches && e.changedTouches.length > 0
+            ? e.changedTouches[0].clientY
+            : null;
+        if (endX === null || endY === null) {
+            this._lbTouchStartX = null;
+            this._lbTouchStartY = null;
+            return;
+        }
+        // 攔截短路串（比照 search handleKeydown 優先序，僅 3 條）
+        if (this.rescrapeOpen) {          // 比照 navigation.js:165
+            this._lbTouchStartX = null; this._lbTouchStartY = null; return;
+        }
+        if (this.sampleGalleryOpen) {     // 劇照由 _sgTouchEnd 處理（sibling 容器）
+            this._lbTouchStartX = null; this._lbTouchStartY = null; return;
+        }
+        if (!this.lightboxOpen) {         // 燈箱沒開不換片
+            this._lbTouchStartX = null; this._lbTouchStartY = null; return;
+        }
+        var dir = detectSwipe(this._lbTouchStartX, this._lbTouchStartY, endX, endY, 50);
+        this._lbTouchStartX = null;
+        this._lbTouchStartY = null;
+        // CD-3 直呼（CD-4 方向，無 actress gate — prev/next 內部處理 lightboxIndex===-1）
+        if (dir === 'left') {             // 左滑 → 下一
+            this.nextLightboxVideo();     // async，fire-and-forget，不 await
+        } else if (dir === 'right') {     // 右滑 → 上一
+            this.prevLightboxVideo();
+        }
     },
 
     /**

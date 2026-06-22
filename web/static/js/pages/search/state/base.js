@@ -132,6 +132,8 @@ export function searchStateBase() {
         sampleGalleryImages: [],
         sampleGalleryIndex: 0,
         _sgTouchStartX: null,
+        _lbTouchStartX: null,
+        _lbTouchStartY: null,
         _sgAnimating: false,
         _sgGeneration: 0,
 
