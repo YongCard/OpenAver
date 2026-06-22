@@ -389,10 +389,11 @@
             <div class="av-card-full rotating-border-spotlight"
                  x-show="displayMode === 'detail'"
                  :class="{ 'active': shouldShowLocalBorder(current()) }">
-                <div class="av-card-full-cover"
-                     @touchstart.passive="_dtTouchStart($event)"
-                     @touchend.passive="_dtTouchEnd($event)">
-                    <div class="av-card-full-cover-wrapper">
+                <div class="av-card-full-cover">
+                    <!-- P2 fix: swipe 掛在只含海報的 wrapper（非 cover），結構排除 .sample-strip 水平捲動列 -->
+                    <div class="av-card-full-cover-wrapper"
+                         @touchstart.passive="_dtTouchStart($event)"
+                         @touchend.passive="_dtTouchEnd($event)">
                         <img id="resultCover" x-ref="coverImg" class="av-card-full-cover-img"
                              x-show="!coverError && current().cover"
                              :src="coverUrl()"

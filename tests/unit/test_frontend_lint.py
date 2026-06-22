@@ -3872,9 +3872,11 @@ class TestSearchSwipeGuard:
 class TestDetailSwipeGuard:
     """81c-T4: 守衛 search detail 封面區 swipe 掛載與 handler 契約。
 
-    靜態鎖死：search.html `.av-card-full-cover` 容器有 `@touchstart.passive` +
-    `@touchend.passive` 綁定（bs4），且**隔離**確認掛在封面區 `.av-card-full-cover`
-    而非整個 detail 卡 `.av-card-full`（避免誤掛 metadata 捲動區）；navigation.js
+    靜態鎖死：search.html `.av-card-full-cover-wrapper`（只含海報）容器有
+    `@touchstart.passive` + `@touchend.passive` 綁定（bs4），且**隔離**確認掛在
+    海報 wrapper 而非整個 detail 卡 `.av-card-full`（避免誤掛 metadata 捲動區）、
+    亦非外層 `.av-card-full-cover`（含 `.sample-strip` 水平縮圖捲動列，P2 fix：
+    避免橫滑縮圖列誤觸 navigate）、且 `.sample-strip` 本身不可有 touch 綁定；navigation.js
     `_dtTouchEnd` handler 含 3 條短路/gate（`rescrapeOpen` / `sampleGalleryOpen` /
     `displayMode`）、直呼 `navigate(1)` / `navigate(-1)`、`detectSwipe(` 呼叫、
     threshold `50`、passive 不 `preventDefault`，且**負向**不含 `showFavoriteActresses`
@@ -3900,23 +3902,23 @@ class TestDetailSwipeGuard:
         raise AssertionError("_dtTouchEnd: unbalanced braces")
 
     def test_container_has_touch_bindings(self):
-        """search.html `.av-card-full-cover` 容器有 @touchstart.passive + @touchend.passive"""
+        """search.html `.av-card-full-cover-wrapper`（海報區）容器有 @touchstart.passive + @touchend.passive"""
         from bs4 import BeautifulSoup
         html = SEARCH_HTML.read_text(encoding="utf-8")
-        el = BeautifulSoup(html, "html.parser").select_one("div.av-card-full-cover")
-        assert el is not None, "search.html 缺少 .av-card-full-cover 容器"
+        el = BeautifulSoup(html, "html.parser").select_one("div.av-card-full-cover-wrapper")
+        assert el is not None, "search.html 缺少 .av-card-full-cover-wrapper 容器"
         attrs = el.attrs
         assert ("@touchstart.passive" in attrs or "x-on:touchstart.passive" in attrs), \
-            ".av-card-full-cover 缺少 @touchstart.passive 綁定"
+            ".av-card-full-cover-wrapper 缺少 @touchstart.passive 綁定"
         assert ("@touchend.passive" in attrs or "x-on:touchend.passive" in attrs), \
-            ".av-card-full-cover 缺少 @touchend.passive 綁定"
+            ".av-card-full-cover-wrapper 缺少 @touchend.passive 綁定"
         ts = attrs.get("@touchstart.passive") or attrs.get("x-on:touchstart.passive") or ""
         te = attrs.get("@touchend.passive") or attrs.get("x-on:touchend.passive") or ""
         assert "_dtTouchStart" in ts, "@touchstart.passive 未呼叫 _dtTouchStart"
         assert "_dtTouchEnd" in te, "@touchend.passive 未呼叫 _dtTouchEnd"
 
-    def test_touch_bound_on_cover_not_full_card(self):
-        """隔離守衛：@touch* 掛在 .av-card-full-cover（封面區）而非 .av-card-full（含 metadata 捲動區）"""
+    def test_touch_bound_on_wrapper_not_full_card(self):
+        """隔離守衛：@touch* 掛在 .av-card-full-cover-wrapper（海報區）而非 .av-card-full（含 metadata 捲動區）"""
         from bs4 import BeautifulSoup
         html = SEARCH_HTML.read_text(encoding="utf-8")
         soup = BeautifulSoup(html, "html.parser")
@@ -3928,6 +3930,27 @@ class TestDetailSwipeGuard:
             ".av-card-full（整個 detail 卡）不應掛 @touchstart（會誤觸 metadata 捲動區）"
         assert "@touchend.passive" not in full_attrs and "x-on:touchend.passive" not in full_attrs, \
             ".av-card-full（整個 detail 卡）不應掛 @touchend（會誤觸 metadata 捲動區）"
+
+    def test_touch_not_bound_on_cover_or_sample_strip(self):
+        """P2 隔離守衛：外層 .av-card-full-cover 與 .sample-strip（水平縮圖捲動列）不可有 touch 綁定
+
+        理由：swipe 掛 .av-card-full-cover 時，sample-strip（overflow-x:auto）是其子元素，
+        橫滑縮圖列會誤觸 _dtTouchEnd → navigate(±1)。改掛只含海報的 wrapper，結構排除 strip。
+        """
+        from bs4 import BeautifulSoup
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+        soup = BeautifulSoup(html, "html.parser")
+        for sel, label in [
+            ("div.av-card-full-cover", ".av-card-full-cover（外層，含 sample-strip）"),
+            ("div.sample-strip", ".sample-strip（水平縮圖捲動列）"),
+        ]:
+            el = soup.select_one(sel)
+            assert el is not None, f"search.html 缺少 {sel} 容器"
+            a = el.attrs
+            assert "@touchstart.passive" not in a and "x-on:touchstart.passive" not in a, \
+                f"{label} 不應掛 @touchstart（橫滑縮圖列會誤觸 navigate）"
+            assert "@touchend.passive" not in a and "x-on:touchend.passive" not in a, \
+                f"{label} 不應掛 @touchend（橫滑縮圖列會誤觸 navigate）"
 
     def test_dt_touch_end_intercept_chain(self):
         """_dtTouchEnd 含 3 條短路/gate（rescrape / sampleGallery / displayMode）"""
