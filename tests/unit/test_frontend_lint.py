@@ -5626,6 +5626,32 @@ class TestHelpPage:
         for expected in ['copyCurlCommand', 'execCommand']:
             assert expected in js, f"help.js missing: {expected!r}"
 
+    def test_help_hero_terminal_has_capabilities_base(self):
+        """help.html .hero-terminal 帶 data-capabilities-base 屬性（server-aware base_url 來源）。
+
+        81b-T4/T5（US-7）：copy 來源從 window.location.origin 改 server-render base_url，
+        經 .hero-terminal 的 data-attr 傳入。值為 Jinja {{ base_url }}，只斷屬性存在。
+        mutation：移除 data-capabilities-base → help.js 退 window.location.origin（複製回歸）→ RED。"""
+        from bs4 import BeautifulSoup
+        html = (PROJECT_ROOT / 'web/templates/help.html').read_text(encoding='utf-8')
+        term = BeautifulSoup(html, "html.parser").find(class_="hero-terminal")
+        assert term is not None, "help.html 缺少 .hero-terminal 元素"
+        assert term.has_attr("data-capabilities-base"), \
+            ".hero-terminal 缺少 data-capabilities-base 屬性（US-7 server-aware base_url 來源）"
+
+    def test_help_js_copy_uses_capabilities_base_dataset(self):
+        """help.js 複製來源讀 dataset.capabilitiesBase（primary），curl 模板用該 base。
+
+        81b-T5（US-7 #7）：base = .hero-terminal?.dataset.capabilitiesBase || window.location.origin。
+        防呆 fallback || window.location.origin 刻意保留 — 守衛**不**斷言其不存在（會 false-fail），
+        只斷 capabilitiesBase 為 primary 來源 + curl 模板用 derived base。
+        mutation：把複製來源改回純 window.location.origin（移除 dataset 讀取）→ capabilitiesBase 消失 → RED。"""
+        js = (PROJECT_ROOT / 'web/static/js/pages/help.js').read_text(encoding='utf-8')
+        assert "capabilitiesBase" in js, \
+            "help.js 缺少 capabilitiesBase（dataset 複製來源 — US-7 #7 primary source）"
+        assert "${base}" in js, \
+            "help.js curl 模板未用 derived base（應為 `${base}/api/capabilities` — 證 data-attr 是實際來源）"
+
 
 class TestScannerClearCache:
     """清除快取守衛 — scanner 頁面必要元素"""
@@ -12904,8 +12930,13 @@ class TestServerModeToggleGuard:
             "#settings-components 缺少 data-lan-ip 屬性（80a-T3 lanIp 傳入點）"
 
     def test_settings_server_mode_segmented_in_header(self):
-        """header actions 內含 .settings-server-mode 包含 .settings-sources-segmented，
-        且有 2 個 button 分別呼叫 setServerMode(false) 和 setServerMode(true)。"""
+        """.settings-server-mode 在標題左 cluster（.settings-header-left）內，是 <h4> 的
+        cluster-sibling，且含 .settings-sources-segmented + 2 個 button
+        （setServerMode(false)/setServerMode(true)）。
+
+        81b-T1（CD-1）：膠囊從 .settings-header-actions 搬到 .settings-header-left。
+        mutation：膠囊搬回 .settings-header-actions → 「不在 actions」斷言 RED；
+        刪 .settings-header-left wrapper → 「在 header-left」斷言 RED。"""
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(self._html(), "html.parser")
         wrapper = soup.find(class_="settings-server-mode")
@@ -12922,6 +12953,17 @@ class TestServerModeToggleGuard:
             "segmented 缺少 @click=\"setServerMode(false)\" button（單機態）"
         assert any("setServerMode(true)" in a for a in click_attrs), \
             "segmented 缺少 @click=\"setServerMode(true)\" button（伺服器態）"
+        # 81b-T1（CD-1）：位置斷言 — 膠囊在標題左 cluster，h4 sibling，搬離 actions
+        left = soup.find(class_="settings-header-left")
+        assert left is not None, \
+            "settings.html 缺少 .settings-header-left（81b-T1 標題左 cluster wrapper）"
+        assert left.find(class_="settings-server-mode") is not None, \
+            ".settings-server-mode 不在 .settings-header-left 內（CD-1 膠囊應在標題左 cluster）"
+        assert left.find("h4") is not None, \
+            "<h4> 不在 .settings-header-left 內（膠囊應與 h4 同 cluster）"
+        actions = soup.find(class_="settings-header-actions")
+        assert actions is None or actions.find(class_="settings-server-mode") is None, \
+            ".settings-server-mode 仍在 .settings-header-actions 內（CD-1 應已搬離至標題左 cluster）"
 
     def test_settings_server_info_banner_xshow_xcloak(self):
         """恰好一個 .settings-server-inline 元素，帶 x-show=\"serverMode\" 和 x-cloak（防 FOUC）。
@@ -12951,6 +12993,73 @@ class TestServerModeToggleGuard:
         html = self._html()
         assert "copyServerUrl()" in html, \
             "settings.html 缺少 copyServerUrl() 呼叫（複製鈕 @click）"
+
+    def test_settings_server_copy_is_clipboard_icon_with_aria(self):
+        """copy 鈕為 icon-only（內含 <i class="bi bi-clipboard">）+ a11y 標籤
+        （:aria-label 與 :title 皆引用 settings.server_info.copy）。
+
+        81b-T1（CD-4 + #8）：copy 由文字「複製」改 bi-clipboard icon-only，
+        i18n key 轉作 aria-label/title 提供無障礙標籤。
+        mutation：把 <i class="bi bi-clipboard"> 換回文字 → icon 斷言 RED；
+        移除 :aria-label 或改引用別 key → a11y 斷言 RED。"""
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(self._html(), "html.parser")
+        btn = soup.find(class_="settings-server-copy-btn")
+        assert btn is not None, \
+            "settings.html 缺少 .settings-server-copy-btn（81b-T1 複製鈕）"
+        assert btn.find("i", class_="bi-clipboard") is not None, \
+            ".settings-server-copy-btn 缺少 <i class=\"bi bi-clipboard\"> icon（CD-4 icon-only）"
+        aria = btn.get(":aria-label") or btn.get("aria-label")
+        assert aria is not None and "settings.server_info.copy" in aria, \
+            f"copy 鈕 aria-label 應引用 settings.server_info.copy，實際: {aria!r}（#8 a11y 標籤）"
+        title = btn.get(":title") or btn.get("title")
+        assert title is not None and "settings.server_info.copy" in title, \
+            f"copy 鈕 title 應引用 settings.server_info.copy，實際: {title!r}（CD-4 hover 提示）"
+
+    def test_settings_amber_active_scoped_to_server_mode(self):
+        """琥珀 active（[data-mode="server"].is-on）規則 scope 緊收到
+        .settings-server-mode 且 body 用 --color-warning。
+
+        81b-T2（CD-6）：琥珀只套 server 膠囊，不可外溢到來源卡膠囊。
+        mutation：把任一條琥珀 server 規則的 scope 從 .settings-server-mode 拿掉
+        （污染來源卡）→ 該條成「未 scope 的琥珀規則」→ RED；改用非 --color-warning 顏色
+        → 找不到琥珀規則 → RED。
+
+        關鍵（teeth）：不是「存在一條有 scope 的規則就放行」（base + dim 兩條，拔一條
+        另一條仍在會假綠），而是「**每一條** [data-mode=\"server\"].is-on 琥珀規則都必須
+        scope 在 .settings-server-mode」——即不存在任何未 scope 的琥珀 server 規則。
+        先剝 /* ... */ 註解，防註解內 .settings-server-mode 字面混入 selector 比對。"""
+        css = SETTINGS_CSS.read_text(encoding="utf-8")
+        css = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
+        # 列舉所有 `selector { body }` 規則塊（巢狀無關，settings.css 為扁平規則）
+        amber_rules = []
+        for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", css):
+            selector, body = m.group(1), m.group(2)
+            if '[data-mode="server"]' in selector and ".is-on" in selector \
+                    and "--color-warning" in body:
+                amber_rules.append(selector.strip())
+        assert amber_rules, \
+            "settings.css 缺少 [data-mode=\"server\"].is-on + --color-warning 的琥珀 active 規則（CD-6）"
+        # 每一條琥珀 server 規則都必須 scope 在 .settings-server-mode（無任一條外溢）
+        unscoped = [s for s in amber_rules if ".settings-server-mode" not in s]
+        assert not unscoped, \
+            f"琥珀 active 規則未全部 scope 在 .settings-server-mode（CD-6 防外溢來源卡）: {unscoped!r}"
+
+    def test_no_clipboard_emoji_in_copy_context(self):
+        """web/ 下所有 .html/.js/.css 不得出現 📋 字面（含 design-system <pre> 範例字串）。
+
+        81b-T4：複製鈕統一 bi-clipboard icon，移除所有 📋 emoji。
+        純字串 in-content 掃描（非 bs4 text-only），確保 escaped <pre> 範例也掃到。
+        eslint/stylelint 不掃 .html 模板，故 pytest 字串掃描是正確路由。
+        mutation：任何人把 📋 寫回任一複製鈕（含教學範例）→ RED。"""
+        web_root = Path(__file__).parent.parent.parent / "web"
+        offenders = []
+        for ext in ("*.html", "*.js", "*.css"):
+            for f in web_root.rglob(ext):
+                if "\U0001F4CB" in f.read_text(encoding="utf-8"):
+                    offenders.append(str(f.relative_to(web_root)))
+        assert not offenders, \
+            f"web/ 下仍殘留 📋 emoji（應統一用 bi-clipboard icon）: {offenders}"
 
     def test_settings_server_info_no_lan_ip_key(self):
         """橫條含 settings.server_info.no_lan_ip i18n key（lanIp 為空時提示）。
