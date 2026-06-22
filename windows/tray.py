@@ -389,6 +389,15 @@ def _common_controls_v6():
 def _show_task_dialog(texts: DesktopTexts, owner=None) -> CloseDecision:
     from ctypes import wintypes
 
+    # `_pack_ = 1` on the two TaskDialog structs below is REQUIRED, not a mistake.
+    # The Windows SDK declares TASKDIALOGCONFIG and TASKDIALOG_BUTTON inside
+    # <pshpack1.h> / <poppack.h> in commctrl.h, so comctl32 itself reads them with
+    # 1-byte packing. Matching that ABI is mandatory: with native (8-byte) alignment
+    # ctypes would insert padding after cbSize/nButtonID, making sizeof() too large and
+    # shifting the pointer fields (hwndParent, pszButtonText) — TaskDialogIndirect then
+    # rejects the bad cbSize with E_INVALIDARG and we silently fall back to MessageBox
+    # (losing the radio buttons + remember checkbox). Confirmed by Microsoft's own
+    # windows-rs (repr packed(1)) and Vanara (Pack = 1). Do NOT remove `_pack_ = 1`.
     class TaskDialogButton(ctypes.Structure):
         _pack_ = 1
         _fields_ = [("nButtonID", ctypes.c_int), ("pszButtonText", wintypes.LPCWSTR)]
