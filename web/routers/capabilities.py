@@ -1252,7 +1252,7 @@ _TOOLS: list[dict] = [
 _TOOLS.extend([
     {
         "name": "library_migration_inventory",
-        "description": "盤點既有影片庫並備份 NFO、圖片、字幕、設定與資料庫；不搬移影片",
+        "description": "盤點既有影片庫並備份 NFO、圖片、字幕、設定與資料庫；不搬移影片，預設跳過 #待人工整理",
         "method": "POST",
         "path": "/api/library-migration/inventory",
         "input_schema": {
@@ -1260,6 +1260,11 @@ _TOOLS.extend([
             "properties": {
                 "root": {"type": "string", "description": "影片庫根目錄的原生檔案系統路徑"},
                 "run_id": {"type": "string", "description": "可選的執行識別碼"},
+                "include_manual": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "是否納入 #待人工整理 / 未整理 內影片；僅重新識別人工項目時設為 true",
+                },
             },
             "required": ["root"],
         },
@@ -1274,7 +1279,7 @@ _TOOLS.extend([
         "confirmation_required": False,
         "idempotent": False,
         "retry_safe": False,
-        "_example_template": "curl -X POST -H 'Content-Type: application/json' -d '{{\"root\":\"/library\"}}' {base}/api/library-migration/inventory",
+        "_example_template": "curl -X POST -H 'Content-Type: application/json' -d '{{\"root\":\"/library\",\"include_manual\":false}}' {base}/api/library-migration/inventory",
     },
     {
         "name": "library_migration_plan",

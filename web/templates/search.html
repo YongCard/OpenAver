@@ -882,6 +882,14 @@
                                 {{ t('search.filelist.failed') }}
                             </button>
 
+                            <!-- 動作按鈕：指定來源搜尋 -->
+                            <button x-show="file.number && !file.isScraping && file.scrapeStatus !== 'done'"
+                                    @click.stop="openFileSourceSearch(i)"
+                                    class="btn btn-sm btn-outline btn-info btn-file-source-search"
+                                    title="{{ t('search.source_pill.tooltip') }}">
+                                <i class="bi bi-sliders"></i>
+                            </button>
+
                             <!-- 動作按鈕：手動輸入番號 -->
                             <button x-show="needsNumberInput(file)"
                                     @click.stop="enterNumber(i)"

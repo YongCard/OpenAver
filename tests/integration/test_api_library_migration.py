@@ -3,19 +3,26 @@ from web.routers import library_migration as migration_router
 
 
 def test_inventory_endpoint(client, monkeypatch):
+    captured = {}
+
+    def fake_inventory(root, run_id, **kwargs):
+        captured.update(kwargs)
+        return {"run_id": run_id, "root": root, "video_count": 3}
+
     monkeypatch.setattr(
         migration_router,
         "inventory_library",
-        lambda root, run_id: {"run_id": run_id, "root": root, "video_count": 3},
+        fake_inventory,
     )
 
     response = client.post(
         "/api/library-migration/inventory",
-        json={"root": "X:/library", "run_id": "demo"},
+        json={"root": "X:/library", "run_id": "demo", "include_manual": True},
     )
 
     assert response.status_code == 200
     assert response.json()["video_count"] == 3
+    assert captured["include_manual"] is True
 
 
 def test_all_operation_endpoints(client, monkeypatch):

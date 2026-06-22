@@ -160,6 +160,69 @@ export function rescrapeState() {
             // 整包贏（GET /api/search?...&source=），結果進正常結果區，彈窗關閉（spec US5）。
             // 番號回寫 searchQuery：讓彈窗內改番號生效（advancedSearch 讀 this.searchQuery）。
             if (this.rescrapeEntryPoint === 'search') {
+                if (this._sourceSearchFileIndex !== null && this._sourceSearchFileIndex !== undefined) {
+                    const fileIndex = this._sourceSearchFileIndex;
+                    const file = this.fileList && this.fileList[fileIndex];
+                    if (!file) {
+                        this.rescrapeNotFound = true;
+                        return;
+                    }
+                    const number = this.rescrapeNumber.trim();
+                    file.number = number;
+                    file.searched = false;
+                    file.searchResults = [];
+                    file.hasMoreResults = false;
+                    file.scrapeStatus = null;
+                    this.searchQuery = number;
+                    this.currentFileIndex = fileIndex;
+                    this.closeRescrape();
+
+                    if (sourceId === 'auto') {
+                        await this.switchToFile(fileIndex, 'first', true);
+                        this._sourceSearchFileIndex = null;
+                        return;
+                    }
+
+                    this.pageState = 'loading';
+                    this._fallbackAbortController = new AbortController();
+                    try {
+                        const url = `/api/search?q=${encodeURIComponent(number)}`
+                            + `&mode=exact&source=${encodeURIComponent(sourceId)}`;
+                        const response = await fetch(url, { signal: this._fallbackAbortController.signal });
+                        const data = await response.json();
+                        if (response.ok && data.success && data.data && data.data.length > 0) {
+                            const results = data.data.map(item => ({ ...item, _source: sourceId }));
+                            file.searchResults = results;
+                            file.hasMoreResults = data.has_more || false;
+                            file.searched = true;
+                            this.searchResults = results;
+                            this.hasMoreResults = file.hasMoreResults;
+                            this.currentIndex = 0;
+                            this.listMode = 'file';
+                            this.displayMode = 'detail';
+                            this.checkLocalStatus?.(results);
+                            this._resetCoverState?.();
+                            this.pageState = 'result';
+                        } else {
+                            file.searched = true;
+                            this.searchResults = [];
+                            this.hasMoreResults = false;
+                            this.currentIndex = 0;
+                            this._resetCoverState?.();
+                            this.coverError = data.error || window.t('search.filelist.not_found', { number });
+                            this.pageState = 'result';
+                        }
+                    } catch (err) {
+                        if (err.name === 'AbortError') return;
+                        file.searched = true;
+                        this.searchResults = [];
+                        this.coverError = window.t('search.error.hint');
+                        this.pageState = 'result';
+                    } finally {
+                        this._sourceSearchFileIndex = null;
+                    }
+                    return;
+                }
                 this.searchQuery = this.rescrapeNumber.trim();
                 this.closeRescrape();
                 await this.advancedSearch(sourceId);  // 'auto' 直接傳給 /api/search（後端 merger）

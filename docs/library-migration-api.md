@@ -8,6 +8,9 @@ and execution never re-scrapes metadata or changes a planned destination.
 
 1. `POST /api/library-migration/inventory` inventories videos and backs up all
    NFO, image, and subtitle sidecars, plus the OpenAver config and database.
+   By default it skips `#待人工整理` and legacy `未整理`; pass
+   `include_manual=true` only when explicitly re-identifying manual-review
+   files.
 2. Run the normal OpenAver scanner/enrichment workflow when metadata needs to
    be completed.
 3. `POST /api/library-migration/plan` creates `manifest.json` and `preview.csv`.
@@ -26,10 +29,13 @@ The default destination is:
 
 Unrecognized files are planned under `#待人工整理`. Duplicate-number files
 without an unambiguous multipart marker are placed in the review list.
+Normal migration runs do not re-process files already in `#待人工整理`.
 
 ## Safety guarantees
 
 - Every source and destination must remain under the inventoried library root.
+- `#待人工整理` is treated as a protected manual-review folder unless
+  `include_manual=true` is used for a deliberate re-identification pass.
 - Existing targets, changed sources, duplicate targets, and excessive paths
   block the affected batch without overwriting anything.
 - Apply requires the immutable manifest and an exact `run_id` confirmation.

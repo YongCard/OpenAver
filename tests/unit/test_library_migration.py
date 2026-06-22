@@ -39,7 +39,7 @@ def _write_nfo(path: Path, number: str, title: str, actor: str) -> None:
 def test_end_to_end_apply_verify_and_rollback_by_entry(tmp_path):
     root = tmp_path / "library"
     first_dir = root / "legacy" / "ABC-123"
-    second_dir = root / "未整理"
+    second_dir = root / "staging"
     first_dir.mkdir(parents=True)
     second_dir.mkdir(parents=True)
 
@@ -134,3 +134,47 @@ def test_plan_rejects_tampered_inventory_path_outside_root(tmp_path):
 
     with pytest.raises(MigrationError, match="inventory_path_outside_root"):
         plan_library(inventory["run_dir"], db_path=database)
+
+
+def test_inventory_skips_manual_review_folder_by_default(tmp_path):
+    root = tmp_path / "library"
+    regular_dir = root / "regular"
+    manual_dir = root / "#待人工整理"
+    legacy_manual_dir = root / "未整理"
+    regular_dir.mkdir(parents=True)
+    manual_dir.mkdir(parents=True)
+    legacy_manual_dir.mkdir(parents=True)
+    (regular_dir / "ABC-123.mp4").write_bytes(b"regular")
+    (manual_dir / "manual.mp4").write_bytes(b"manual")
+    (legacy_manual_dir / "legacy.mp4").write_bytes(b"legacy")
+    database = tmp_path / "openaver.db"
+    _create_db(database)
+
+    inventory = inventory_library(str(root), "skip-manual", db_path=database)
+    inventory_data = json.loads((Path(inventory["run_dir"]) / "inventory.json").read_text(encoding="utf-8"))
+
+    assert inventory["video_count"] == 1
+    assert inventory_data["manual_folder"] == "#待人工整理"
+    assert inventory_data["include_manual"] is False
+    assert inventory_data["videos"][0]["relative_path"] == str(Path("regular") / "ABC-123.mp4")
+
+
+def test_inventory_can_include_manual_review_folder_for_reidentify(tmp_path):
+    root = tmp_path / "library"
+    manual_dir = root / "#待人工整理"
+    manual_dir.mkdir(parents=True)
+    (manual_dir / "SUN-20.avi").write_bytes(b"manual")
+    database = tmp_path / "openaver.db"
+    _create_db(database)
+
+    inventory = inventory_library(
+        str(root),
+        "include-manual",
+        include_manual=True,
+        db_path=database,
+    )
+    inventory_data = json.loads((Path(inventory["run_dir"]) / "inventory.json").read_text(encoding="utf-8"))
+
+    assert inventory["video_count"] == 1
+    assert inventory_data["include_manual"] is True
+    assert inventory_data["videos"][0]["relative_path"] == str(Path("#待人工整理") / "SUN-20.avi")

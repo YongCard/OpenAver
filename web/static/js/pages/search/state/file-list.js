@@ -253,6 +253,19 @@ export function searchStateFileList() {
         this.switchToFile(index, 'first', true);
     },
 
+    openFileSourceSearch(index) {
+        const file = this.fileList[index];
+        if (!file) return;
+        if (!file.number) {
+            this.enterNumber(index);
+            return;
+        }
+        this.currentFileIndex = index;
+        this._sourceSearchFileIndex = index;
+        this.openRescrape(null, 'search');
+        this.rescrapeNumber = file.number;
+    },
+
     removeFile(index) {
         if (index < 0 || index >= this.fileList.length) return;
 
@@ -315,46 +328,46 @@ export function searchStateFileList() {
         const filenames = paths.map(p => p.split(/[/\\]/).pop());
         const parseResults = await window.SearchFile.parseFilenames(filenames);
 
-        // 前端過濾：檢查能否提取番號
-        const validIndices = [];
+        // 無法提取番號的影片仍保留在列表中，供使用者手動輸入番號後重新識別。
+        const fileIndices = [];
         let noNumberCount = 0;
 
         for (let i = 0; i < paths.length; i++) {
             const result = parseResults[i];
-            if (result && result.number !== null) {
-                validIndices.push(i);
-            } else {
+            fileIndices.push(i);
+            if (!result || result.number === null) {
                 noNumberCount++;
             }
         }
 
-        // T6b: 前端過濾提示（warning 類型）
+        // T6b: 前端提示（warning 類型）
         if (noNumberCount > 0) {
-            const msg = `已過濾 ${noNumberCount} 個無法識別番號的檔案`;
+            const msg = `有 ${noNumberCount} 個檔案無法識別番號，可手動輸入後整理`;
             this.showToast(msg, 'warning');
         }
 
         // 檢查空列表
-        if (validIndices.length === 0) {
+        if (fileIndices.length === 0) {
             this.showToast(window.t('search.toast.no_valid_files'), 'warning');
             return;
         }
 
         // 構建 fileList
-        this.fileList = validIndices.map(i => {
+        this.fileList = fileIndices.map(i => {
             const path = paths[i];
             const filename = filenames[i];
-            const result = parseResults[i];
+            const result = parseResults[i] || {};
+            const number = result.number || null;
             return {
                 path: path,
                 filename: filename,
-                number: result.number,
-                hasSubtitle: result.has_subtitle,
+                number: number,
+                hasSubtitle: !!result.has_subtitle,
                 suffixes: window.SearchFile.detectSuffixes(
                     filename,
                     this.appConfig?.scraper?.suffix_keywords || []
                 ),
-                chineseTitle: window.SearchFile.extractChineseTitle(filename, result.number),
+                chineseTitle: number ? window.SearchFile.extractChineseTitle(filename, number) : null,
                 searchResults: [],
                 hasMoreResults: false,
                 searched: false,

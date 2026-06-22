@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api/library-migration", tags=["library-migration"])
 class InventoryRequest(BaseModel):
     root: str = Field(..., min_length=1)
     run_id: str | None = None
+    include_manual: bool = False
 
 
 class PlanRequest(BaseModel):
@@ -56,7 +57,12 @@ def _raise_api_error(exc: Exception) -> None:
 @router.post("/inventory")
 async def create_inventory(request: InventoryRequest) -> dict[str, Any]:
     try:
-        return await asyncio.to_thread(inventory_library, request.root, request.run_id)
+        return await asyncio.to_thread(
+            inventory_library,
+            request.root,
+            request.run_id,
+            include_manual=request.include_manual,
+        )
     except Exception as exc:
         _raise_api_error(exc)
 

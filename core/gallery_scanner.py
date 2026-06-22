@@ -82,6 +82,7 @@ IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
 
 # 預設緩存檔案名稱
 DEFAULT_CACHE_FILE = "gallery_cache.json"
+PROTECTED_MANUAL_FOLDERS = {"#待人工整理", "未整理"}
 
 
 def fast_scan_directory(
@@ -89,6 +90,7 @@ def fast_scan_directory(
     extensions: set,
     min_size_bytes: int = 0,
     on_skip: Optional[Callable[[str, Exception], None]] = None,
+    include_manual: bool = False,
 ) -> List[dict]:
     """快速掃描目錄，一次取得所有檔案資訊
 
@@ -116,6 +118,9 @@ def fast_scan_directory(
             # callback 本身出錯不得影響掃描
             pass
 
+    def _is_protected_manual_dir(name: str) -> bool:
+        return not include_manual and name in PROTECTED_MANUAL_FOLDERS
+
     def scan_recursive(path: str):
         try:
             with os.scandir(path) as entries:
@@ -125,7 +130,8 @@ def fast_scan_directory(
                 for entry in entries:
                     try:
                         if entry.is_dir(follow_symlinks=False):
-                            scan_recursive(entry.path)
+                            if not _is_protected_manual_dir(entry.name):
+                                scan_recursive(entry.path)
                         elif entry.is_file(follow_symlinks=False):
                             ext = os.path.splitext(entry.name)[1].lower()
                             stem = os.path.splitext(entry.name)[0]

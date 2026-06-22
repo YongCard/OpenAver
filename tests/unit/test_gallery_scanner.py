@@ -426,7 +426,6 @@ class TestFastScanDirectorySkipCallback:
 
     def test_on_skip_called_on_outer_scandir_oserror(self, tmp_path, monkeypatch):
         """當外層 os.scandir() 自己拋 OSError（整個目錄無法開），on_skip 收到目錄路徑"""
-        import os
         from core.gallery_scanner import fast_scan_directory
 
         scan_root = tmp_path / "scan"
@@ -450,7 +449,6 @@ class TestFastScanDirectorySkipCallback:
 
     def test_on_skip_none_is_default_silent(self, tmp_path, monkeypatch):
         """on_skip=None（或未傳）時完全靜默，保持既有 caller 行為不變"""
-        import os
         from core.gallery_scanner import fast_scan_directory
 
         scan_root = tmp_path / "scan"
@@ -467,7 +465,6 @@ class TestFastScanDirectorySkipCallback:
 
     def test_on_skip_callback_exception_does_not_break_scan(self, tmp_path, monkeypatch):
         """callback 本身拋例外不得中斷掃描（safety net）"""
-        import os
         from core.gallery_scanner import fast_scan_directory
 
         scan_root = tmp_path / "scan"
@@ -484,6 +481,37 @@ class TestFastScanDirectorySkipCallback:
         # 不應把 RuntimeError 傳出來
         results = fast_scan_directory(str(scan_root), {'.mp4'}, 0, on_skip=angry_callback)
         assert results == []
+
+
+def test_fast_scan_directory_skips_manual_review_folder_by_default(tmp_path):
+    from core.gallery_scanner import fast_scan_directory
+
+    regular = tmp_path / "regular"
+    manual = tmp_path / "#待人工整理"
+    legacy_manual = tmp_path / "未整理"
+    regular.mkdir()
+    manual.mkdir()
+    legacy_manual.mkdir()
+    (regular / "ABC-123.mp4").write_bytes(b"regular")
+    (manual / "SUN-20.avi").write_bytes(b"manual")
+    (legacy_manual / "LEGACY-001.mp4").write_bytes(b"legacy")
+
+    results = fast_scan_directory(str(tmp_path), {".mp4", ".avi"}, 0)
+
+    paths = {Path(item["path"]).name for item in results}
+    assert paths == {"ABC-123.mp4"}
+
+
+def test_fast_scan_directory_can_include_manual_review_folder(tmp_path):
+    from core.gallery_scanner import fast_scan_directory
+
+    manual = tmp_path / "#待人工整理"
+    manual.mkdir()
+    (manual / "SUN-20.avi").write_bytes(b"manual")
+
+    results = fast_scan_directory(str(tmp_path), {".avi"}, 0, include_manual=True)
+
+    assert [Path(item["path"]).name for item in results] == ["SUN-20.avi"]
 
 
 class TestCollectLongPaths:
@@ -662,7 +690,7 @@ class TestScannerSampleImagesValidationPass:
 
     def test_cleanup_pass_calls_update_sample_images(self, tmp_path):
         """確認 repo.update_sample_images 被呼叫時傳入正確的 path + validated list"""
-        from unittest.mock import MagicMock, patch, call
+        from unittest.mock import MagicMock, patch
         from core.gallery_scanner import _run_sample_images_cleanup_pass
 
         mock_repo = MagicMock()

@@ -33,7 +33,14 @@ logger = get_logger(__name__)
 SIDECAR_EXTENSIONS = {
     ".nfo", ".jpg", ".jpeg", ".png", ".webp", ".srt", ".ass", ".ssa", ".vtt", ".sub", ".idx",
 }
-IGNORED_ACTOR_FOLDERS = {"未整理", "#整理完成", "#待人工整理", ".openaver-migration"}
+MANUAL_REVIEW_FOLDER = "#待人工整理"
+PROTECTED_FOLDER_NAMES = {"#待人工整理", ".openaver-migration"}
+LEGACY_MANUAL_FOLDER_NAMES = {"未整理"}
+IGNORED_ACTOR_FOLDERS = {
+    *PROTECTED_FOLDER_NAMES,
+    *LEGACY_MANUAL_FOLDER_NAMES,
+    "#整理完成",
+}
 INVALID_COMPONENT_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 PART_RE = re.compile(
@@ -120,11 +127,27 @@ def _sanitize_component(value: str | None, fallback: str, limit: int) -> str:
     return cleaned[:limit].rstrip(" .") or fallback
 
 
-def _all_files(root: Path, extensions: set[str]) -> list[Path]:
+def _is_in_named_folder(path: Path, root: Path, folder_names: set[str]) -> bool:
+    try:
+        parts = path.relative_to(root).parts[:-1]
+    except ValueError:
+        return False
+    return any(part in folder_names for part in parts)
+
+
+def _all_files(root: Path, extensions: set[str], *, include_manual: bool = False) -> list[Path]:
     migration_dir = root / ".openaver-migration"
+    skipped_folders = PROTECTED_FOLDER_NAMES | LEGACY_MANUAL_FOLDER_NAMES
+    if include_manual:
+        skipped_folders = {".openaver-migration"}
     return sorted(
         path for path in root.rglob("*")
-        if path.is_file() and path.suffix.lower() in extensions and not _is_under(path, migration_dir)
+        if (
+            path.is_file()
+            and path.suffix.lower() in extensions
+            and not _is_under(path, migration_dir)
+            and not _is_in_named_folder(path, root, skipped_folders)
+        )
     )
 
 
@@ -281,6 +304,7 @@ def inventory_library(
     root_value: str,
     run_id: str | None = None,
     *,
+    include_manual: bool = False,
     config_path: Path | None = None,
     db_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -295,8 +319,8 @@ def inventory_library(
     sidecar_backup = backup_root / "sidecars"
     sidecar_backup.mkdir(parents=True, exist_ok=True)
 
-    videos = _all_files(root, _video_extensions())
-    sidecars = _all_files(root, SIDECAR_EXTENSIONS)
+    videos = _all_files(root, _video_extensions(), include_manual=include_manual)
+    sidecars = _all_files(root, SIDECAR_EXTENSIONS, include_manual=include_manual)
     video_items = []
     for path in videos:
         stat = path.stat()
@@ -347,6 +371,8 @@ def inventory_library(
         "run_id": selected_run_id,
         "created_at": _utc_now(),
         "root": str(root),
+        "include_manual": include_manual,
+        "manual_folder": MANUAL_REVIEW_FOLDER,
         "baseline": baseline,
         "videos": video_items,
         "sidecars": sidecar_items,
@@ -360,7 +386,7 @@ def plan_library(
     *,
     max_path: int = 240,
     unknown_actor: str = "未知女優",
-    manual_folder: str = "#待人工整理",
+    manual_folder: str = MANUAL_REVIEW_FOLDER,
     db_path: Path | None = None,
 ) -> dict[str, Any]:
     run_dir, inventory, root = _validated_run_dir(run_dir_value)
@@ -705,7 +731,7 @@ def verify_manifest(manifest_value: str) -> dict[str, Any]:
                 problems.append({"entry_id": entry["id"], "problem": "sidecar_missing"})
             elif expected_sidecar.stat().st_size != action["size"] or _sha256(expected_sidecar) != action["sha256"]:
                 problems.append({"entry_id": entry["id"], "problem": "sidecar_changed"})
-    current = _all_files(root, _video_extensions())
+    current = _all_files(root, _video_extensions(), include_manual=True)
     current_bytes = sum(path.stat().st_size for path in current)
     baseline = inventory["baseline"]
     if len(current) != baseline["video_count"]:
