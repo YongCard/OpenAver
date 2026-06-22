@@ -3648,6 +3648,53 @@ class TestBurstPickerGuard:
                 f"burst-picker.js script tag 應含 defer 或 type=\"module\" 屬性：{tag}"
 
 
+# ─── 81c-T1: swipe helper 純函式守衛 ──────────────────────────────────────────
+SWIPE_JS = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "shared" / "swipe.js"
+
+
+class TestSwipeHelperGuard:
+    """81c-T1: 守衛 shared/swipe.js 的 detectSwipe 純函式（簽名 + 核心判別式 + threshold 不寫死）。
+
+    因專案無 JS 測試框架，邏輯正確性由 T2–T4 真機驗證；此守衛靜態鎖死函式存在、
+    五參數簽名、軸判別 `|dX|>|dY|`（防退化回只判水平）、threshold 由參數傳入（不寫死 50）、
+    left/right 方向字串皆存在。
+    """
+
+    def test_swipe_js_exists(self):
+        assert SWIPE_JS.exists(), f"swipe.js 不存在：{SWIPE_JS}"
+
+    def test_detect_swipe_signature(self):
+        """export function detectSwipe 五參數簽名存在"""
+        js = SWIPE_JS.read_text(encoding="utf-8")
+        pattern = re.compile(
+            r"export\s+function\s+detectSwipe\s*\(\s*"
+            r"startX\s*,\s*startY\s*,\s*endX\s*,\s*endY\s*,\s*threshold\s*\)"
+        )
+        assert pattern.search(js), \
+            "swipe.js 缺少 export function detectSwipe(startX, startY, endX, endY, threshold) 簽名"
+
+    def test_axis_discrimination_present(self):
+        """軸判別式 Math.abs(dX) > Math.abs(dY) 存在（CD-2，防退化回只判水平）"""
+        js = SWIPE_JS.read_text(encoding="utf-8")
+        assert "Math.abs(dX) > Math.abs(dY)" in js, \
+            "swipe.js 缺少軸判別 'Math.abs(dX) > Math.abs(dY)'（垂直捲動會誤觸）"
+
+    def test_threshold_from_param_not_hardcoded(self):
+        """threshold 判別 Math.abs(dX) > threshold 存在，且不寫死 50"""
+        js = SWIPE_JS.read_text(encoding="utf-8")
+        assert "Math.abs(dX) > threshold" in js, \
+            "swipe.js 缺少 threshold 判別 'Math.abs(dX) > threshold'"
+        # 判別式不可寫死 50（threshold 由呼叫端傳入，CD-1）
+        assert "Math.abs(dX) > 50" not in js, \
+            "swipe.js 不可寫死 'Math.abs(dX) > 50'（threshold 須由參數傳入）"
+
+    def test_direction_strings_present(self):
+        """方向字串 'left' 與 'right' 皆存在"""
+        js = SWIPE_JS.read_text(encoding="utf-8")
+        assert "'left'" in js, "swipe.js 缺少方向字串 'left'"
+        assert "'right'" in js, "swipe.js 缺少方向字串 'right'"
+
+
 # ─── 49b-T4cd: Actress Photo Picker UI/Alpine/SSE 整合守衛 ──────────────────
 SHOWCASE_CSS_T4CD = Path(__file__).parent.parent.parent / "web" / "static" / "css" / "pages" / "showcase.css"
 
