@@ -299,6 +299,27 @@ class TestBatchEnrich:
         # router 層不應呼叫 search_jav（fill_missing 由 enrich_single 內部處理）
         mock_search.assert_not_called()
 
+    def test_batch_fill_missing_western_number_uses_stash(self, client, mocker):
+        """WEST-* fill_missing → router passes source='stash' to enrich_single."""
+        mock_enrich = mocker.patch(
+            "web.routers.scraper.enrich_single",
+            return_value=_ok_result(source_used="stash"),
+        )
+
+        response = client.post("/api/batch-enrich", json={
+            "items": [{"file_path": "/video/west.mp4", "number": "WEST-BANGBUS-20190828-DYLANN-VOX"}],
+            "mode": "fill_missing",
+        })
+
+        assert response.status_code == 200
+        assert mock_enrich.call_args.kwargs["source"] == "stash"
+
+        events = parse_sse(response.text)
+        assert any(
+            e.get("type") == "log" and "-> Stash" in e.get("message", "")
+            for e in events
+        )
+
     def test_batch_negative_cache_no_repeat_search(self, client, mocker):
         """search_jav 回 None → 負向 cache 生效，同番號第 2 筆不再打外站"""
         mock_search = mocker.patch(

@@ -101,6 +101,7 @@ export function searchStateBase() {
         // ===== T1d: File List State =====
         dragActive: false,
         isLoadingFavorite: false,
+        isLoadingFolder: false,
         searchingFileDirection: null,  // 'next' | 'prev' — for searchForFile btn spinner
         isScrapeAllProcessing: false,  // scrapeAll spinner
 
@@ -262,9 +263,10 @@ export function searchStateBase() {
         },
 
         searchAllButtonText() {
-            const searchableFiles = this.fileList.filter(f => f.number && !f.searched && !f.has_nfo);
-            const failedFiles = this.fileList.filter(f => f.number && f.searched && (!f.searchResults || f.searchResults.length === 0) && !f.has_nfo);
-            const totalWithNumber = this.fileList.filter(f => f.number).length;
+            const canSearchFile = f => (f.number || f.sceneQuery) && !f.has_nfo;
+            const searchableFiles = this.fileList.filter(f => canSearchFile(f) && !f.searched);
+            const failedFiles = this.fileList.filter(f => canSearchFile(f) && f.searched && (!f.searchResults || f.searchResults.length === 0));
+            const totalWithNumber = this.fileList.filter(f => f.number || f.sceneQuery).length;
             const batch = this.batchState;
 
             if (searchableFiles.length === 0 && failedFiles.length === 0) {
@@ -287,8 +289,9 @@ export function searchStateBase() {
             if (batch.isProcessing) {
                 return batch.isPaused ? 'bi-play-fill' : 'bi-pause-fill';
             }
-            const searchableFiles = this.fileList.filter(f => f.number && !f.searched && !f.has_nfo);
-            const failedFiles = this.fileList.filter(f => f.number && f.searched && (!f.searchResults || f.searchResults.length === 0) && !f.has_nfo);
+            const canSearchFile = f => (f.number || f.sceneQuery) && !f.has_nfo;
+            const searchableFiles = this.fileList.filter(f => canSearchFile(f) && !f.searched);
+            const failedFiles = this.fileList.filter(f => canSearchFile(f) && f.searched && (!f.searchResults || f.searchResults.length === 0));
             if (searchableFiles.length === 0 && failedFiles.length > 0) {
                 return 'bi-arrow-clockwise';
             }
@@ -296,8 +299,9 @@ export function searchStateBase() {
         },
 
         searchAllDisabled() {
-            const searchableFiles = this.fileList.filter(f => f.number && !f.searched && !f.has_nfo);
-            const failedFiles = this.fileList.filter(f => f.number && f.searched && (!f.searchResults || f.searchResults.length === 0) && !f.has_nfo);
+            const canSearchFile = f => (f.number || f.sceneQuery) && !f.has_nfo;
+            const searchableFiles = this.fileList.filter(f => canSearchFile(f) && !f.searched);
+            const failedFiles = this.fileList.filter(f => canSearchFile(f) && f.searched && (!f.searchResults || f.searchResults.length === 0));
             return searchableFiles.length === 0 && failedFiles.length === 0 && !this.batchState.isProcessing;
         },
 

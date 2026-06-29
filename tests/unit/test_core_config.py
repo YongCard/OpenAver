@@ -11,12 +11,13 @@ from pathlib import Path
 
 import core.config as core_config
 from core.config import AppConfig, load_config, save_config
+from core.scrapers.utils import CENSORED_SOURCES, SOURCE_ORDER
 
 
 # ============ helpers ============
 
 def _write_config(path: Path, data: dict) -> None:
-    path.write_text(json.dumps(data, ensure_ascii=False))
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
 
 def _read_config(path: Path) -> dict:
@@ -827,8 +828,8 @@ class TestMigrationSources:
     def _enabled_map(self, sources: list) -> dict:
         return {s["id"]: s["enabled"] for s in sources}
 
-    def test_fresh_config_gets_8_builtin_all_enabled(self, tmp_path, monkeypatch):
-        """config.json 無 sources key → load_config() 後補入 8 個 builtin 全 enabled=true
+    def test_fresh_config_gets_builtin_all_enabled(self, tmp_path, monkeypatch):
+        """config.json 無 sources key → load_config() 後補入 builtin 全 enabled=true
         （T3 後：additive migration 再追加 javlibrary manual_only，共 9 條）"""
         config_path = tmp_path / "config.json"
         _write_config(config_path, {"general": {"theme": "light"}})
@@ -839,19 +840,19 @@ class TestMigrationSources:
 
         sources = result["sources"]
         assert isinstance(sources, list)
-        # T3 後：8 builtin + 1 javlibrary manual_only（additive migration）
+        # T3 後：builtin + 1 javlibrary manual_only（additive migration）
         builtin_sources = [s for s in sources if not s.get("manual_only")]
-        assert len(builtin_sources) == 8
+        assert len(builtin_sources) == len(SOURCE_ORDER)
         assert all(s["enabled"] is True for s in builtin_sources)
         ids = [s["id"] for s in builtin_sources]
-        assert ids == ["dmm", "javbus", "jav321", "javdb", "d2pass", "heyzo", "fc2", "avsox"]
+        assert ids == SOURCE_ORDER
         # javlibrary 也存在，manual_only=True
         jl_sources = [s for s in sources if s.get("id") == "javlibrary"]
         assert len(jl_sources) == 1
         assert jl_sources[0]["manual_only"] is True
 
     def test_upgrade_preserves_existing_keys(self, tmp_path, monkeypatch):
-        """既有完整 config 但無 sources → 補 8 builtin 且所有既有 key/value 字面保留"""
+        """既有完整 config 但無 sources → 補 builtin 且所有既有 key/value 字面保留"""
         config_path = tmp_path / "config.json"
         _write_config(config_path, {
             "translate": {
@@ -881,9 +882,9 @@ class TestMigrationSources:
 
         result = load_config()
 
-        # sources 補齊（T3 後：8 builtin + 1 javlibrary manual_only = 9 條）
+        # sources 補齊（T3 後：builtin + 1 javlibrary manual_only）
         builtin_sources = [s for s in result["sources"] if not s.get("manual_only")]
-        assert len(builtin_sources) == 8
+        assert len(builtin_sources) == len(SOURCE_ORDER)
         assert all(s["enabled"] is True for s in builtin_sources)
         # 既有 key 字面保留
         assert result["general"]["theme"] == "dark"
@@ -910,15 +911,18 @@ class TestMigrationSources:
 
         result = load_config()
 
-        # T3 後：3 既有 + 1 javlibrary（additive migration）= 4
-        non_javlibrary = [s for s in result["sources"] if s.get("id") != "javlibrary"]
+        # T3 後：既有 + javlibrary + 新增 builtin additive migration；既有 enabled 狀態不被覆寫
+        non_javlibrary = [
+            s for s in result["sources"]
+            if s.get("id") != "javlibrary" and s.get("id") in {item["id"] for item in existing}
+        ]
         assert len(non_javlibrary) == 3
         emap = self._enabled_map(non_javlibrary)
         assert emap["javbus"] is False
         assert emap["dmm"] is True
 
     def test_uncensored_mode_conversion_disables_censored(self, tmp_path, monkeypatch):
-        """uncensored_mode_enabled=true 升級無 sources → 4 有碼 disabled，4 無碼（含 d2pass）enabled"""
+        """uncensored_mode_enabled=true 升級無 sources → 有碼 disabled，無碼（含 d2pass）enabled"""
         config_path = tmp_path / "config.json"
         _write_config(config_path, {
             "search": {"uncensored_mode_enabled": True},
@@ -929,11 +933,10 @@ class TestMigrationSources:
         result = load_config()
 
         emap = self._enabled_map(result["sources"])
-        # 4 有碼 disabled
-        assert emap["dmm"] is False
-        assert emap["javbus"] is False
-        assert emap["jav321"] is False
-        assert emap["javdb"] is False
+        # 有碼 disabled
+        for sid in CENSORED_SOURCES:
+            if sid != "javlibrary":
+                assert emap[sid] is False
         # 4 無碼 enabled（d2pass 顯式斷言：是無碼不是有碼）
         assert emap["d2pass"] is True
         assert emap["heyzo"] is True
@@ -956,14 +959,16 @@ class TestMigrationSources:
 
         result = load_config()
 
-        # T3 後：1 既有 dmm + 1 javlibrary（additive migration）= 2
-        non_javlibrary = [s for s in result["sources"] if s.get("id") != "javlibrary"]
+        # T3 後：既有 dmm + additive sources；既有 dmm 不受 uncensored legacy flag 影響
+        non_javlibrary = [
+            s for s in result["sources"]
+            if s.get("id") != "javlibrary" and s.get("id") in {item["id"] for item in existing}
+        ]
         assert len(non_javlibrary) == 1
         assert non_javlibrary[0]["enabled"] is True
 
     def test_corrupt_sources_string_fallback(self, tmp_path, monkeypatch):
-        """sources 是字串（損壞）→ fallback 8 builtin 全 enabled + sources_bak 持有原值
-        （T3 後：additive migration 再追加 javlibrary，共 9 條）"""
+        """sources 是字串（損壞）→ fallback builtin 全 enabled + sources_bak 持有原值"""
         config_path = tmp_path / "config.json"
         _write_config(config_path, {"sources": "broken"})
         monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
@@ -972,14 +977,14 @@ class TestMigrationSources:
         result = load_config()
 
         assert isinstance(result["sources"], list)
-        # T3 後：8 builtin（fallback）+ 1 javlibrary（additive migration）= 9
+        # T3 後：builtin（fallback）+ 1 javlibrary（additive migration）
         builtin_sources = [s for s in result["sources"] if not s.get("manual_only")]
-        assert len(builtin_sources) == 8
+        assert len(builtin_sources) == len(SOURCE_ORDER)
         assert all(s["enabled"] is True for s in builtin_sources)
         assert result["sources_bak"] == "broken"
 
     def test_corrupt_sources_missing_id_fallback(self, tmp_path, monkeypatch, caplog):
-        """sources 元素缺 id（損壞）→ fallback 8 builtin + sources_bak + warning"""
+        """sources 元素缺 id（損壞）→ fallback builtin + sources_bak + warning"""
         config_path = tmp_path / "config.json"
         bad = [{"no_id": 1, "enabled": True}]
         _write_config(config_path, {"sources": bad})
@@ -990,9 +995,9 @@ class TestMigrationSources:
         with caplog.at_level(logging.WARNING):
             result = load_config()
 
-        # T3 後：8 builtin（fallback）+ 1 javlibrary（additive migration）= 9
+        # T3 後：builtin（fallback）+ 1 javlibrary（additive migration）
         builtin_sources = [s for s in result["sources"] if not s.get("manual_only")]
-        assert len(builtin_sources) == 8
+        assert len(builtin_sources) == len(SOURCE_ORDER)
         assert all(s["enabled"] is True for s in builtin_sources)
         assert result["sources_bak"] == bad
 
@@ -1009,9 +1014,9 @@ class TestMigrationSources:
         # config.json 已被 save_config 寫回合法 sources + sources_bak
 
         second = load_config()
-        # T3 後：8 builtin + 1 javlibrary（additive migration）= 9；javlibrary 冪等不重複
+        # T3 後：builtin + 1 javlibrary（additive migration）；javlibrary 冪等不重複
         builtin_sources = [s for s in second["sources"] if not s.get("manual_only")]
-        assert len(builtin_sources) == 8
+        assert len(builtin_sources) == len(SOURCE_ORDER)
         assert second["sources_bak"] == "broken"  # 不被合法 sources 清掉
 
 
@@ -1028,7 +1033,7 @@ class TestConfigDefaultSchemaParity:
     """
 
     DEFAULT_PATH = Path(__file__).resolve().parents[2] / "web" / "config.default.json"
-    CENSORED = {"dmm", "javbus", "jav321", "javdb"}
+    CENSORED = set(CENSORED_SOURCES) - {"javlibrary"}
 
     def _default(self) -> dict:
         return json.loads(self.DEFAULT_PATH.read_text(encoding="utf-8"))
@@ -1409,3 +1414,64 @@ class TestMigrationCloseAction:
         # migration must have persisted the corrected value
         written = _read_config(config_path)
         assert written.get("general", {}).get("close_action") == "ask"
+
+
+class TestNasConfigMigration:
+    def test_nas_added_when_missing(self, tmp_path, monkeypatch):
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {"gallery": {"directories": []}})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert result["nas"]["shares"] == []
+
+    def test_nas_password_is_stripped_on_load(self, tmp_path, monkeypatch):
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {
+            "nas": {
+                "shares": [{
+                    "id": "n1",
+                    "host": "nas",
+                    "share": "Database",
+                    "password": "secret",
+                }]
+            }
+        })
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert "password" not in result["nas"]["shares"][0]
+        written = _read_config(config_path)
+        assert "password" not in written["nas"]["shares"][0]
+
+
+class TestLibraryCategoriesConfigMigration:
+    def test_library_categories_added_when_missing(self, tmp_path, monkeypatch):
+        config_path = tmp_path / "config.json"
+        _write_config(config_path, {"gallery": {"directories": []}})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert result["library_categories"] == {
+            "enabled": True,
+            "jav": "日韩",
+            "western": "欧美",
+            "auto_create": True,
+        }
+
+    def test_category_scan_directory_folds_to_parent_on_load(self, tmp_path, monkeypatch):
+        config_path = tmp_path / "config.json"
+        root = tmp_path / "3.14"
+        _write_config(config_path, {"gallery": {"directories": [str(root / "欧美"), str(root / "日韩")]}})
+        monkeypatch.setattr(core_config, "CONFIG_PATH", config_path)
+        monkeypatch.setattr(core_config, "CONFIG_DEFAULT_PATH", tmp_path / "config.default.json")
+
+        result = load_config()
+
+        assert result["gallery"]["directories"] == [str(root)]

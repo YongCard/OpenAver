@@ -7,6 +7,7 @@
 - GET  /api/search/stream            — 搜尋 JAV 資訊（SSE 串流，即時回報狀態與結果）
 - GET  /api/search/sources           — 取得可用的搜尋來源列表
 - GET  /api/search/favorite-files    — 取得我的最愛資料夾的影片檔案列表
+- POST /api/search/folder-files      — 遞迴取得臨時刮削資料夾的影片檔案列表
 - POST /api/search/filter-files      — 過濾檔案列表（移除非影片或過小檔案）
 - GET  /api/search/local-status      — 批次查詢番號在本地庫的存在狀態
 """
@@ -66,6 +67,7 @@ _ALLOWED_IMAGE_EXACT_HOSTS = {
     "awsimgsrc.dmm.co.jp",
     "www.dmm.co.jp",
     "javdb.com",
+    "kingdom.vc",
     "cdn.jsdelivr.net",
     "upload.wikimedia.org",
     # Graphis / Minnano 完整變體（對齊 core/actress_photo.py PHOTO_HOST_WHITELIST）
@@ -688,10 +690,12 @@ async def get_sources() -> dict:
         "javbus": "最常用的來源（封面無浮水印）",
         "jav321": "備用來源（封面完整）",
         "javdb": "資料完整（有片商）",
+        "kingdom": "KingDom 官方來源（KIDM 專用）",
         "d2pass": "1Pondo / Caribbeancom / 10musume",
         "heyzo": "HEYZO 專用",
         "fc2": "FC2 專用",
         "avsox": "無碼片源",
+        "stash": "歐美影片（本機 Stash）",
     }
 
     # 動態生成 sources 列表
@@ -702,6 +706,13 @@ async def get_sources() -> dict:
             "name": SOURCE_NAMES.get(source_id, source_id),
             "description": source_descriptions.get(source_id, "")
         })
+    sources.append({
+        "id": "stash",
+        "name": SOURCE_NAMES.get("stash", "Stash"),
+        "description": source_descriptions["stash"],
+        "manual_only": True,
+        "media_type": "western_scene",
+    })
 
     return {
         "sources": sources,
@@ -793,6 +804,103 @@ def get_favorite_files() -> dict:
         "folder": folder,
         "total": len(files)
     }
+
+
+def _folder_files_sync(folder: str, recursive: bool = True) -> dict:
+    """列出使用者選取的臨時刮削資料夾內的影片檔案。"""
+    from core.config import load_config
+    from core.path_utils import normalize_path
+
+    if not folder or not str(folder).strip():
+        return {
+            "success": False,
+            "code": "folder_required",
+            "message": "請選擇資料夾",
+            "folder": folder or "",
+        }
+
+    try:
+        normalized = normalize_path(str(folder))
+    except ValueError:
+        return {
+            "success": False,
+            "code": "invalid_folder",
+            "message": "資料夾路徑無效",
+            "folder": folder,
+        }
+
+    folder_path = Path(normalized).expanduser()
+    if not folder_path.exists():
+        return {
+            "success": False,
+            "code": "folder_not_found",
+            "message": f"資料夾不存在：{folder}",
+            "folder": folder,
+        }
+    if not folder_path.is_dir():
+        return {
+            "success": False,
+            "code": "not_a_folder",
+            "message": "選取的路徑不是資料夾",
+            "folder": folder,
+        }
+
+    config = load_config()
+    video_exts = get_video_extensions(config)
+    min_size_mb = config.get("gallery", {}).get("min_size_mb", 0)
+    min_size_bytes = min_size_mb * 1024 * 1024
+
+    files: list[str] = []
+    iterator = folder_path.rglob("*") if recursive else folder_path.iterdir()
+    try:
+        for item in iterator:
+            try:
+                if not item.is_file():
+                    continue
+                suffix = item.suffix.lower()
+                if suffix not in video_exts:
+                    continue
+                if min_size_bytes > 0 and suffix not in ZERO_SIZE_EXTENSIONS and item.stat().st_size < min_size_bytes:
+                    continue
+                files.append(str(item))
+            except (OSError, PermissionError):
+                continue
+    except PermissionError:
+        return {
+            "success": False,
+            "code": "permission_denied",
+            "message": "無權限讀取資料夾",
+            "folder": str(folder_path),
+        }
+
+    files = sorted(files, key=lambda value: value.casefold())
+    if not files:
+        return {
+            "success": False,
+            "code": "no_video_files",
+            "message": "資料夾內無有效影片檔案",
+            "folder": str(folder_path),
+            "files": [],
+            "count": 0,
+        }
+
+    return {
+        "success": True,
+        "folder": str(folder_path),
+        "files": files,
+        "count": len(files),
+    }
+
+
+@router.post("/search/folder-files")
+async def folder_files(request: Request) -> dict:
+    """遞迴列出臨時刮削資料夾內的有效影片檔案。"""
+    data = await request.json()
+    return await asyncio.to_thread(
+        _folder_files_sync,
+        data.get("folder", ""),
+        bool(data.get("recursive", True)),
+    )
 
 
 def _filter_files_sync(paths: list) -> dict:

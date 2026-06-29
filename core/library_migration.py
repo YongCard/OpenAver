@@ -33,9 +33,9 @@ logger = get_logger(__name__)
 SIDECAR_EXTENSIONS = {
     ".nfo", ".jpg", ".jpeg", ".png", ".webp", ".srt", ".ass", ".ssa", ".vtt", ".sub", ".idx",
 }
-MANUAL_REVIEW_FOLDER = "#待人工整理"
-PROTECTED_FOLDER_NAMES = {"#待人工整理", ".openaver-migration"}
-LEGACY_MANUAL_FOLDER_NAMES = {"未整理"}
+MANUAL_REVIEW_FOLDER = "#待整理"
+PROTECTED_FOLDER_NAMES = {"#待整理", ".openaver-migration"}
+LEGACY_MANUAL_FOLDER_NAMES = {"未整理", "#待人工整理", "待整理"}
 IGNORED_ACTOR_FOLDERS = {
     *PROTECTED_FOLDER_NAMES,
     *LEGACY_MANUAL_FOLDER_NAMES,
@@ -47,6 +47,7 @@ PART_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9])(cd|dvd|disc|disk|part|pt)[-_.\s]*([1-9A-Z])(?=[-_.\s\[\]()]|$)"
 )
 VERSION_RE = re.compile(r"(?i)(?<![A-Za-z0-9])(uc|uncensored|restored|vr|u|c)(?=[-_.\s\[\]()]|$)")
+NFO_NUMBER_RE = re.compile(r"(?i)^[A-Z]{2,8}-[A-Z0-9]{1,8}$")
 
 
 class MigrationError(RuntimeError):
@@ -165,14 +166,14 @@ def _parse_nfo(path: Path | None) -> dict[str, Any]:
         return result
     for element in root.findall(".//uniqueid"):
         if (element.attrib.get("type") or "").lower() in {"num", "number", "id"}:
-            if number := extract_number(element.text or ""):
+            if number := _extract_metadata_number(element.text or ""):
                 result["number"] = number
                 break
     for tag in ("numid", "id", "number", "sorttitle", "title"):
         if result["number"]:
             break
         element = root.find(tag)
-        number = extract_number(element.text or "") if element is not None else None
+        number = _extract_metadata_number(element.text or "") if element is not None else None
         if number:
             result["number"] = number
             break
@@ -185,6 +186,18 @@ def _parse_nfo(path: Path | None) -> dict[str, Any]:
         if (name := actor.find("name")) is not None and name.text and name.text.strip()
     ]
     return result
+
+
+def _extract_metadata_number(value: str | None) -> str | None:
+    """Read a normalized number from trusted metadata without scraper minimum-length loss."""
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    number = extract_number(raw)
+    if number:
+        return number
+    cleaned = raw.strip("[](){} \t\r\n")
+    return cleaned.upper() if NFO_NUMBER_RE.fullmatch(cleaned) else None
 
 
 def _choose_nfo(video: Path, videos_in_dir: list[Path]) -> Path | None:
@@ -251,7 +264,7 @@ def _detect_part(stem: str) -> str:
     tail = re.search(r"(?i)(?:^|[-_.\s])([AB])$", stem)
     if tail:
         return f"-CD{1 if tail.group(1).upper() == 'A' else 2}"
-    trailing = re.search(r"(?:^|[-_.\s])([1-9])$", stem)
+    trailing = re.search(r"[-_.]([1-9])$", stem)
     return f"-CD{trailing.group(1)}" if trailing else ""
 
 
@@ -263,19 +276,44 @@ def _detect_version(stem: str) -> str:
     return {"UNCENSORED": "-U", "RESTORED": "-Restored"}.get(token, f"-{token}")
 
 
+def _is_primary_part(part_suffix: str) -> bool:
+    """Return true for the first file in a multipart stack."""
+    return part_suffix in {"-CD1", "-Part1"}
+
+
+def _video_sidecar_stems(video: Path) -> list[str]:
+    """Return acceptable sidecar stems for a video, including partless stems."""
+    stems = [video.stem]
+    if part_match := re.search(r"(?i)([-_.\s](?:cd|dvd|disc|disk|part|pt)[-_.\s]*[1-9A-Z])$", video.stem):
+        stems.append(video.stem[: part_match.start()].rstrip(" -_."))
+    elif tail_match := re.search(r"(?i)([-_.][1-9A-Z])$", video.stem):
+        stems.append(video.stem[: tail_match.start()].rstrip(" -_."))
+    return [stem for index, stem in enumerate(stems) if stem and stem not in stems[:index]]
+
+
 def _sidecars_for_video(video: Path, videos_in_dir: list[Path], number: str | None) -> list[Path]:
     matches: set[Path] = set()
+    video_stems = [stem.lower() for stem in _video_sidecar_stems(video)]
     for path in video.parent.iterdir():
         if not path.is_file() or path.suffix.lower() not in SIDECAR_EXTENSIONS:
             continue
-        if path.stem.lower() == video.stem.lower() or path.name.lower().startswith(f"{video.stem.lower()}-"):
+        lowered_name = path.name.lower()
+        lowered_stem = path.stem.lower()
+        if any(
+            lowered_stem == stem or lowered_name.startswith(f"{stem}-")
+            for stem in video_stems
+        ):
             matches.add(path)
     if len(videos_in_dir) == 1:
         matches.update(
             path for path in video.parent.iterdir()
             if path.is_file() and path.suffix.lower() in SIDECAR_EXTENSIONS
         )
-    elif number and all(extract_number(item.stem) == number for item in videos_in_dir):
+    elif (
+        number
+        and not _detect_part(video.stem)
+        and all(extract_number(item.stem) == number for item in videos_in_dir)
+    ):
         if video == sorted(videos_in_dir)[0]:
             matches.update(
                 path for path in video.parent.iterdir()
@@ -285,8 +323,9 @@ def _sidecars_for_video(video: Path, videos_in_dir: list[Path], number: str | No
 
 
 def _sidecar_target(source: Path, old_video: Path, new_video: Path) -> Path:
-    if source.name.lower().startswith(old_video.stem.lower()):
-        return new_video.parent / f"{new_video.stem}{source.name[len(old_video.stem):]}"
+    for stem in sorted(_video_sidecar_stems(old_video), key=len, reverse=True):
+        if source.name.lower().startswith(stem.lower()):
+            return new_video.parent / f"{new_video.stem}{source.name[len(stem):]}"
     return new_video.parent / source.name
 
 
@@ -396,7 +435,7 @@ def plan_library(
     if not 120 <= max_path <= 1024:
         raise MigrationError("invalid_max_path")
     unknown_actor = _sanitize_component(unknown_actor, "未知女優", 80)
-    manual_folder = _sanitize_component(manual_folder, "#待人工整理", 80)
+    manual_folder = _sanitize_component(manual_folder, MANUAL_REVIEW_FOLDER, 80)
     rows = _load_db_rows(db_path or get_db_path())
     videos = [_resolve_path(item["path"], must_exist=True) for item in inventory["videos"]]
     if any(not _is_under(video, root) for video in videos):
@@ -410,7 +449,12 @@ def plan_library(
         row = rows.get(os.path.normcase(os.path.abspath(video))) or {}
         nfo_path = _choose_nfo(video, by_dir[video.parent])
         nfo = _parse_nfo(nfo_path)
-        number = extract_number(video.parent.name) or nfo["number"] or row.get("number") or extract_number(video.stem)
+        number = (
+            extract_number(video.parent.name)
+            or nfo["number"]
+            or row.get("number")
+            or extract_number(video.stem)
+        )
         actors = nfo["actors"] or _db_actors(row)
         metadata.append({
             "video": video,
@@ -528,6 +572,9 @@ def _build_sidecar_actions(
     number: str | None,
     claimed: set[str],
 ) -> list[dict[str, Any]]:
+    part_suffix = _detect_part(video.stem)
+    if part_suffix and not _is_primary_part(part_suffix):
+        return []
     actions = []
     for source in _sidecars_for_video(video, videos_in_dir, number):
         key = os.path.normcase(str(source.resolve()))

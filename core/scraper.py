@@ -19,10 +19,13 @@ from core.scrapers import (
     JavBusScraper, JAV321Scraper, JavDBScraper,
     FC2Scraper, AVSOXScraper,
     D2PassScraper, HEYZOScraper, DMMScraper,
+    KingDomScraper,
+    StashScraper,
     JavLibraryScraper,          # T3 新增
     Video, ScraperConfig, BaseScraper
 )
 from core.scrapers.utils import extract_number as _new_extract_number, FUZZY_SEARCH_SOURCES
+from core.scrapers.kingdom import is_kingdom_number
 from core.maker_mapping import get_maker_by_prefix
 from core.source_merger import merge_results
 from core.source_config import validate_source_id
@@ -211,8 +214,35 @@ def search_jav(number: str, source: str = 'auto', proxy_url: str = '', javbus_la
     """
     all_data: Dict[str, Video] = {}
 
+    if source == 'stash':
+        if not validate_source_id(source):
+            return None
+        video = StashScraper().search(number)
+        if not video:
+            logger.info("[Search] %s 無 Stash 結果", number)
+            return None
+        result = video.to_legacy_dict()
+        result['_source'] = video.source
+        result['_summary'] = video.summary
+        result['_rating'] = video.rating
+        return result
+
     # 標準化番號
     number = normalize_number(number)
+
+    def _exact_number_matches(video: Video, scraper_name: str) -> bool:
+        actual = normalize_number(video.number or "")
+        expected = normalize_number(number)
+        if actual == expected:
+            return True
+        logger.warning(
+            "[Search] %s returned mismatched number for exact request: requested=%s returned=%s source=%s",
+            scraper_name,
+            expected,
+            actual,
+            video.source,
+        )
+        return False
 
     # 來源 id 驗證（TASK-61a-3）：改用 validate_source_id() 取代舊 VALID_SOURCES set。
     # 'auto' 與 8 個 builtin id 通過；其餘 → return None（保留「未知來源不 raise」契約）。
@@ -239,11 +269,13 @@ def search_jav(number: str, source: str = 'auto', proxy_url: str = '', javbus_la
         'javbus': lambda: [JavBusScraper(lang=_javbus_lang)],
         'jav321': lambda: [JAV321Scraper()],
         'javdb': lambda: [JavDBScraper()],
+        'kingdom': lambda: [KingDomScraper()],
         'd2pass': lambda: [D2PassScraper()],
         'heyzo': lambda: [HEYZOScraper()],
         'fc2': lambda: [FC2Scraper()],
         'avsox': lambda: [AVSOXScraper()],
         'javlibrary': lambda: [JavLibraryScraper()],
+        'stash': lambda: [StashScraper()],
     }
 
     # 63c：動態注入 metatube provider（CD-63c-2）
@@ -274,6 +306,8 @@ def search_jav(number: str, source: str = 'auto', proxy_url: str = '', javbus_la
         metatube_shims = []  # list of (sid, shim) for parallel dispatch
 
         for sid in enabled_sids:
+            if sid == 'kingdom' and not is_kingdom_number(number):
+                continue
             factory = source_to_scraper.get(sid)
             if not factory:
                 continue
@@ -285,7 +319,7 @@ def search_jav(number: str, source: str = 'auto', proxy_url: str = '', javbus_la
                         scraper_name = scraper.__class__.__name__
                         logger.debug(f"[Search] 嘗試 {scraper_name}...")
                         v = scraper.search(number)
-                        if v:
+                        if v and _exact_number_matches(v, scraper_name):
                             results_by_source[v.source] = v
                             logger.debug(f"[Search] {scraper_name} 找到結果")
                     except Exception as e:
@@ -299,7 +333,7 @@ def search_jav(number: str, source: str = 'auto', proxy_url: str = '', javbus_la
                 for _sid, fut in futs:  # 按 user order 收（submit 順序 = user order；非 as_completed）
                     try:
                         v = fut.result()
-                        if v:
+                        if v and _exact_number_matches(v, _sid):
                             results_by_source[v.source] = v
                     except Exception:  # noqa: S112 — intentional skip-on-error in parallel scraper loop; individual source failure should not abort others
                         continue
@@ -322,7 +356,7 @@ def search_jav(number: str, source: str = 'auto', proxy_url: str = '', javbus_la
                 scraper_name = scraper.__class__.__name__
                 logger.debug(f"[Search] 嘗試 {scraper_name}...")
                 video = scraper.search(number)
-                if video:
+                if video and _exact_number_matches(video, scraper_name):
                     all_data[video.source] = video
                     logger.debug(f"[Search] {scraper_name} 找到結果")
             except Exception as e:

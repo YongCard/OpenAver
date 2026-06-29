@@ -69,6 +69,39 @@
     gap: 0.5rem;
 }
 
+.content-filter-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--stroke-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+}
+
+.content-filter-btn {
+    min-width: 42px;
+    height: 28px;
+    padding: 0 0.55rem;
+    border: 0;
+    border-radius: calc(var(--radius-md) - 2px);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.content-filter-btn.active {
+    background: var(--color-primary);
+    color: var(--text-on-primary);
+}
+
+.content-filter-btn:not(.active):hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+}
+
 /* (M3c mode-switcher 已改為 dropdown) */
 
 /* ==================== Toolbar Dropdown (排序/每頁) ==================== */
@@ -1147,64 +1180,60 @@
     text-decoration: none;
 }
 
-/* 62b-1: 進階重刮 ⚙ inline 細鈕（lb-details 番號旁）
- * 與 .lb-link metadata 同層的 inline icon button，非 cover-actions 玻璃圓鈕、非 999px pill。
- * 視覺對齊 .lb-details muted 文字（color inherit muted），hover → accent；ui-conventions §6 token 不硬編碼。 */
-.lightbox-metadata .lb-rescrape-gear {
+/* 62b-1: 更正刮削入口，必須比舊的弱齒輪更可見。 */
+.lightbox-metadata .lb-rescrape-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.25rem;
-    height: 1.25rem;
-    margin-left: 4px;             /* micro spacing（§4 micro 子網格）*/
-    padding: 0;
-    border: 1px solid transparent;
-    border-radius: var(--fluent-radius-md);   /* 互動小元件 4px（§1）*/
-    background: transparent;
-    color: var(--text-muted);     /* 與番號 muted 文字同色，融入 metadata 行 */
-    font-size: 0.8125rem;         /* icon optical 對齊 0.75rem 番號文字 */
+    gap: 4px;
+    min-height: 1.5rem;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border: 1px solid var(--stroke-subtle);
+    border-radius: var(--fluent-radius-md);
+    background: var(--surface-1);
+    color: var(--accent);
+    font-size: 0.75rem;
     line-height: 1;
     cursor: pointer;
     vertical-align: baseline;
     transition: color var(--fluent-duration-fast) var(--fluent-ease-standard),
                 background var(--fluent-duration-fast) var(--fluent-ease-standard),
-                border-color var(--fluent-duration-fast) var(--fluent-ease-standard);
+                border-color var(--fluent-duration-fast) var(--fluent-ease-standard),
+                box-shadow var(--fluent-duration-fast) var(--fluent-ease-standard);
 }
 
-.lightbox-metadata .lb-rescrape-gear:hover {
+.lightbox-metadata .lb-rescrape-action:hover {
     color: var(--accent);
-    background: var(--surface-1);
-    border-color: var(--stroke-subtle);
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
-.lightbox-metadata .lb-rescrape-gear:active {
+.lightbox-metadata .lb-rescrape-action:active {
     color: var(--accent);
-    background: var(--surface-1);
+    background: var(--surface-2);
 }
 
-.lightbox-metadata .lb-rescrape-gear:focus-visible {
+.lightbox-metadata .lb-rescrape-action:focus-visible {
     outline: 2px solid var(--accent);
-    outline-offset: 2px;          /* stroke / focus 級（§4）*/
+    outline-offset: 2px;
     color: var(--accent);
-    box-shadow: 0 0 0 4px var(--glow-subtle);   /* §6 #5 focus 4px glow */
+    box-shadow: 0 0 0 4px var(--glow-subtle);
 }
 
-/* 71b-T1: 單筆刪除常駐 muted icon（info panel，.lb-details size 行末，margin-left:auto 靠右）。
- * 從 hover overlay .cover-actions 搬進 metadata 行末，與 .lb-rescrape-gear 同尺寸同語言，
- * 鏡像其 muted 模式，差別只在 hover → danger（不是 accent）。 */
-.lightbox-metadata .lb-delete-btn {
+/* 刪除入口拆分：DB-only 是弱操作，物理刪除是唯一 danger 操作。 */
+.lightbox-metadata .lb-db-remove-btn,
+.lightbox-metadata .lb-folder-delete-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.25rem;                                   /* 與 .lb-rescrape-gear 同尺寸，融入 metadata 行 */
-    height: 1.25rem;
-    margin-left: auto;                                /* 推到 .lb-details flex 行末（靠右）*/
-    padding: 0;
+    gap: 4px;
+    min-height: 1.5rem;
+    padding: 2px 8px;
     border: 1px solid transparent;
-    border-radius: var(--fluent-radius-md);           /* 互動小元件 4px（§1）*/
+    border-radius: var(--fluent-radius-md);
     background: transparent;
-    color: var(--text-muted);                         /* subtle 常駐態 */
-    font-size: 0.8125rem;                             /* icon optical 對齊 0.75rem metadata 文字 */
+    font-size: 0.75rem;
     line-height: 1;
     cursor: pointer;
     transition: color var(--fluent-duration-fast) var(--fluent-ease-standard),
@@ -1212,22 +1241,50 @@
                 border-color var(--fluent-duration-fast) var(--fluent-ease-standard);
 }
 
-.lightbox-metadata .lb-delete-btn:hover {
-    color: var(--color-error-hover);                  /* hover → danger 紅（非 accent）*/
+.lightbox-metadata .lb-db-remove-btn {
+    margin-left: auto;
+    color: var(--text-muted);
+}
+
+.lightbox-metadata .lb-db-remove-btn:hover {
+    color: var(--text);
     background: var(--surface-1);
     border-color: var(--stroke-subtle);
 }
 
-.lightbox-metadata .lb-delete-btn:active {
-    color: var(--color-error-hover);
+.lightbox-metadata .lb-db-remove-btn:active {
+    color: var(--text);
     background: var(--surface-1);
 }
 
-.lightbox-metadata .lb-delete-btn:focus-visible {
-    outline: 2px solid var(--color-error-hover);
-    outline-offset: 2px;                              /* stroke / focus 級（§4）*/
+.lightbox-metadata .lb-db-remove-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    color: var(--text);
+    box-shadow: 0 0 0 4px var(--glow-subtle);
+}
+
+.lightbox-metadata .lb-folder-delete-btn {
     color: var(--color-error-hover);
-    box-shadow: 0 0 0 4px var(--glow-subtle);         /* §6 #5 focus 4px glow */
+    border-color: var(--color-error-hover);
+    background: transparent;
+}
+
+.lightbox-metadata .lb-folder-delete-btn:hover {
+    color: var(--surface-0);
+    background: var(--color-error-hover);
+    border-color: var(--color-error-hover);
+}
+
+.lightbox-metadata .lb-folder-delete-btn:active {
+    color: var(--surface-0);
+    background: var(--color-error-hover);
+}
+
+.lightbox-metadata .lb-folder-delete-btn:focus-visible {
+    outline: 2px solid var(--color-error-hover);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--glow-subtle);
 }
 
 /* Responsive: 小螢幕 */
@@ -1784,7 +1841,6 @@ body.sidebar-collapsed .showcase-footer {
     align-items: center;
     gap: 0.5rem;
     justify-content: center;
-    pointer-events: none; /* 不擋 flex 兩側點擊 */
 }
 
 .footer-center .hint-text {
@@ -1792,6 +1848,36 @@ body.sidebar-collapsed .showcase-footer {
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
+}
+
+.shortcut-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.shortcut-action:hover:not(:disabled) {
+    color: var(--accent);
+}
+
+.shortcut-action:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.shortcut-action--icon {
+    gap: 0;
+}
+
+.shortcut-separator {
+    color: var(--text-muted);
+    user-select: none;
 }
 
 /* Keyboard Key Styling — 對齊原 .shortcut-hint kbd 視覺 */

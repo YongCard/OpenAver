@@ -8,8 +8,6 @@
 - is_prefix_only: regex ``^[A-Z]{2,6}$``
 - 三者都沒有 null guard (.strip() on None raises AttributeError)
 """
-from unittest.mock import patch
-
 import pytest
 
 import core.scraper as scraper_mod
@@ -19,6 +17,7 @@ from core.scraper import (
     is_prefix_only,
     search_jav,
 )
+from core.scrapers.models import Video
 
 
 class TestIsNumberFormat:
@@ -142,7 +141,7 @@ class TestIsPrefixOnly:
 # spies recording instantiation and stub .search() so nothing real runs.
 _SCRAPER_ATTRS = [
     'DMMScraper', 'JavBusScraper', 'JAV321Scraper', 'JavDBScraper',
-    'D2PassScraper', 'HEYZOScraper', 'FC2Scraper', 'AVSOXScraper',
+    'KingDomScraper', 'D2PassScraper', 'HEYZOScraper', 'FC2Scraper', 'AVSOXScraper',
 ]
 
 # id -> scraper class attr name in core.scraper
@@ -151,6 +150,7 @@ _ID_TO_ATTR = {
     'javbus': 'JavBusScraper',
     'jav321': 'JAV321Scraper',
     'javdb': 'JavDBScraper',
+    'kingdom': 'KingDomScraper',
     'd2pass': 'D2PassScraper',
     'heyzo': 'HEYZOScraper',
     'fc2': 'FC2Scraper',
@@ -216,6 +216,30 @@ class TestValidateSourceIntegration:
             if attr != 'JavBusScraper':
                 assert constructed[attr] == 0
 
+    def test_kingdom_explicit_source_accepted(self, monkeypatch):
+        constructed = _install_scraper_spies(monkeypatch)
+        result = search_jav("KIDM-1174", source="kingdom")
+        assert result is None
+        assert constructed['KingDomScraper'] == 1
+
+    def test_stash_explicit_source_accepted_without_jav_normalize(self, monkeypatch):
+        calls = []
+
+        class _StashStub:
+            def search(self, query):
+                calls.append(query)
+                return Video(
+                    number="WEST-BANGBUS-20190828-DYLANN-VOX",
+                    title="Dylann Vox",
+                    source="stash",
+                )
+
+        monkeypatch.setattr(scraper_mod, "StashScraper", lambda: _StashStub())
+        result = search_jav("bangbus.19.08.28.dylann.vox.mp4", source="stash")
+        assert result["number"] == "WEST-BANGBUS-20190828-DYLANN-VOX"
+        assert result["_source"] == "stash"
+        assert calls == ["bangbus.19.08.28.dylann.vox.mp4"]
+
 
 class TestAutoFanOutReadsEnabledIds:
     """auto path fans out over get_enabled_source_ids()."""
@@ -232,6 +256,24 @@ class TestAutoFanOutReadsEnabledIds:
         for attr in _SCRAPER_ATTRS:
             if attr not in ('JavBusScraper', 'JavDBScraper'):
                 assert constructed[attr] == 0
+
+    def test_auto_skips_kingdom_for_non_kingdom_number(self, monkeypatch):
+        constructed = _install_scraper_spies(monkeypatch)
+        monkeypatch.setattr(
+            scraper_mod, 'get_enabled_source_ids', lambda availability_map=None: ['kingdom', 'javbus']
+        )
+        search_jav("SONE-205", source="auto")
+        assert constructed['KingDomScraper'] == 0
+        assert constructed['JavBusScraper'] == 1
+
+    def test_auto_constructs_kingdom_for_kingdom_number(self, monkeypatch):
+        constructed = _install_scraper_spies(monkeypatch)
+        monkeypatch.setattr(
+            scraper_mod, 'get_enabled_source_ids', lambda availability_map=None: ['kingdom', 'javbus']
+        )
+        search_jav("KIDM-1174", source="auto")
+        assert constructed['KingDomScraper'] == 1
+        assert constructed['JavBusScraper'] == 1
 
     def test_auto_empty_enabled_list_returns_none(self, monkeypatch):
         constructed = _install_scraper_spies(monkeypatch)
@@ -319,3 +361,39 @@ class TestTokyoHotSearchJavIntegration:
         assert received_numbers[0] == 'N0762', (
             f"expected 'N0762' but scraper received {received_numbers[0]!r}"
         )
+
+
+class TestExactNumberMismatchGuard:
+    def test_explicit_source_mismatch_returns_none(self, monkeypatch):
+        class _MismatchJavBus:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def normalize_number(self, number):
+                return str(number).upper()
+
+            def search(self, _number):
+                return Video(number="SPA-001A", title="Wrong", source="javbus")
+
+        monkeypatch.setattr(scraper_mod, 'JavBusScraper', _MismatchJavBus)
+
+        result = search_jav("SPS-005", source="javbus")
+
+        assert result is None
+
+    def test_explicit_source_match_is_kept(self, monkeypatch):
+        class _MatchJavBus:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def normalize_number(self, number):
+                return str(number).upper()
+
+            def search(self, _number):
+                return Video(number="SPS-005", title="Right", source="javbus")
+
+        monkeypatch.setattr(scraper_mod, 'JavBusScraper', _MatchJavBus)
+
+        result = search_jav("SPS-005", source="javbus")
+
+        assert result["number"] == "SPS-005"

@@ -929,9 +929,10 @@ def organize_file(
                 if part:
                     path_parts.append(part)
 
-        target_dir = os.path.join(original_dir, *path_parts) if path_parts else original_dir
+        target_base_dir = config.get('_target_base_dir') or original_dir
+        target_dir = os.path.join(target_base_dir, *path_parts) if path_parts else target_base_dir
     else:
-        target_dir = original_dir
+        target_dir = config.get('_target_base_dir') or original_dir
 
     # 計算新檔名（suffix 保護：先截斷 base，再接回 suffix）
     filename_template = config.get('filename_format', '{num} {title}')

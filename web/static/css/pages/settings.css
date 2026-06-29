@@ -600,6 +600,86 @@
     font-size: 1rem;
 }
 
+#settings-components .nas-share-list {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.7rem;
+}
+
+#settings-components .nas-share-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.65rem 0.75rem;
+    background: color-mix(in oklch, var(--surface-1) 82%, transparent);
+    border: 1px solid var(--stroke-subtle);
+    border-radius: var(--fluent-radius-md);
+}
+
+#settings-components .nas-share-row.is-editing {
+    border-color: color-mix(in oklch, var(--color-primary) 50%, var(--stroke-subtle));
+    background: color-mix(in oklch, var(--color-primary) 8%, var(--surface-1));
+}
+
+#settings-components .nas-share-row > i {
+    color: var(--text-secondary);
+}
+
+#settings-components .nas-share-main {
+    min-width: 0;
+}
+
+#settings-components .nas-share-title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.18rem;
+    font-size: 0.84rem;
+}
+
+#settings-components .nas-share-title strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#settings-components .nas-share-state {
+    flex: 0 0 auto;
+    padding: 0.08rem 0.42rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    background: color-mix(in oklch, var(--surface-2) 80%, transparent);
+    border: 1px solid var(--stroke-subtle);
+}
+
+#settings-components .nas-share-state.is-ok {
+    color: var(--color-success);
+    background: color-mix(in oklch, var(--color-success) 10%, transparent);
+    border-color: color-mix(in oklch, var(--color-success) 30%, transparent);
+}
+
+#settings-components .nas-share-state.is-off {
+    color: var(--text-muted);
+}
+
+#settings-components .nas-share-row code {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.78rem;
+}
+
+#settings-components .nas-share-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
 /* ─── Segmented control (64e-2): 全開 | 無碼模式 capsule ─── */
 /* pill 白名單：.settings-sources-segmented（搜尋來源卡 segmented 藥丸型分段控件容器） */
 #settings-components .settings-sources-segmented {

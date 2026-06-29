@@ -559,7 +559,7 @@ class TestSetActressPhoto:
         """POST /photo source=local_crop + video_path，mock crop 成功，回 200 + photo_source='local_crop'"""
         self._save_actress(client)
         video_path, cover_path = self._save_video_with_cover(tmp_path)
-        video_uri = f"file://{video_path}"
+        video_uri = to_file_uri(video_path)
         fake_jpeg = b"\xff\xd8\xff\xe0FAKE_CROP_JPEG"
 
         gfriends = tmp_path / "gfriends"
@@ -644,7 +644,7 @@ class TestSetActressPhoto:
             cover_path="",  # 空
         )
         VideoRepository().upsert(video)
-        video_uri = f"file://{video_path}"
+        video_uri = to_file_uri(video_path)
 
         resp = client.post(
             f"/api/actresses/{ACTRESS_NAME}/photo",
@@ -657,7 +657,7 @@ class TestSetActressPhoto:
         """crop_video_cover 回 None 時回 500 crop_failed"""
         self._save_actress(client)
         video_path, cover_path = self._save_video_with_cover(tmp_path)
-        video_uri = f"file://{video_path}"
+        video_uri = to_file_uri(video_path)
 
         with patch("web.routers.actress.crop_video_cover", return_value=None):
             resp = client.post(
@@ -760,7 +760,7 @@ class TestSetActressPhoto:
                 cover_path=cover_path,
             )
             VideoRepository().upsert(vid)
-            video_uri = f"file://{video_path}"
+            video_uri = to_file_uri(video_path)
 
             gfriends = Path(td) / "gfriends"
             gfriends.mkdir()

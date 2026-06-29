@@ -8,6 +8,7 @@ OpenAver 統一日誌模組
     logger.debug("除錯訊息")
 """
 import logging
+import os
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -32,7 +33,8 @@ def setup_logging(log_dir: Path = None, console_level: int = logging.INFO):
 
     # 日誌目錄
     if log_dir is None:
-        log_dir = Path.home() / "OpenAver" / "logs"
+        log_dir_override = os.environ.get("OPENAVER_LOG_DIR")
+        log_dir = Path(log_dir_override) if log_dir_override else Path.home() / "OpenAver" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     _log_dir = log_dir
 

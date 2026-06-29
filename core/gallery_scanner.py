@@ -21,6 +21,7 @@ from core.maker_mapping import load_name_mapping, load_prefix_mapping
 from core.nfo_utils import sanitize_nfo_bytes
 from core.path_utils import normalize_path, to_file_uri, uri_to_fs_path
 from core.video_extensions import DEFAULT_VIDEO_EXTENSIONS, ZERO_SIZE_EXTENSIONS
+from core.western_scene import parse_western_scene_filename
 
 logger = get_logger(__name__)
 
@@ -82,7 +83,7 @@ IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
 
 # 預設緩存檔案名稱
 DEFAULT_CACHE_FILE = "gallery_cache.json"
-PROTECTED_MANUAL_FOLDERS = {"#待人工整理", "未整理"}
+PROTECTED_MANUAL_FOLDERS = {"#待整理", "#待人工整理", "未整理"}
 
 
 def fast_scan_directory(
@@ -297,6 +298,16 @@ class VideoScanner:
         name = Path(filename).stem
         info = VideoInfo()
 
+        western = parse_western_scene_filename(filename)
+        if western:
+            info.title = western.title
+            info.actor = western.performer
+            info.num = western.scene_id
+            info.maker = western.studio
+            info.date = western.date
+            info.genre = "Western,Stash"
+            return info
+
         # 嘗試匹配每個格式
         for pattern in self._compiled_formats:
             match = pattern.match(name)
@@ -493,7 +504,10 @@ class VideoScanner:
             # WSL 環境下 backslash UNC 會拋 ValueError → fall through
             return None
 
-        return fs if Path(fs).is_file() else None
+        try:
+            return fs if Path(fs).is_file() else None
+        except OSError:
+            return None
 
     def find_cover_image(self, video_path: str, nfo_thumb: Optional[str] = None) -> str:
         """尋找封面圖片（5 層 fallback）

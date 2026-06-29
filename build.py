@@ -537,6 +537,16 @@ def copy_project_files():
         shutil.copy2(config_default_src, config_default_dst)
         print("  複製檔案: config.default.json")
 
+    # 可選內建 FFmpeg：二進位檔不入 Git；本地/CI 若放置 tools/ffmpeg，
+    # 則一併帶入發行包，供 /media-merge 使用。
+    ffmpeg_src = PROJECT_ROOT / "tools" / "ffmpeg"
+    if ffmpeg_src.exists():
+        ffmpeg_dst = app_dir / "tools" / "ffmpeg"
+        shutil.copytree(ffmpeg_src, ffmpeg_dst, ignore=shutil.ignore_patterns(
+            "__pycache__", "*.pyc", ".git", ".gitignore", "*Zone.Identifier"
+        ))
+        print("  複製目錄: tools/ffmpeg")
+
     # 複製範例檔案到根目錄（讓用戶容易找到）
     samples_src = PROJECT_ROOT / "tests" / "samples" / "basic"
     samples_dst = BUILD_DIR / "OpenAver" / "教學檔案"

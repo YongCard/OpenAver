@@ -201,6 +201,51 @@ class Api:
             logger.error(f"[pywebview] open_folder failed for {path!r}: {e}")
             return False
 
+    def nas_test(self, payload):
+        """Test a NAS share from the desktop bridge without persisting secrets."""
+        try:
+            from core.nas import test_share
+            payload = payload or {}
+            return test_share(
+                payload.get('host', ''),
+                payload.get('share', ''),
+                payload.get('subpath', ''),
+                payload.get('username', ''),
+                payload.get('password', ''),
+            ).to_dict()
+        except Exception as e:
+            logger.error("[pywebview] nas_test failed: %s", e)
+            return {"success": False, "code": "nas_test_failed", "message": str(e), "unc_path": ""}
+
+    def nas_connect(self, payload):
+        """Connect a NAS share, using Credential Manager when no password is passed."""
+        try:
+            from core.nas import ensure_share_connected
+            payload = payload or {}
+            return ensure_share_connected(
+                payload.get('host', ''),
+                payload.get('share', ''),
+                payload.get('username', ''),
+                payload.get('password', ''),
+            ).to_dict()
+        except Exception as e:
+            logger.error("[pywebview] nas_connect failed: %s", e)
+            return {"success": False, "code": "nas_connect_failed", "message": str(e), "unc_path": ""}
+
+    def nas_save_credential(self, payload):
+        """Save NAS credentials to Windows Credential Manager only."""
+        try:
+            from core.nas import save_windows_credential
+            payload = payload or {}
+            return save_windows_credential(
+                payload.get('host', ''),
+                payload.get('username', ''),
+                payload.get('password', ''),
+            ).to_dict()
+        except Exception as e:
+            logger.error("[pywebview] nas_save_credential failed: %s", e)
+            return {"success": False, "code": "credential_save_failed", "message": str(e), "unc_path": ""}
+
     def _get_video_extensions(self):
         """Get video extensions from config, fallback to DEFAULT_VIDEO_EXTENSIONS"""
         try:

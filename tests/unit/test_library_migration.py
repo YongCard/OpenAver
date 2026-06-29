@@ -119,6 +119,71 @@ def test_plan_sends_ambiguous_duplicate_to_review(tmp_path):
     assert result["review"] == 2
 
 
+def test_plan_reads_short_number_from_nfo(tmp_path):
+    root = tmp_path / "library"
+    root.mkdir()
+    video = root / "SUN-20.avi"
+    video.write_bytes(b"sun")
+    _write_nfo(video.with_suffix(".nfo"), "SUN-20", "[SUN-20]", "森ななこ")
+    database = tmp_path / "openaver.db"
+    _create_db(database)
+
+    inventory = inventory_library(str(root), "short-number", db_path=database)
+    result = plan_library(inventory["run_dir"], db_path=database)
+    manifest = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
+
+    assert result["ready"] == 1
+    assert result["manual_total"] == 0
+    assert manifest["entries"][0]["target"].endswith("森ななこ\\SUN-20\\[SUN-20] SUN-20.avi")
+
+
+def test_plan_does_not_treat_title_trailing_space_number_as_part(tmp_path):
+    root = tmp_path / "library"
+    folder = root / "Actor"
+    folder.mkdir(parents=True)
+    video = folder / "[NHDTA-135] 用自己的身体保护那些被痴汉骚扰的学生的女教师 3.mp4"
+    video.write_bytes(b"video")
+    _write_nfo(video.with_suffix(".nfo"), "NHDTA-135", "用自己的身体保护那些被痴汉骚扰的学生的女教师 3", "日向みのり")
+    database = tmp_path / "openaver.db"
+    _create_db(database)
+
+    inventory = inventory_library(str(root), "trailing-title-number", db_path=database)
+    result = plan_library(inventory["run_dir"], db_path=database)
+    manifest = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
+
+    assert result["ready"] == 1
+    entry = manifest["entries"][0]
+    assert entry["part_suffix"] == ""
+    assert entry["target"].endswith("日向みのり\\NHDTA-135\\[NHDTA-135] 用自己的身体保护那些被痴汉骚扰的学生的女教师 3.mp4")
+
+
+def test_plan_keeps_multipart_sidecars_on_first_part_only(tmp_path):
+    root = tmp_path / "library"
+    folder = root / "Actor"
+    folder.mkdir(parents=True)
+    first = folder / "[ABC-123] First-CD1.mp4"
+    second = folder / "[ABC-123] Second-CD2.mp4"
+    first.write_bytes(b"first")
+    second.write_bytes(b"second")
+    _write_nfo(folder / "[ABC-123] First.nfo", "ABC-123", "First", "Actor")
+    (folder / "[ABC-123] First-poster.jpg").write_bytes(b"first-poster")
+    _write_nfo(folder / "[ABC-123] Second.nfo", "ABC-123", "Second", "Actor")
+    (folder / "[ABC-123] Second-poster.jpg").write_bytes(b"second-poster")
+    database = tmp_path / "openaver.db"
+    _create_db(database)
+
+    inventory = inventory_library(str(root), "part-sidecars", db_path=database)
+    result = plan_library(inventory["run_dir"], db_path=database)
+    manifest = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
+
+    entries = {entry["part_suffix"]: entry for entry in manifest["entries"]}
+    assert result["ready"] == 2
+    assert len(entries["-CD1"]["sidecars"]) == 2
+    assert len(entries["-CD2"]["sidecars"]) == 0
+    assert all("First" in action["source"] for action in entries["-CD1"]["sidecars"])
+    assert all("-CD1" in Path(action["target"]).stem for action in entries["-CD1"]["sidecars"])
+
+
 def test_plan_rejects_tampered_inventory_path_outside_root(tmp_path):
     root = tmp_path / "library"
     root.mkdir()
@@ -139,7 +204,7 @@ def test_plan_rejects_tampered_inventory_path_outside_root(tmp_path):
 def test_inventory_skips_manual_review_folder_by_default(tmp_path):
     root = tmp_path / "library"
     regular_dir = root / "regular"
-    manual_dir = root / "#待人工整理"
+    manual_dir = root / "#待整理"
     legacy_manual_dir = root / "未整理"
     regular_dir.mkdir(parents=True)
     manual_dir.mkdir(parents=True)
@@ -154,14 +219,14 @@ def test_inventory_skips_manual_review_folder_by_default(tmp_path):
     inventory_data = json.loads((Path(inventory["run_dir"]) / "inventory.json").read_text(encoding="utf-8"))
 
     assert inventory["video_count"] == 1
-    assert inventory_data["manual_folder"] == "#待人工整理"
+    assert inventory_data["manual_folder"] == "#待整理"
     assert inventory_data["include_manual"] is False
     assert inventory_data["videos"][0]["relative_path"] == str(Path("regular") / "ABC-123.mp4")
 
 
 def test_inventory_can_include_manual_review_folder_for_reidentify(tmp_path):
     root = tmp_path / "library"
-    manual_dir = root / "#待人工整理"
+    manual_dir = root / "#待整理"
     manual_dir.mkdir(parents=True)
     (manual_dir / "SUN-20.avi").write_bytes(b"manual")
     database = tmp_path / "openaver.db"
@@ -177,4 +242,4 @@ def test_inventory_can_include_manual_review_folder_for_reidentify(tmp_path):
 
     assert inventory["video_count"] == 1
     assert inventory_data["include_manual"] is True
-    assert inventory_data["videos"][0]["relative_path"] == str(Path("#待人工整理") / "SUN-20.avi")
+    assert inventory_data["videos"][0]["relative_path"] == str(Path("#待整理") / "SUN-20.avi")

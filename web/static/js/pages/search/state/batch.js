@@ -153,8 +153,9 @@ export function searchStateBatch() {
         }
 
         // === 新的批次開始 ===
-        const searchableFiles = this.fileList.filter(f => f.number && !f.searched && !f.has_nfo);
-        const failedFiles = this.fileList.filter(f => f.number && f.searched && (!f.searchResults || f.searchResults.length === 0) && !f.has_nfo);
+        const canSearchFile = f => (f.number || f.sceneQuery) && !f.has_nfo;
+        const searchableFiles = this.fileList.filter(f => canSearchFile(f) && !f.searched);
+        const failedFiles = this.fileList.filter(f => canSearchFile(f) && f.searched && (!f.searchResults || f.searchResults.length === 0));
 
         let targetFiles;
         if (searchableFiles.length > 0) {

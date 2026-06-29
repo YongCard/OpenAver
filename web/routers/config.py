@@ -17,10 +17,12 @@
 """
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, StrictBool, StrictStr
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, StrictBool, StrictStr, ValidationError
 import asyncio
 import httpx
 import threading
+import uuid
 
 from core.logger import get_logger
 from core.config import (
@@ -56,16 +58,48 @@ def get_config() -> dict:
 
 
 @router.put("/config")
-def update_config(config: AppConfig) -> dict:
+async def update_config(request: Request):
     """更新所有設定"""
+    try:
+        raw_payload = await request.json()
+        config = AppConfig.model_validate(raw_payload)
+    except ValidationError as e:
+        details = e.errors(include_input=False)
+        logger.warning("儲存設定 payload 驗證失敗: %s", details)
+        return JSONResponse(
+            status_code=422,
+            content={
+                "success": False,
+                "error": "設定內容格式錯誤",
+                "code": "config_validation_failed",
+                "details": details,
+            },
+        )
+    except Exception as e:
+        logger.warning("讀取設定 payload 失敗: %s", e)
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "設定內容格式錯誤",
+                "code": "config_payload_invalid",
+                "details": str(e),
+            },
+        )
+
     # Cap 守衛（CD-61-16，endpoint-level；非 model_validator）：
     # 同時啟用且非 manual_only 的來源數不得超過 MAX_ENABLED_SOURCES。
     # 防止前端繞過 UI 直接 PUT。manual_only 不計入 cap basis（CD-61-17）。
     cap_basis = sum(1 for s in config.sources if s.enabled and not s.manual_only)
     if cap_basis > MAX_ENABLED_SOURCES:
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail={"error": "cap_exceeded", "max": MAX_ENABLED_SOURCES},
+            content={
+                "success": False,
+                "error": "啟用來源數超過上限",
+                "code": "cap_exceeded",
+                "details": {"max": MAX_ENABLED_SOURCES},
+            },
         )
     try:
         payload = config.model_dump()
@@ -79,14 +113,23 @@ def update_config(config: AppConfig) -> dict:
         def _write_preserving_server_mode(cfg: dict) -> None:
             current_server_mode = cfg.get("general", {}).get("server_mode", False)
             payload["general"]["server_mode"] = current_server_mode
+            _dedupe_gallery_directories(payload)
             cfg.update(payload)
 
         mutate_config(_write_preserving_server_mode)
         _reset_translate_service()  # 重置翻譯服務，讓新配置生效
         return {"success": True, "message": "設定已儲存"}
     except Exception as e:
-        logger.error("儲存設定失敗: %s", e)
-        return {"success": False, "error": "儲存設定失敗"}
+        logger.exception("儲存設定失敗")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": "儲存設定失敗",
+                "code": "config_save_failed",
+                "details": str(e),
+            },
+        )
 
 
 @router.delete("/config")
@@ -140,6 +183,182 @@ class GeneralFieldRequest(BaseModel):
     # 輸入在 schema 層即被擋（避免 `1` 被 lax 模式悄悄轉成 True）。既有 str/bool 欄位
     # （theme/locale/font_size/sidebar_collapsed）值型別本就符合，無回歸。
     value: StrictBool | StrictStr
+
+
+class StashTestRequest(BaseModel):
+    url: StrictStr
+    api_key: StrictStr = ""
+    proxy_url: StrictStr = ""
+
+
+class NasShareRequest(BaseModel):
+    id: StrictStr = ""
+    name: StrictStr = ""
+    host: StrictStr
+    share: StrictStr
+    subpath: StrictStr = ""
+    username: StrictStr = ""
+    password: StrictStr = ""
+    enabled: StrictBool = True
+    add_to_gallery: StrictBool = True
+
+
+@router.post("/settings/stash/test")
+def test_stash_connection(request: StashTestRequest) -> dict:
+    """測試 Stash GraphQL 連線，不寫入設定。"""
+    from core.scrapers.stash import StashScraper
+
+    scraper = StashScraper(stash_config={
+        "enabled": True,
+        "url": request.url,
+        "api_key": request.api_key,
+        "proxy_url": request.proxy_url,
+    })
+    return scraper.test_connection()
+
+
+def _nas_share_payload(request: NasShareRequest, share_id: str | None = None, last_status: str = "") -> dict:
+    from core.nas import build_unc_path, credential_target
+
+    sid = share_id or request.id or uuid.uuid4().hex
+    name = request.name.strip() or f"{request.host.strip()}\\{request.share.strip()}"
+    return {
+        "id": sid,
+        "name": name,
+        "host": request.host.strip().strip("\\/"),
+        "share": request.share.strip().strip("\\/"),
+        "subpath": request.subpath.strip().replace("/", "\\").strip("\\"),
+        "username": request.username.strip(),
+        "enabled": request.enabled,
+        "add_to_gallery": request.add_to_gallery,
+        "last_status": last_status,
+        "credential_target": credential_target(request.host),
+        "unc_path": build_unc_path(request.host, request.share, request.subpath),
+    }
+
+
+def _dedupe_gallery_directories(cfg: dict) -> None:
+    from core.library_categories import dedupe_scan_directories
+
+    gallery = cfg.setdefault("gallery", {})
+    dirs = gallery.setdefault("directories", [])
+    if isinstance(dirs, list):
+        gallery["directories"] = dedupe_scan_directories(dirs, cfg)
+
+
+@router.post("/settings/nas/test")
+def test_nas_connection(request: NasShareRequest) -> dict:
+    """測試 NAS 連線；password 只作為一次性輸入，不寫入 config。"""
+    from core.nas import test_share
+
+    result = test_share(
+        request.host,
+        request.share,
+        request.subpath,
+        request.username,
+        request.password,
+    )
+    payload = result.to_dict()
+    return {**payload, "share": _nas_share_payload(request, last_status=result.code)}
+
+
+@router.post("/settings/nas/save")
+def save_nas_share(request: NasShareRequest) -> dict:
+    """保存 NAS share metadata，Windows 下可同步保存 Credential Manager secret。"""
+    from core.nas import build_unc_path, save_windows_credential
+
+    credential_result = None
+    if request.password:
+        credential_result = save_windows_credential(request.host, request.username, request.password)
+        if not credential_result.success:
+            return credential_result.to_dict()
+
+    share_id = request.id or uuid.uuid4().hex
+    payload = _nas_share_payload(request, share_id=share_id, last_status="saved")
+    # Internal-only display helpers must not be persisted in config.
+    persisted = {k: v for k, v in payload.items() if k not in {"unc_path"}}
+
+    def _mut(cfg: dict) -> None:
+        nas = cfg.setdefault("nas", {})
+        shares = nas.setdefault("shares", [])
+        shares[:] = [
+            s for s in shares
+            if isinstance(s, dict) and s.get("id") != share_id
+        ]
+        shares.append(persisted)
+        if request.add_to_gallery:
+            gallery = cfg.setdefault("gallery", {})
+            dirs = gallery.setdefault("directories", [])
+            unc_path = build_unc_path(request.host, request.share, request.subpath)
+            if unc_path and unc_path not in dirs:
+                dirs.append(unc_path)
+            _dedupe_gallery_directories(cfg)
+
+    mutate_config(_mut)
+    return {
+        "success": True,
+        "code": "ok",
+        "message": "NAS 設定已保存",
+        "share": payload,
+        "credential_saved": bool(credential_result and credential_result.success),
+    }
+
+
+@router.delete("/settings/nas/{share_id}")
+def delete_nas_share(share_id: str) -> dict:
+    """移除 OpenAver 保存的 NAS metadata；不刪 Credential Manager 或媒體檔案。"""
+    removed = False
+
+    def _mut(cfg: dict) -> None:
+        nonlocal removed
+        nas = cfg.setdefault("nas", {})
+        shares = nas.setdefault("shares", [])
+        if not isinstance(shares, list):
+            nas["shares"] = []
+            return
+        before = len(shares)
+        shares[:] = [
+            s for s in shares
+            if not (isinstance(s, dict) and s.get("id") == share_id)
+        ]
+        removed = len(shares) != before
+
+    mutate_config(_mut)
+    return {
+        "success": True,
+        "code": "ok",
+        "removed": removed,
+        "message": "NAS 設定已移除" if removed else "NAS 設定不存在",
+    }
+
+
+@router.post("/settings/nas/connect")
+def connect_nas_share(request: NasShareRequest) -> dict:
+    """連接 NAS share。若未傳 password，Windows 會使用 Credential Manager / 既有 session。"""
+    from core.nas import ensure_share_connected
+
+    result = ensure_share_connected(
+        request.host,
+        request.share,
+        request.username,
+        request.password,
+    )
+    return result.to_dict()
+
+
+@router.get("/settings/nas/status")
+def get_nas_status() -> dict:
+    """取得目前 config 中 NAS 條目的可讀狀態。"""
+    from core.nas import status_for_share
+
+    config = load_config()
+    shares = config.get("nas", {}).get("shares", [])
+    statuses = [
+        status_for_share(s)
+        for s in shares
+        if isinstance(s, dict)
+    ]
+    return {"success": True, "data": statuses}
 
 
 @router.put("/config/general/{field}")
@@ -249,7 +468,7 @@ def get_lan_port() -> dict:
     }
 
 
-@router.get("/version")
+@router.get("/version", operation_id="get_config_version")
 async def get_version() -> dict:
     """取得版本資訊"""
     from core.version import VERSION_INFO

@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('organize.page_title') }} - OpenAver{% endblock %}
+
+{% block extra_css %}
+<link href="/static/css/pages/organize.css" rel="stylesheet">
+{% endblock %}
+
+{% block pre_alpine_module %}
+<script type="module" src="/static/js/pages/organize/main.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="organize-page ds-page" x-data="organizePage" x-init="init()">
+    <div class="organize-header">
+        <div>
+            <h4><i class="bi bi-inboxes"></i> {{ t('organize.page_title') }}</h4>
+            <p>{{ t('organize.subtitle') }}</p>
+        </div>
+        <button class="btn btn-sm btn-outline" @click="loadRoots()" :disabled="busy || searchJobRunning">
+            <i class="bi bi-arrow-clockwise"></i> {{ t('organize.refresh_roots') }}
+        </button>
+    </div>
+
+    <div class="organize-card">
+        <div class="organize-card-title">
+            <i class="bi bi-folder2-open"></i>
+            <span>{{ t('organize.roots_title') }}</span>
+        </div>
+        <div class="organize-root-grid">
+            <template x-if="roots.length === 0">
+                <div class="organize-empty">{{ t('organize.no_roots') }}</div>
+            </template>
+            <template x-for="root in roots" :key="root.root">
+                <div class="organize-root" :class="{ selected: selectedRoot === root.root }">
+                    <div class="organize-root-main" @click="selectRoot(root.root)">
+                        <div class="organize-root-path" x-text="root.root"></div>
+                        <div class="organize-root-inbox">
+                            <code x-text="root.inbox"></code>
+                        </div>
+                    </div>
+                    <div class="organize-root-meta">
+                        <span class="badge badge-sm" :class="root.exists ? 'badge-success' : 'badge-warning'"
+                              x-text="root.exists ? window.t('organize.inbox_exists') : window.t('organize.inbox_missing')"></span>
+                        <span class="badge badge-sm badge-outline"
+                              x-text="window.t('organize.video_count', { count: root.video_count || 0 })"></span>
+                        <button class="btn btn-xs btn-ghost" @click="openInbox(root.inbox)" :title="window.t('organize.open_inbox')">
+                            <i class="bi bi-folder2-open"></i>
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <div class="organize-actions">
+        <button class="btn btn-primary" @click="scanInbox()" :disabled="busy || bulkOperationRunning">
+            <i class="bi bi-search"></i> {{ t('organize.scan') }}
+        </button>
+        <select class="select select-bordered select-sm organize-source" x-model="source">
+            <template x-for="item in sources" :key="item.id">
+                <option :value="item.id" x-text="item.name || item.display_name || item.id"></option>
+            </template>
+        </select>
+        <button class="btn btn-secondary" @click="searchEntries()" :disabled="busy || bulkOperationRunning || entries.length === 0">
+            <i class="bi bi-stars"></i>
+            <span x-text="searchJobRunning ? window.t('organize.searching') : window.t('organize.search')"></span>
+        </button>
+        <button class="btn btn-info" @click="offlinePlanSelectedAndApply()" :disabled="busy || bulkOperationRunning || selectedCount === 0">
+            <i class="bi bi-lightning-charge"></i> {{ t('organize.offline_apply') }}
+        </button>
+        <button class="btn btn-success" @click="searchSelectedAndApply()" :disabled="busy || bulkOperationRunning || selectedCount === 0">
+            <i class="bi bi-check2-circle"></i> {{ t('organize.preview_and_apply') }}
+        </button>
+        <button class="btn btn-outline" @click="previewWestern()" :disabled="busy || bulkOperationRunning">
+            <i class="bi bi-globe-americas"></i> 歐美整理預覽
+        </button>
+        <button class="btn btn-success" @click="applyWesternBatch()" :disabled="busy || bulkOperationRunning || !westernManifest || westernPlannedCount === 0">
+            <i class="bi bi-check2-circle"></i> 套用歐美整理
+        </button>
+    </div>
+
+    <div class="organize-card organize-progress-card" x-show="applyingBatches" x-cloak>
+        <div class="organize-progress-head">
+            <div>
+                <div class="organize-card-title">
+                    <i class="bi bi-hdd-stack"></i>
+                    <span>{{ t('organize.apply_progress_title') }}</span>
+                </div>
+                <div class="organize-progress-sub"
+                     x-text="window.t('organize.apply_progress_text', { moved: applyStats.moved, remaining: applyStats.remaining, batch: applyBatchSize })"></div>
+            </div>
+            <button class="btn btn-sm btn-outline btn-warning" @click="pauseApplyBatches()">
+                <i class="bi bi-pause-circle"></i> {{ t('organize.pause_apply') }}
+            </button>
+        </div>
+    </div>
+
+    <div class="organize-card organize-progress-card" x-show="searchJobVisible" x-cloak>
+        <div class="organize-progress-head">
+            <div>
+                <div class="organize-card-title">
+                    <i class="bi bi-activity"></i>
+                    <span>{{ t('organize.progress_title') }}</span>
+                </div>
+                <div class="organize-progress-sub" x-text="progressText"></div>
+            </div>
+            <button class="btn btn-sm btn-outline btn-warning" x-show="searchJobRunning" @click="cancelSearchJob()">
+                <i class="bi bi-stop-circle"></i> {{ t('organize.cancel_search') }}
+            </button>
+        </div>
+        <div class="organize-progress-bar">
+            <div class="organize-progress-fill" :style="{ width: progressPercent + '%' }"></div>
+        </div>
+        <div class="organize-progress-stats">
+            <span x-text="window.t('organize.progress_found', { count: searchJobSummary.found_count || 0 })"></span>
+            <span x-text="window.t('organize.progress_failed', { count: searchJobSummary.failed_count || 0 })"></span>
+            <span x-text="window.t('organize.progress_review', { count: searchJobSummary.needs_review_count || 0 })"></span>
+        </div>
+        <div class="organize-log" x-ref="organizeLog">
+            <template x-for="(item, idx) in searchLogs" :key="idx">
+                <div class="organize-log-line" :class="'is-' + (item.level || 'info')">
+                    <span x-text="logMessage(item)"></span>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <div class="organize-summary">
+        <div><strong x-text="summary.file_count ?? summary.total ?? 0"></strong><span>{{ t('organize.sum_total') }}</span></div>
+        <div><strong x-text="summary.found_count ?? 0"></strong><span>{{ t('organize.sum_found') }}</span></div>
+        <div><strong x-text="summary.planned_count ?? 0"></strong><span>{{ t('organize.sum_planned') }}</span></div>
+        <div><strong x-text="summary.conflict_count ?? 0"></strong><span>{{ t('organize.sum_conflict') }}</span></div>
+        <div><strong x-text="summary.needs_review_count ?? summary.needs_number_count ?? summary.skipped_count ?? 0"></strong><span>{{ t('organize.sum_review') }}</span></div>
+    </div>
+
+    <div class="organize-card" x-show="westernEntries.length > 0" x-cloak>
+        <div class="organize-card-title">
+            <i class="bi bi-globe-americas"></i>
+            <span>歐美 / Stash 整理預覽</span>
+        </div>
+        <div class="organize-flow-hint">
+            只處理 <code>WEST-*</code> 影片；預覽不會移動檔案，套用時也不覆蓋既有目標。
+        </div>
+        <div class="organize-table-wrap">
+            <table class="organize-table">
+                <thead>
+                    <tr>
+                        <th>{{ t('organize.col_status') }}</th>
+                        <th>{{ t('organize.col_number') }}</th>
+                        <th>{{ t('organize.col_title') }}</th>
+                        <th>{{ t('organize.col_source') }}</th>
+                        <th>{{ t('organize.col_target') }}</th>
+                        <th>{{ t('organize.col_reason') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="entry in westernEntries" :key="entry.id">
+                        <tr>
+                            <td><span class="badge badge-sm" x-text="statusLabel(entry.status)"></span></td>
+                            <td x-text="entry.number"></td>
+                            <td>
+                                <div class="organize-title" x-text="entry.title || entry.metadata?.title || ''"></div>
+                                <div class="organize-path" x-text="`${(entry.sidecars || []).length} sidecar/subtitle`"></div>
+                            </td>
+                            <td><div class="organize-path" x-text="entry.source"></div></td>
+                            <td><div class="organize-path" x-text="entry.target"></div></td>
+                            <td x-text="reasonLabel(entry.reason)"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="organize-card">
+        <div class="organize-card-title">
+            <i class="bi bi-list-task"></i>
+            <span>{{ t('organize.entries_title') }}</span>
+        </div>
+        <div class="organize-flow-hint">{{ t('organize.flow_hint') }}</div>
+        <template x-if="entries.length === 0">
+            <div class="organize-empty">{{ t('organize.empty_entries') }}</div>
+        </template>
+        <div class="organize-filter-bar" x-show="entries.length > 0">
+            <label class="organize-filter-control">
+                <span>{{ t('organize.filter_path') }}</span>
+                <select class="select select-bordered select-sm"
+                        x-model="pathFilter"
+                        @change="lastSelectedIndex = null"
+                        :disabled="bulkOperationRunning">
+                    <option value="">{{ t('organize.filter_path_all') }}</option>
+                    <template x-for="option in pathFilterOptions" :key="option.key">
+                        <option :value="option.key"
+                                x-text="`${option.label} (${option.count})`"></option>
+                    </template>
+                </select>
+            </label>
+            <label class="organize-filter-check">
+                <input type="checkbox" class="checkbox checkbox-xs"
+                       x-model="reviewFilter"
+                       @change="lastSelectedIndex = null"
+                       :disabled="bulkOperationRunning">
+                <span>{{ t('organize.filter_needs_number') }}</span>
+            </label>
+            <label class="organize-filter-check">
+                <input type="checkbox" class="checkbox checkbox-xs"
+                       x-model="metadataFilter"
+                       @change="lastSelectedIndex = null"
+                       :disabled="bulkOperationRunning">
+                <span>{{ t('organize.filter_found') }}</span>
+            </label>
+            <label class="organize-filter-check">
+                <input type="checkbox" class="checkbox checkbox-xs"
+                       x-model="selectedFilter"
+                       @change="lastSelectedIndex = null"
+                       :disabled="bulkOperationRunning">
+                <span>{{ t('organize.filter_selected') }}</span>
+            </label>
+            <button type="button" class="btn btn-sm btn-outline"
+                    @click="selectVisibleEntries(true)"
+                    :disabled="bulkOperationRunning || visibleCount === 0">
+                <i class="bi bi-check2-square"></i> {{ t('organize.select_visible') }}
+            </button>
+            <button type="button" class="btn btn-sm btn-outline"
+                    @click="selectVisibleEntries(false)"
+                    :disabled="bulkOperationRunning || visibleCount === 0">
+                <i class="bi bi-square"></i> {{ t('organize.deselect_visible') }}
+            </button>
+            <button type="button" class="btn btn-sm btn-ghost"
+                    @click="clearEntryFilters()"
+                    :disabled="bulkOperationRunning || (!pathFilter && !reviewFilter && !metadataFilter && !selectedFilter)">
+                {{ t('organize.clear_filters') }}
+            </button>
+            <span class="organize-filter-summary"
+                  x-text="window.t('organize.visible_summary', { visible: visibleCount, total: entries.length, selected: visibleSelectedCount })"></span>
+        </div>
+        <div class="organize-table-wrap" x-show="entries.length > 0">
+            <table class="organize-table">
+                <thead>
+                    <tr>
+                        <th>{{ t('organize.col_status') }}</th>
+                        <th>
+                            <input type="checkbox"
+                                   class="checkbox checkbox-xs"
+                                   :checked="allSelected"
+                                   @change="toggleAllSelected($event)"
+                                   :disabled="bulkOperationRunning || visibleCount === 0"
+                                   :title="window.t('organize.select_all')">
+                        </th>
+                        <th>{{ t('organize.col_number') }}</th>
+                        <th>{{ t('organize.col_title') }}</th>
+                        <th>{{ t('organize.col_source') }}</th>
+                        <th>{{ t('organize.col_target') }}</th>
+                        <th>{{ t('organize.col_reason') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-if="visibleEntries.length === 0">
+                        <tr>
+                            <td colspan="7">
+                                <div class="organize-empty">{{ t('organize.empty_filtered') }}</div>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-for="item in visibleEntries" :key="item.entry.id">
+                        <tr>
+                            <td><span class="badge badge-sm" x-text="statusLabel(item.entry.status)"></span></td>
+                            <td>
+                                <input type="checkbox" class="checkbox checkbox-xs"
+                                       :checked="item.entry.selected"
+                                       @change="toggleEntrySelection(item.visibleIndex, $event)"
+                                       :disabled="bulkOperationRunning">
+                            </td>
+                            <td>
+                                <input class="input input-bordered input-xs organize-number"
+                                       x-model="item.entry.manual_number"
+                                       :placeholder="item.entry.number || window.t('organize.manual_number_placeholder')">
+                            </td>
+                            <td>
+                                <div class="organize-title" x-text="item.entry.title || item.entry.metadata?.title || item.entry.filename || ''"></div>
+                                <div class="organize-path" x-text="item.entry.source"></div>
+                            </td>
+                            <td x-text="item.entry.source_name || item.entry.source_id || item.entry.metadata?.source || source"></td>
+                            <td><div class="organize-path" x-text="item.entry.target || ''"></div></td>
+                            <td x-text="reasonLabel(item.entry.reason)"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <dialog class="modal fluent-modal" :class="{ 'modal-open': applyModalOpen }" @click.self="applyModalOpen = false">
+        <div class="modal-box fluent-modal-box">
+            <h3 class="fluent-modal-title">
+                <i class="bi bi-check2-circle"></i> {{ t('organize.apply_modal_title') }}
+            </h3>
+            <p class="py-2">{{ t('organize.apply_modal_body') }}</p>
+            <p class="text-sm opacity-70">{{ t('organize.apply_modal_hint') }}</p>
+            <div class="modal-action">
+                <button class="btn btn-sm" @click="applyModalOpen = false">{{ t('organize.cancel') }}</button>
+                <button class="btn btn-sm btn-success" @click="applyBatch()">
+                    {{ t('organize.apply_confirm') }}
+                </button>
+            </div>
+        </div>
+    </dialog>
+
+    <div class="toast toast-end z-50" x-show="toast.visible" x-transition>
+        <div class="alert"
+             :class="{
+                 'alert-success': toast.type === 'success',
+                 'alert-error': toast.type === 'error',
+                 'alert-warning': toast.type === 'warning',
+                 'alert-info': toast.type === 'info'
+             }">
+            <span x-text="toast.message"></span>
+        </div>
+    </div>
+</div>
+{% endblock %}

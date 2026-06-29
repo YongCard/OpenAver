@@ -332,14 +332,14 @@ class TestExpandEnvVars:
         monkeypatch.setattr(path_utils, 'CURRENT_ENV', 'linux')
         # ~ 會被 pathlib 展開為實際 home 目錄
         result = path_utils.expand_env_vars('~/Downloads')
-        assert result.endswith('/Downloads')
+        assert result.replace('\\', '/').endswith('/Downloads')
         assert '~' not in result
 
     def test_tilde_expansion_mac(self, monkeypatch):
         """Mac 環境 ~ 展開"""
         monkeypatch.setattr(path_utils, 'CURRENT_ENV', 'mac')
         result = path_utils.expand_env_vars('~/Documents')
-        assert result.endswith('/Documents')
+        assert result.replace('\\', '/').endswith('/Documents')
         assert '~' not in result
 
     def test_userprofile_in_linux_raises(self, monkeypatch):

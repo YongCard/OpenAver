@@ -1,6 +1,35 @@
 """Scraper 資料模型"""
+import re
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
+
+
+_ACTRESS_DESCRIPTOR_RE = re.compile(
+    r"^(.{2,40}?)[\s　]+(?:\d{1,2}[\s　]*(?:歳|才|岁)|(?:元|現|前)[^\s　]+|(?:学生|主婦|人妻|OL|会社員|素人))"
+)
+
+
+def clean_actress_name(name: str) -> str:
+    """Remove obvious age/job descriptions from scraped actress names."""
+    text = re.sub(r"[\s　]+", " ", str(name or "")).strip()
+    if not text:
+        return ""
+    match = _ACTRESS_DESCRIPTOR_RE.match(text)
+    if not match:
+        return text
+    cleaned = match.group(1).strip()
+    return cleaned if len(cleaned) >= 2 else text
+
+
+def clean_actress_names(names: list[str]) -> list[str]:
+    cleaned = []
+    seen = set()
+    for name in names:
+        value = clean_actress_name(name)
+        if value and value not in seen:
+            cleaned.append(value)
+            seen.add(value)
+    return cleaned
 
 
 class Actress(BaseModel):
@@ -42,7 +71,7 @@ class Video(BaseModel):
         return {
             'number': self.number,
             'title': self.title,
-            'actors': [a.name for a in self.actresses],
+            'actors': clean_actress_names([a.name for a in self.actresses]),
             'date': self.date,
             'maker': normalize_maker_name(self.maker),
             'cover': self.cover_url,

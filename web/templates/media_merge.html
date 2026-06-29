@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('media_merge.page_title') }} - OpenAver{% endblock %}
+
+{% block extra_css %}
+<link href="/static/css/pages/media-merge.css" rel="stylesheet">
+{% endblock %}
+
+{% block pre_alpine_module %}
+<script type="module" src="/static/js/pages/media-merge/main.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="media-merge-page ds-page" x-data="mediaMergePage" x-init="init()">
+    <div class="media-merge-header">
+        <div>
+            <h4><i class="bi bi-intersect"></i> {{ t('media_merge.page_title') }}</h4>
+            <p>{{ t('media_merge.subtitle') }}</p>
+        </div>
+        <div class="media-merge-ffmpeg" :class="{ 'is-ok': ffmpeg.available, 'is-missing': !ffmpeg.available }">
+            <i :class="ffmpeg.available ? 'bi bi-check2-circle' : 'bi bi-exclamation-triangle'"></i>
+            <span x-text="ffmpegLabel"></span>
+        </div>
+    </div>
+
+    <div class="media-merge-card">
+        <div class="media-merge-card-title">
+            <i class="bi bi-files"></i>
+            <span>{{ t('media_merge.inputs_title') }}</span>
+        </div>
+        <div class="media-merge-actions">
+            <button class="btn btn-primary" @click="selectFiles()" :disabled="busy || merging">
+                <i class="bi bi-plus-lg"></i> {{ t('media_merge.select_files') }}
+            </button>
+            <button class="btn btn-outline" @click="preview()" :disabled="busy || merging || inputPaths.length < 2">
+                <i class="bi bi-list-check"></i> {{ t('media_merge.preview') }}
+            </button>
+            <button class="btn btn-ghost" @click="clearAll()" :disabled="busy || merging || inputPaths.length === 0">
+                <i class="bi bi-x-circle"></i> {{ t('media_merge.clear') }}
+            </button>
+        </div>
+        <textarea class="textarea textarea-bordered media-merge-paths"
+                  x-model="pathsText"
+                  @input="syncPathsFromText()"
+                  :placeholder="window.t('media_merge.paths_placeholder')"></textarea>
+        <div class="media-merge-hint" x-show="!ffmpeg.available" x-cloak>
+            <i class="bi bi-info-circle"></i>
+            <span>{{ t('media_merge.ffmpeg_hint') }}</span>
+        </div>
+    </div>
+
+    <div class="media-merge-card" x-show="previewData.items.length > 0" x-cloak>
+        <div class="media-merge-card-title">
+            <i class="bi bi-sort-numeric-down"></i>
+            <span>{{ t('media_merge.preview_title') }}</span>
+        </div>
+        <div class="media-merge-list">
+            <template x-for="(item, idx) in previewData.items" :key="item.path">
+                <div class="media-merge-item">
+                    <span class="media-merge-index" x-text="idx + 1"></span>
+                    <div>
+                        <div class="media-merge-filename" x-text="item.filename"></div>
+                        <div class="media-merge-path" x-text="item.path"></div>
+                    </div>
+                    <span class="badge badge-outline" x-text="item.part ? ('CD' + item.part) : window.t('media_merge.part_unknown')"></span>
+                </div>
+            </template>
+        </div>
+        <div class="media-merge-warning" x-show="previewData.extension_warning">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span>{{ t('media_merge.extension_warning') }}</span>
+        </div>
+        <label class="media-merge-output">
+            <span>{{ t('media_merge.output_label') }}</span>
+            <input class="input input-bordered" x-model="outputPath">
+        </label>
+        <label class="media-merge-checkbox">
+            <input type="checkbox" class="checkbox checkbox-sm" x-model="overwrite">
+            <span>{{ t('media_merge.overwrite') }}</span>
+        </label>
+        <label class="media-merge-checkbox" :class="{ 'is-disabled': !cleanupSupported }">
+            <input type="checkbox" class="checkbox checkbox-sm" x-model="cleanupSources" :disabled="!cleanupSupported">
+            <span>{{ t('media_merge.cleanup_sources') }}</span>
+        </label>
+        <label class="media-merge-checkbox">
+            <input type="checkbox" class="checkbox checkbox-sm" x-model="rememberCleanup">
+            <span>{{ t('media_merge.remember_cleanup') }}</span>
+        </label>
+        <div class="media-merge-hint" x-show="!cleanupSupported" x-cloak>
+            <i class="bi bi-info-circle"></i>
+            <span>{{ t('media_merge.cleanup_unsupported') }}</span>
+        </div>
+        <div class="media-merge-stage" x-show="mergeStage" x-cloak>
+            <div class="media-merge-stage-row">
+                <span>
+                    <i class="bi bi-activity"></i>
+                    <span x-text="mergeStageLabel"></span>
+                </span>
+                <span class="media-merge-stage-meta">
+                    <span x-text="mergeProgressLabel"></span>
+                    <span>·</span>
+                    <span x-text="formatDuration(elapsedSeconds)"></span>
+                </span>
+            </div>
+            <progress class="progress progress-success media-merge-progress"
+                      :value="mergePercent"
+                      max="100"></progress>
+        </div>
+        <div class="media-merge-result" x-show="mergeResult" x-cloak>
+            <div>
+                <span>{{ t('media_merge.result_output') }}</span>
+                <code x-text="mergeResult?.output_path || ''"></code>
+            </div>
+            <div>
+                <span>{{ t('media_merge.result_duration') }}</span>
+                <strong x-text="formatDuration(mergeResult?.verification?.duration || 0)"></strong>
+            </div>
+            <div>
+                <span>{{ t('media_merge.result_size') }}</span>
+                <strong x-text="formatBytes(mergeResult?.verification?.size || 0)"></strong>
+            </div>
+            <div>
+                <span>{{ t('media_merge.result_recycled') }}</span>
+                <strong x-text="mergeResult?.cleanup?.moved_to_recycle_bin || 0"></strong>
+            </div>
+            <div>
+                <span>{{ t('media_merge.result_sidecars_recycled') }}</span>
+                <strong x-text="mergeResult?.cleanup?.moved_sidecars_to_recycle_bin || 0"></strong>
+            </div>
+            <div class="media-merge-warning" x-show="mergeResult?.cleanup?.warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span x-text="cleanupWarningLabel(mergeResult?.cleanup?.warning)"></span>
+            </div>
+        </div>
+        <div class="media-merge-error" x-show="mergeError" x-cloak>
+            <div class="media-merge-error-title">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span>{{ t('media_merge.error_title') }}</span>
+            </div>
+            <div class="media-merge-error-row">
+                <span>{{ t('media_merge.error_code') }}</span>
+                <code x-text="mergeError?.code || ''"></code>
+            </div>
+            <div class="media-merge-error-row">
+                <span>{{ t('media_merge.error_message') }}</span>
+                <span x-text="mergeError?.message || ''"></span>
+            </div>
+            <pre x-show="mergeError?.log_tail"
+                 x-text="mergeError?.log_tail || ''"></pre>
+        </div>
+        <div class="media-merge-run">
+            <button class="btn btn-success" @click="runMerge()" :disabled="!ffmpeg.available || merging || inputPaths.length < 2">
+                <i class="bi bi-play-fill"></i>
+                <span x-text="merging ? window.t('media_merge.merging') : window.t('media_merge.run')"></span>
+            </button>
+            <button class="btn btn-outline" @click="openOutputFolder()" :disabled="!lastOutputPath">
+                <i class="bi bi-folder2-open"></i> {{ t('media_merge.open_output') }}
+            </button>
+        </div>
+    </div>
+
+    <div class="toast toast-end z-50" x-show="toast.visible" x-transition>
+        <div class="alert"
+             :class="{
+                 'alert-success': toast.type === 'success',
+                 'alert-error': toast.type === 'error',
+                 'alert-warning': toast.type === 'warning',
+                 'alert-info': toast.type === 'info'
+             }">
+            <span x-text="toast.message"></span>
+        </div>
+    </div>
+</div>
+{% endblock %}

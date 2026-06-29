@@ -1,6 +1,5 @@
 """測試 GET /api/capabilities"""
 import pytest
-from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 
@@ -72,6 +71,24 @@ EXPECTED_TOOL_NAMES = {
     "library_migration_apply",
     "library_migration_verify",
     "library_migration_rollback",
+    "library_duplicate_numbers",
+    "library_duplicate_delete_preview",
+    "library_duplicate_delete_apply",
+    "library_empty_folders_preview",
+    "library_empty_folders_apply",
+    "library_title_placeholder_preview",
+    "library_title_placeholder_apply",
+    "library_title_placeholder_rollback",
+    "inbox_organizer_roots",
+    "inbox_organizer_inventory",
+    "inbox_organizer_search",
+    "inbox_organizer_search_job_start",
+    "inbox_organizer_search_job_current",
+    "inbox_organizer_search_job_status",
+    "inbox_organizer_search_job_cancel",
+    "inbox_organizer_plan",
+    "inbox_organizer_apply",
+    "inbox_organizer_rollback",
 }
 
 REQUIRED_TOOL_FIELDS = [
@@ -118,9 +135,9 @@ class TestCapabilitiesEndpoint:
         data = client.get("/api/capabilities").json()
         assert "retry_hint" in data["error_format"]
 
-    def test_tools_count_is_44(self, client):
+    def test_tools_count_is_62(self, client):
         data = client.get("/api/capabilities").json()
-        assert len(data["tools"]) == 44
+        assert len(data["tools"]) == 62
 
     def test_all_tool_names_present(self, client):
         data = client.get("/api/capabilities").json()

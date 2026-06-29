@@ -12,7 +12,7 @@ export function searchStateFileList() {
         this.currentFileIndex = index;
         const file = this.fileList[index];
 
-        if (!file.number) {
+        if (!file.number && !file.sceneQuery) {
             this.searchResults = [];
             this.hasMoreResults = false;
             this.currentIndex = 0;
@@ -59,10 +59,34 @@ export function searchStateFileList() {
 
         if (showFullLoading) {
             this.pageState = 'loading';
-            this.initProgress(file.number);
+            this.initProgress(file.number || file.sceneQuery);
         } else {
             this.isSearchingFile = true;
             this.searchingFileDirection = position === 'first' ? 'next' : 'prev';
+        }
+
+        if (file.mediaType === 'western_scene') {
+            await this._searchWesternFile(file);
+            this.isSearchingFile = false;
+            this.searchingFileDirection = null;
+            this.listMode = 'file';
+            this.displayMode = 'detail';
+            if (file.searchResults?.length > 0) {
+                this.searchResults = file.searchResults;
+                this.hasMoreResults = file.hasMoreResults || false;
+                this.currentIndex = 0;
+                this._resetCoverState();
+                this.checkLocalStatus(this.searchResults);
+                this.fetchUserTagsForCurrent?.();
+            } else {
+                this.searchResults = [];
+                this.hasMoreResults = false;
+                this.currentIndex = 0;
+                this._resetCoverState();
+                this.coverError = file.searchError || window.t('search.filelist.not_found', { number: file.sceneQuery || file.filename });
+            }
+            this.pageState = 'result';
+            return;
         }
 
         return new Promise((resolve) => {
@@ -177,6 +201,11 @@ export function searchStateFileList() {
     async _searchFileBackground(file) {
         if (file.searched) return;
 
+        if (file.mediaType === 'western_scene') {
+            await this._searchWesternFile(file);
+            return;
+        }
+
         return new Promise((resolve) => {
             let settled = false;
             const settle = () => { if (!settled) { settled = true; resolve(); } };
@@ -227,6 +256,32 @@ export function searchStateFileList() {
                 file.searchResults = [];
             };
         });
+    },
+
+    async _searchWesternFile(file) {
+        const query = file.sceneQuery || file.filename || '';
+        if (!query) {
+            file.searched = true;
+            file.searchResults = [];
+            return;
+        }
+        try {
+            const response = await fetch(`/api/search?mode=exact&source=stash&q=${encodeURIComponent(query)}`);
+            const data = await response.json().catch(() => ({}));
+            file.searched = true;
+            if (response.ok && data.success && data.data?.length > 0) {
+                file.searchResults = data.data;
+                file.hasMoreResults = data.has_more || false;
+                file.number = data.data[0].number || file.number;
+            } else {
+                file.searchResults = [];
+                file.searchError = data.error || 'Stash 未找到此歐美影片';
+            }
+        } catch (err) {
+            file.searched = true;
+            file.searchResults = [];
+            file.searchError = err?.message || 'Stash 搜尋失敗';
+        }
     },
 
     switchToSearchResult(index) {
@@ -362,6 +417,11 @@ export function searchStateFileList() {
                 path: path,
                 filename: filename,
                 number: number,
+                mediaType: result.media_type || 'jav',
+                sceneQuery: result.scene_query || null,
+                studio: result.studio || null,
+                performer: result.performer || null,
+                westernTitle: result.title || null,
                 hasSubtitle: !!result.has_subtitle,
                 suffixes: window.SearchFile.detectSuffixes(
                     filename,
@@ -398,7 +458,7 @@ export function searchStateFileList() {
         }
     },
 
-    handleFileDrop(files) {
+    async handleFileDrop(files) {
         if (!files || files.length === 0) return;
 
         const file = files[0];
@@ -406,6 +466,37 @@ export function searchStateFileList() {
         const number = window.SearchFile.extractNumber(filename);
 
         if (!number) {
+            const parsed = await window.SearchFile.parseFilenames([filename]);
+            if (parsed?.[0]?.media_type === 'western_scene') {
+                if (file.path) {
+                    await this.setFileList([file.path]);
+                } else {
+                    this.fileList = [{
+                        path: filename,
+                        filename,
+                        number: null,
+                        mediaType: 'western_scene',
+                        sceneQuery: parsed[0].scene_query,
+                        studio: parsed[0].studio,
+                        performer: parsed[0].performer,
+                        westernTitle: parsed[0].title,
+                        hasSubtitle: !!parsed[0].has_subtitle,
+                        suffixes: [],
+                        chineseTitle: null,
+                        searchResults: [],
+                        hasMoreResults: false,
+                        searched: false,
+                        has_nfo: false,
+                        user_tags: []
+                    }];
+                    this.currentFileIndex = 0;
+                    this.listMode = 'file';
+                    this.displayMode = 'detail';
+                    this.hasContent = true;
+                    await this.switchToFile(0, 'first', true);
+                }
+                return;
+            }
             this.errorText = '無法從檔名識別番號';  // T6c: Alpine state
             this.pageState = 'error';
             return;
@@ -435,14 +526,44 @@ export function searchStateFileList() {
             this.showToast(window.t('search.toast.desktop_only'), 'info');
             return;
         }
+        if (this.isLoadingFolder) return;
+        this.isLoadingFolder = true;
         try {
-            const result = await window.pywebview.api.select_folder();
-            const paths = result?.files || result;
-            if (paths && paths.length > 0) {
-                await this.setFileList(paths);
+            let folder = null;
+            let fallbackPaths = [];
+            if (window.pywebview.api.select_folder_path) {
+                folder = await window.pywebview.api.select_folder_path();
+            } else {
+                const result = await window.pywebview.api.select_folder();
+                folder = result?.folder || null;
+                fallbackPaths = result?.files || result || [];
+            }
+            if (!folder && (!fallbackPaths || fallbackPaths.length === 0)) return;
+
+            if (folder) {
+                const response = await fetch('/api/search/folder-files', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ folder, recursive: true }),
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    this.showToast(data.message || data.error || window.t('search.toast.folder_scan_failed'), 'warning');
+                    return;
+                }
+                this.showToast(window.t('search.toast.folder_scan_done', { count: data.count || data.files?.length || 0 }), 'success');
+                await this.setFileList(data.files || []);
+                return;
+            }
+
+            if (fallbackPaths && fallbackPaths.length > 0) {
+                await this.setFileList(fallbackPaths);
             }
         } catch (e) {
             console.error('選取資料夾失敗:', e);
+            this.showToast(window.t('search.toast.folder_scan_failed'), 'error');
+        } finally {
+            this.isLoadingFolder = false;
         }
     },
 

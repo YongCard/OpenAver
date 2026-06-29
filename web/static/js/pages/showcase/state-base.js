@@ -165,6 +165,7 @@ export function stateBase() {
             showFavoriteActresses: false,
             actressSort: null,
             actressOrder: null,
+            contentFilter: 'all',
         }).as('showcase_state'),
 
         // --- 狀態變數 ---
@@ -186,7 +187,7 @@ export function stateBase() {
         toastTimer: null,
 
         // Card Info 展開狀態 (M3i)
-        infoVisible: false,
+        infoVisible: true,
 
         // Toolbar Dropdown 狀態
         sortOpen: false,
@@ -196,6 +197,7 @@ export function stateBase() {
         sort: 'date',         // M2a 先用硬編碼，M4 才從 config/localStorage 恢復
         order: 'desc',
         mode: 'grid',
+        contentFilter: 'all',
         page: 1,
         perPage: 90,
         totalPages: 1,
@@ -250,8 +252,7 @@ export function stateBase() {
             const cfg = window.__SHOWCASE_CONFIG__ || {};
             const defaultSort = cfg.default_sort || 'date';
             const defaultOrder = cfg.default_order === 'ascending' ? 'asc' : 'desc';
-            // T3.2 P2 fix: `??` 而非 `||` — Settings 允許 items_per_page=0（"全部"語意），
-            // 必須保留 numeric 0 讓下方 grid+perPage=0→120 降級邏輯有機會觸發。
+            // T3.2 P2 fix: `??` 而非 `||` — Settings 允許 items_per_page=0（"全部"語意）。
             const defaultPerPage = cfg.items_per_page ?? 90;
 
             // 2. 從 _persistedShowcase（$persist 自動讀的 localStorage 'showcase_state'）取
@@ -274,10 +275,8 @@ export function stateBase() {
             this.search = urlParams.get('search') || state.search || '';
             this.mode = urlParams.get('mode') || state.mode || 'grid';
             if (!['grid', 'table', 'list'].includes(this.mode)) this.mode = 'grid';
-            // F2: grid + perPage=0 組合降級（settings 若存 items_per_page=0 之防呆）
-            if (this.mode === 'grid' && this.perPage === 0) {
-                this.perPage = 120;
-            }
+            this.contentFilter = urlParams.get('content') || state.contentFilter || 'all';
+            if (!['all', 'jav', 'western'].includes(this.contentFilter)) this.contentFilter = 'all';
             // ★ 44a: 女優模式 — 只從 _persistedShowcase，不加 URL params（避免汙染 shareable link）
             this.showFavoriteActresses = state.showFavoriteActresses === true;  // 嚴格 === true
             this.actressSort = state.actressSort || 'video_count';
@@ -293,6 +292,7 @@ export function stateBase() {
             this._persistedShowcase.page = this.page;
             this._persistedShowcase.search = this.search;
             this._persistedShowcase.mode = this.mode;
+            this._persistedShowcase.contentFilter = this.contentFilter;
             this._persistedShowcase.showFavoriteActresses = this.showFavoriteActresses;  // ★ 44a
             this._persistedShowcase.actressSort = this.actressSort;                      // ★ 44a
             this._persistedShowcase.actressOrder = this.actressOrder;                    // ★ 44a
@@ -305,6 +305,7 @@ export function stateBase() {
             // T3.2 (CD-52-3): perPage 不再寫入 URL params（每次 init 重讀 cfg.items_per_page）
             if (this.page !== 1) params.set('page', this.page);
             if (this.mode !== 'grid') params.set('mode', this.mode);
+            if (this.contentFilter !== 'all') params.set('content', this.contentFilter);
 
             const newUrl = params.toString()
                 ? `${window.location.pathname}?${params}`

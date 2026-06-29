@@ -22,8 +22,164 @@ export function stateProviders() {
         proxyStatus: '',
         proxyStatusOk: false,
         testProxyLoading: false,
+        stashStatus: '',
+        stashStatusOk: false,
+        testStashLoading: false,
 
         // ===== Methods =====
+        _nasPayload() {
+            return {
+                id: this.editingNasId || '',
+                name: this.form.nasName.trim(),
+                host: this.form.nasHost.trim(),
+                share: this.form.nasShare.trim(),
+                subpath: this.form.nasSubpath.trim(),
+                username: this.form.nasUsername.trim(),
+                password: this.form.nasPassword,
+                enabled: this.form.nasEnabled !== false,
+                add_to_gallery: this.form.nasAddToGallery === true,
+            };
+        },
+
+        _resetNasForm() {
+            this.form.nasName = '';
+            this.form.nasHost = '';
+            this.form.nasShare = '';
+            this.form.nasSubpath = '';
+            this.form.nasUsername = '';
+            this.form.nasPassword = '';
+            this.form.nasEnabled = true;
+            this.form.nasAddToGallery = true;
+            this.editingNasId = '';
+        },
+
+        editNasShare(share) {
+            if (!share) return;
+            this.editingNasId = share.id || '';
+            this.form.nasName = share.name || '';
+            this.form.nasHost = share.host || '';
+            this.form.nasShare = share.share || '';
+            this.form.nasSubpath = share.subpath || '';
+            this.form.nasUsername = share.username || '';
+            this.form.nasPassword = '';
+            this.form.nasEnabled = share.enabled !== false;
+            this.form.nasAddToGallery = share.add_to_gallery !== false;
+            this.nasStatusOk = true;
+            this.nasStatus = '正在編輯已保存 NAS；密碼不會回填，如需更新請重新輸入。';
+        },
+
+        cancelNasEdit() {
+            this._resetNasForm();
+            this.nasStatus = '';
+            this.nasStatusOk = false;
+        },
+
+        async testNasConnection() {
+            const payload = this._nasPayload();
+            if (!payload.host || !payload.share) {
+                this.nasStatusOk = false;
+                this.nasStatus = '請先填寫 NAS 主機與共享名稱';
+                return;
+            }
+            this.nasLoading = true;
+            this.nasStatusOk = false;
+            this.nasStatus = window.t('settings.status.testing');
+            try {
+                const resp = await fetch('/api/settings/nas/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const result = await resp.json();
+                this.nasStatusOk = result.success === true;
+                const code = result.code ? `[${result.code}] ` : '';
+                this.nasStatus = (result.success ? '✓ ' : '✗ ') + code + (result.message || result.error || 'NAS 連線測試完成');
+            } catch (e) {
+                this.nasStatusOk = false;
+                this.nasStatus = window.t('settings.status.network_error');
+            } finally {
+                this.nasLoading = false;
+            }
+        },
+
+        async saveNasShare() {
+            const payload = this._nasPayload();
+            if (!payload.host || !payload.share) {
+                this.nasStatusOk = false;
+                this.nasStatus = '請先填寫 NAS 主機與共享名稱';
+                return;
+            }
+            this.nasLoading = true;
+            this.nasStatusOk = false;
+            const editing = !!this.editingNasId;
+            this.nasStatus = editing ? '更新 NAS 設定中...' : '保存 NAS 設定中...';
+            try {
+                const resp = await fetch('/api/settings/nas/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const result = await resp.json();
+                if (result.success === true) {
+                    this.nasStatusOk = true;
+                    this.nasStatus = `✓ 已${editing ? '更新' : '保存'}：${result.share?.unc_path || ''}`;
+                    this._resetNasForm();
+                    await this.loadConfig();
+                } else {
+                    const code = result.code ? `[${result.code}] ` : '';
+                    this.nasStatus = `✗ ${code}${result.message || result.error || 'NAS 保存失敗'}`;
+                }
+            } catch (e) {
+                this.nasStatus = window.t('settings.status.network_error');
+            } finally {
+                this.nasLoading = false;
+            }
+        },
+
+        async refreshNasStatus() {
+            try {
+                const resp = await fetch('/api/settings/nas/status');
+                const result = await resp.json();
+                if (result.success && Array.isArray(result.data)) {
+                    const byId = Object.fromEntries(result.data.map((s) => [s.id, s]));
+                    this.nasShares = (this.nasShares || []).map((s) => ({ ...s, ...(byId[s.id] || {}) }));
+                }
+            } catch (_e) {
+                // status is best-effort; settings can still be saved.
+            }
+        },
+
+        async removeNasShare(share) {
+            if (!share?.id || this.nasLoading) return;
+            const ok = window.confirm('只會移除 OpenAver 保存的 NAS 設定，不會刪除媒體檔案，也不會清除 Windows Credential Manager 憑據。');
+            if (!ok) return;
+
+            this.nasLoading = true;
+            this.nasStatusOk = false;
+            this.nasStatus = '移除 NAS 設定中...';
+            try {
+                const resp = await fetch(`/api/settings/nas/${encodeURIComponent(share.id)}`, {
+                    method: 'DELETE',
+                });
+                const result = await resp.json();
+                if (result.success === true) {
+                    if (this.editingNasId === share.id) this._resetNasForm();
+                    this.nasStatusOk = true;
+                    this.nasStatus = result.removed
+                        ? '✓ 已移除 NAS 設定；掃描資料夾與憑據保持不變。'
+                        : '✓ NAS 設定已不存在。';
+                    await this.loadConfig();
+                } else {
+                    const code = result.code ? `[${result.code}] ` : '';
+                    this.nasStatus = `✗ ${code}${result.message || result.error || 'NAS 移除失敗'}`;
+                }
+            } catch (_e) {
+                this.nasStatus = window.t('settings.status.network_error');
+            } finally {
+                this.nasLoading = false;
+            }
+        },
+
         async loadOllamaModels(url, savedModel = '') {
             if (!url) return;
 
@@ -77,6 +233,44 @@ export function stateProviders() {
                 this.proxyStatus = window.t('settings.status.network_error');
             } finally {
                 this.testProxyLoading = false;
+            }
+        },
+
+        async testStashConnection() {
+            if (!this.form.stashUrl.trim()) {
+                this.stashStatusOk = false;
+                this.stashStatus = '請先填寫 Stash URL';
+                return;
+            }
+
+            this.testStashLoading = true;
+            this.stashStatusOk = false;
+            this.stashStatus = window.t('settings.status.testing');
+
+            try {
+                const resp = await fetch('/api/settings/stash/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: this.form.stashUrl.trim(),
+                        api_key: this.form.stashApiKey.trim(),
+                        proxy_url: this.form.stashProxyUrl.trim(),
+                    })
+                });
+                const result = await resp.json();
+
+                if (result.success === true) {
+                    this.stashStatusOk = true;
+                    const version = result.version ? ` (${result.version})` : '';
+                    this.stashStatus = `✓ ${result.message || 'Stash 連線成功'}${version}`;
+                } else {
+                    const code = result.code ? `[${result.code}] ` : '';
+                    this.stashStatus = `✗ ${code}${result.message || result.error || 'Stash 連線失敗'}`;
+                }
+            } catch (e) {
+                this.stashStatus = window.t('settings.status.network_error');
+            } finally {
+                this.testStashLoading = false;
             }
         },
 

@@ -9,6 +9,7 @@ Showcase API 路由 - 影片展示資料端點
 from urllib.parse import quote
 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 
 from core.database import VideoRepository, get_db_path, init_db
@@ -20,6 +21,11 @@ from core import thumbnail_cache
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/showcase", tags=["showcase"])
+
+
+class FolderDeleteRequest(BaseModel):
+    path: str
+    confirm: bool = False
 
 
 def _serialize_video(v, path_mappings: dict, enabled: bool = False) -> dict:
@@ -182,3 +188,51 @@ def delete_video(path: str = Query(..., description="file:/// URI")):
     thumbnail_cache.invalidate(path)
 
     return JSONResponse({"deleted": n})
+
+
+def _showcase_delete_error_response(exc: Exception) -> JSONResponse:
+    code = str(exc) or "showcase_delete_failed"
+    messages = {
+        "confirmation_required": "需要確認後才會送入回收站",
+        "invalid_path": "影片路徑無效",
+        "path_not_found": "影片檔案不存在",
+        "path_not_file": "目標不是影片檔案",
+        "path_not_video": "目標不是已支援的影片格式",
+        "gallery_not_configured": "尚未設定影片庫資料夾",
+        "path_outside_gallery": "只能刪除影片庫資料夾內的影片",
+        "folder_unreadable": "無法讀取影片所在資料夾",
+        "folder_contains_other_videos": "資料夾內含其他影片，已阻止刪除",
+        "folder_contains_other_numbers": "資料夾內含其他番號資料，已阻止刪除",
+        "folder_contains_unknown_files": "資料夾內含非刮削檔案，已阻止刪除",
+        "recycle_bin_unavailable": "目前環境不支援 Windows 回收站",
+        "recycle_bin_failed": "送入回收站失敗，未刪除資料庫記錄",
+    }
+    status = 400 if code != "showcase_delete_failed" else 500
+    return JSONResponse(
+        {"success": False, "code": code, "error": messages.get(code, "刪除失敗")},
+        status_code=status,
+    )
+
+
+@router.post("/video-folder-delete/preview")
+def preview_video_folder_delete(request: FolderDeleteRequest):
+    """Preview the physical folder deletion target without changing files or DB rows."""
+    try:
+        from core.showcase_delete import preview_showcase_folder_delete
+
+        return JSONResponse({"success": True, "data": preview_showcase_folder_delete(request.path)})
+    except Exception as exc:
+        logger.warning("showcase folder delete preview rejected: %s", exc)
+        return _showcase_delete_error_response(exc)
+
+
+@router.post("/video-folder-delete/apply")
+def apply_video_folder_delete(request: FolderDeleteRequest):
+    """Move a single-number video folder to recycle bin, then remove DB rows."""
+    try:
+        from core.showcase_delete import apply_showcase_folder_delete
+
+        return JSONResponse(apply_showcase_folder_delete(request.path, confirm=request.confirm))
+    except Exception as exc:
+        logger.warning("showcase folder delete apply failed: %s", exc, exc_info=True)
+        return _showcase_delete_error_response(exc)

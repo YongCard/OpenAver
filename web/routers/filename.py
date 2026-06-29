@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 
 from core.scrapers.utils import extract_number, check_subtitle
+from core.western_scene import parse_western_scene_filename
 
 router = APIRouter(prefix="/api", tags=["filename"])
 
@@ -26,6 +27,12 @@ class ParsedFile(BaseModel):
     filename: str
     number: Optional[str] = None
     has_subtitle: bool = False
+    media_type: str = "jav"
+    scene_query: Optional[str] = None
+    studio: Optional[str] = None
+    date: Optional[str] = None
+    performer: Optional[str] = None
+    title: Optional[str] = None
 
 
 class ParseFilenameResponse(BaseModel):
@@ -68,14 +75,28 @@ async def parse_filename(request: ParseFilenameRequest) -> ParseFilenameResponse
     for filename in request.filenames:
         number = extract_number(filename)
         has_subtitle = check_subtitle(filename)
+        western = None if number else parse_western_scene_filename(filename)
 
-        results.append(ParsedFile(
-            filename=filename,
-            number=number,
-            has_subtitle=has_subtitle
-        ))
+        if western:
+            results.append(ParsedFile(
+                filename=filename,
+                number=None,
+                has_subtitle=has_subtitle,
+                media_type="western_scene",
+                scene_query=western.scene_query,
+                studio=western.studio,
+                date=western.date,
+                performer=western.performer,
+                title=western.title,
+            ))
+        else:
+            results.append(ParsedFile(
+                filename=filename,
+                number=number,
+                has_subtitle=has_subtitle
+            ))
 
-        if number:
+        if number or western:
             parsed_count += 1
 
     return ParseFilenameResponse(

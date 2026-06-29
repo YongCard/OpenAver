@@ -25,6 +25,20 @@
     "external_manager": "off",
     "download_sample_images": false
   },
+  "scraper_profiles": {
+    "western": {
+      "create_folder": true,
+      "folder_format": "{studio}/{year}/{date} {title}",
+      "filename_format": "[{date}] {title} - {performers}{suffix}",
+      "external_manager": "jellyfin"
+    }
+  },
+  "library_categories": {
+    "enabled": true,
+    "jav": "日韩",
+    "western": "欧美",
+    "auto_create": true
+  },
   "search": {
     "search_filter": "",
     "uncensored_mode_enabled": false,
@@ -67,6 +81,9 @@
   },
   "showcase": {
     "player": ""
+  },
+  "media_merge": {
+    "cleanup_sources_default": false
   },
   "general": {
     "default_page": "scanner",
@@ -131,12 +148,25 @@
       "is_censored": true
     },
     {
+      "id": "kingdom",
+      "type": "builtin",
+      "display_name_key": "KingDom",
+      "display_name_raw": "",
+      "enabled": true,
+      "order": 4,
+      "config": {},
+      "is_beta": false,
+      "manual_only": false,
+      "requires_proxy": false,
+      "is_censored": true
+    },
+    {
       "id": "d2pass",
       "type": "builtin",
       "display_name_key": "D2Pass",
       "display_name_raw": "",
       "enabled": true,
-      "order": 4,
+      "order": 5,
       "config": {},
       "is_beta": false,
       "manual_only": false,
@@ -149,7 +179,7 @@
       "display_name_key": "HEYZO",
       "display_name_raw": "",
       "enabled": true,
-      "order": 5,
+      "order": 6,
       "config": {},
       "is_beta": false,
       "manual_only": false,
@@ -162,7 +192,7 @@
       "display_name_key": "FC2",
       "display_name_raw": "",
       "enabled": true,
-      "order": 6,
+      "order": 7,
       "config": {},
       "is_beta": false,
       "manual_only": false,
@@ -175,10 +205,38 @@
       "display_name_key": "AVSOX",
       "display_name_raw": "",
       "enabled": true,
-      "order": 7,
+      "order": 8,
       "config": {},
       "is_beta": false,
       "manual_only": false,
+      "requires_proxy": false,
+      "is_censored": false
+    },
+    {
+      "id": "javlibrary",
+      "type": "builtin",
+      "display_name_key": "JavLibrary",
+      "display_name_raw": "",
+      "enabled": false,
+      "order": 99,
+      "config": {},
+      "is_beta": true,
+      "manual_only": true,
+      "requires_proxy": false,
+      "is_censored": false
+    },
+    {
+      "id": "stash",
+      "type": "stash",
+      "display_name_key": null,
+      "display_name_raw": "Stash",
+      "enabled": false,
+      "order": 100,
+      "config": {
+        "media_type": "western_scene"
+      },
+      "is_beta": false,
+      "manual_only": true,
       "requires_proxy": false,
       "is_censored": false
     }
@@ -188,5 +246,15 @@
     "enabled": false,
     "url": "",
     "token": ""
+  },
+  "stash": {
+    "enabled": false,
+    "url": "http://127.0.0.1:9999",
+    "api_key": "",
+    "proxy_url": "",
+    "default_source": "stash"
+  },
+  "nas": {
+    "shares": []
   }
 }

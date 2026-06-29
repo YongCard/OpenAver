@@ -9,9 +9,10 @@
 對齊 CD-61-7b：mirror 持續寫入，與 sources 推導保持一致（never diverge）。
 """
 from core import source_settings
+from core.scrapers.utils import CENSORED_SOURCES, UNCENSORED_SOURCES
 
-CENSORED = ['dmm', 'javbus', 'jav321', 'javdb']
-UNCENSORED = ['d2pass', 'heyzo', 'fc2', 'avsox']
+CENSORED = [sid for sid in CENSORED_SOURCES if sid != 'javlibrary']
+UNCENSORED = list(UNCENSORED_SOURCES)
 
 
 def _set_enabled(config, predicate):

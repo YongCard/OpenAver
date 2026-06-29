@@ -124,6 +124,8 @@ SCANNER_SCAN_JS  = Path(__file__).parent.parent.parent / "web" / "static" / "js"
 SCANNER_BATCH_JS = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "scanner" / "state-batch.js"
 SCANNER_ALIAS_JS = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "scanner" / "state-alias.js"
 SCANNER_MAIN_JS  = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "scanner" / "main.js"
+ORGANIZE_HTML = Path(__file__).parent.parent.parent / "web" / "templates" / "organize.html"
+ORGANIZE_JS = Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "organize" / "main.js"
 MOTION_LAB_HTML = Path(__file__).parent.parent.parent / "web" / "templates" / "motion_lab.html"
 DESIGN_SYSTEM_HTML = Path(__file__).parent.parent.parent / "web" / "templates" / "design-system.html"
 THEME_CSS = Path(__file__).parent.parent.parent / "web" / "static" / "css" / "theme.css"
@@ -196,6 +198,138 @@ class TestAppleTouchIconThemeColor:
                 f"apple-touch-icon.png 須為 RGB 不透明（無 alpha），實為 {img.mode}"
             assert img.getpixel((0, 0)) == (26, 26, 46), \
                 f"apple-touch-icon.png 四角須為品牌底 #1a1a2e，實為 {img.getpixel((0, 0))}"
+
+
+class TestInboxOrganizerPageGuard:
+    """個人版 #待整理 工作流入口守衛。"""
+
+    def test_sidebar_places_organize_between_search_and_scanner(self):
+        html = BASE_HTML_T76.read_text(encoding="utf-8")
+        desktop_search = html.index('href="/search" title="{{ t(\'nav.search\') }}"')
+        desktop_organize = html.index('href="/organize" title="{{ t(\'nav.organize\') }}"')
+        desktop_scanner = html.index('href="/scanner" title="{{ t(\'nav.scanner\') }}"')
+        assert desktop_search < desktop_organize < desktop_scanner
+        assert "page == 'organize'" in html
+
+    def test_organize_template_has_required_controls(self):
+        html = ORGANIZE_HTML.read_text(encoding="utf-8")
+        for expected in [
+            'x-data="organizePage"',
+            "organize.scan",
+            "organize.search",
+            "organize.progress_title",
+            "organize.cancel_search",
+            "organize.offline_apply",
+            "organize.apply_progress_title",
+            "organize.pause_apply",
+            "organize.preview_and_apply",
+            "offlinePlanSelectedAndApply()",
+            "searchSelectedAndApply()",
+            "toggleAllSelected($event)",
+            "organize.select_all",
+            "manual_number",
+            "item.entry.selected",
+            "organize-filter-bar",
+            "pathFilterOptions",
+            "organize.filter_path",
+            "organize.select_visible",
+            "organize.deselect_visible",
+            "organize.visible_summary",
+            "visibleEntries",
+            "toggleEntrySelection(item.visibleIndex, $event)",
+            "organize.flow_hint",
+            'x-ref="organizeLog"',
+        ]:
+            assert expected in html
+        for removed in [
+            "organize-group-row",
+            "toggleGroupSelected",
+            "toggleGroupCollapsed",
+            "organize.group_select",
+        ]:
+            assert removed not in html
+        assert '@click="searchSelected()"' not in html
+        assert '@click="previewAndConfirmApply()"' not in html
+
+    def test_organize_source_column_does_not_fallback_to_file_path(self):
+        html = ORGANIZE_HTML.read_text(encoding="utf-8")
+        assert "item.entry.source_name || item.entry.source_id || item.entry.metadata?.source || source" in html
+        assert "entry.source_name || entry.source_id || entry.source || source" not in html
+
+    def test_organize_js_uses_inbox_api_without_raw_http_errors(self):
+        js = ORGANIZE_JS.read_text(encoding="utf-8")
+        for endpoint in [
+            "/api/inbox-organizer/roots",
+            "/api/inbox-organizer/inventory",
+            "/api/inbox-organizer/search-jobs",
+            "/api/inbox-organizer/search-jobs/current",
+            "/api/inbox-organizer/plan",
+            "/api/inbox-organizer/offline-plan",
+            "/api/inbox-organizer/apply",
+        ]:
+            assert endpoint in js
+        assert "startSearchJob" in js
+        assert "searchSelectedAndApply" in js
+        assert "offlinePlanSelectedAndApply" in js
+        assert "applyBatchSize: 20" in js
+        assert "pauseApplyBatches" in js
+        assert "applyingBatches" in js
+        assert "mergeApplyResult" in js
+        assert "toggleAllSelected" in js
+        assert "toggleEntrySelection" in js
+        assert "visibleEntries" in js
+        assert "pathFilter" in js
+        assert "reviewFilter" in js
+        assert "metadataFilter" in js
+        assert "selectedFilter" in js
+        assert "pathFilterOptions" in js
+        assert "selectVisibleEntries(selected)" in js
+        assert "clearEntryFilters()" in js
+        assert "entryPathKey(entry)" in js
+        assert "entryGroups" not in js
+        assert "toggleGroupSelected" not in js
+        assert "toggleGroupCollapsed" not in js
+        assert "collapsedGroupKeys" not in js
+        assert "shiftKey" in js
+        assert "this.visibleEntries[i]" in js
+        assert "entriesReadyForPlan" in js
+        assert "previewPendingApply" in js
+        assert "previewAndConfirmApply" in js
+        assert "selected_ids" in js
+        assert "{ entries }" in js
+        assert "status === 'found' || entry.metadata" in js
+        assert "setInterval" in js
+        assert "scrollLogsToBottom" in js
+        assert "batch_size: this.applyBatchSize" in js
+        assert "batch_size: 10000" not in js
+        assert "apiErrorMessage" in js
+        assert "HTTP 400" not in js
+
+    def test_selected_search_auto_applies_without_modal(self):
+        js = ORGANIZE_JS.read_text(encoding="utf-8")
+        body_start = js.find("async previewPendingApply()")
+        assert body_start >= 0
+        body_end = js.find("async applyBatch()", body_start)
+        body = js[body_start:body_end]
+        assert "await this.applyBatch();" in body
+        assert "this.applyModalOpen = true" not in body
+
+
+class TestSearchTemporaryFolderScrapeGuard:
+    """搜索頁臨時資料夾刮削入口守衛。"""
+
+    def test_search_folder_add_uses_recursive_folder_files_api(self):
+        js = FILE_LIST_JS.read_text(encoding="utf-8")
+        html = SEARCH_HTML.read_text(encoding="utf-8")
+
+        assert "select_folder_path" in js
+        assert "/api/search/folder-files" in js
+        assert "JSON.stringify({ folder, recursive: true })" in js
+        assert "window.t('search.toast.folder_scan_done'" in js
+        assert "window.t('search.toast.folder_scan_failed')" in js
+        assert "isLoadingFolder" in html
+        assert "search.empty.temp_scrape_hint" in html
+        assert "search.filelist.temp_scrape_hint" in html
 
 
 class TestPageTransitionDomGuard:
@@ -826,6 +960,26 @@ class TestJellyfinCheckManualGuard:
         # jellyfinCheckState = 'idle' 重設（update done 分支使用 this. 前綴）
         assert "this.jellyfinCheckState = 'idle'" in js, \
             "scanner.js runJellyfinImageUpdate done 缺少 this.jellyfinCheckState = 'idle' 重設"
+
+    def test_nfo_update_uses_incremental_plan_when_paths_exist(self):
+        """runNfoUpdate() 有 nfoUpdatePaths 時先建立 update-plan，再用 plan_id 開 SSE。"""
+        js = self._js()
+        assert "fetch('/api/gallery/update-plan'" in js, \
+            "scanner.js runNfoUpdate() 缺少 /api/gallery/update-plan 建立增量計畫"
+        assert "JSON.stringify({ paths: this.nfoUpdatePaths })" in js, \
+            "scanner.js update-plan 應送出既有 nfoUpdatePaths"
+        assert "planData.data?.plan_id" in js, \
+            "scanner.js update-plan 成功後應讀取 plan_id"
+        assert "/api/gallery/update?plan_id=${encodeURIComponent(planId)}" in js, \
+            "scanner.js 應使用 plan_id 開啟增量 /api/gallery/update SSE"
+
+    def test_nfo_update_keeps_full_update_fallback(self):
+        """沒有 nfoUpdatePaths 時仍保留原 /api/gallery/update 全量入口。"""
+        js = self._js()
+        assert "let updateUrl = '/api/gallery/update';" in js, \
+            "scanner.js runNfoUpdate() 應保留 /api/gallery/update fallback"
+        assert "new EventSource(updateUrl)" in js, \
+            "scanner.js runNfoUpdate() 應以 updateUrl 建立 EventSource"
 
 
 class TestJellyfinCheckI18nKeys:
@@ -1874,6 +2028,63 @@ class TestUserTagsApiGuard:
             val = self._get_nested(data, "search.error.tag_api_failed")
             assert val, f"{locale_file} missing: search.error.tag_api_failed key"
 
+
+class TestWesternStashFrontendGuard:
+    """歐美 Stash 刮削前端守衛。"""
+
+    def test_search_file_list_handles_western_scene(self):
+        content = FILE_LIST_JS.read_text(encoding="utf-8")
+        for expected in [
+            "mediaType: result.media_type || 'jav'",
+            "sceneQuery: result.scene_query || null",
+            "source=stash",
+            "_searchWesternFile(file)",
+            "western_scene",
+        ]:
+            assert expected in content, f"file-list.js missing: {expected!r}"
+
+    def test_search_batch_includes_scene_query(self):
+        content = (Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "search" / "state" / "batch.js").read_text(encoding="utf-8")
+        assert "f.number || f.sceneQuery" in content
+
+    def test_showcase_has_content_filter(self):
+        html = SHOWCASE_HTML.read_text(encoding="utf-8")
+        js = (Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "showcase" / "state-videos.js").read_text(encoding="utf-8")
+        for expected in [
+            "content-filter-toggle",
+            "onContentFilterChange('jav')",
+            "onContentFilterChange('western')",
+        ]:
+            assert expected in html, f"showcase.html missing: {expected!r}"
+        assert "contentFilter === 'western'" in js
+        assert "source === 'stash'" in js
+        assert "number.startsWith('WEST-')" in js
+
+    def test_settings_page_has_stash_config(self):
+        settings_html = (Path(__file__).parent.parent.parent / "web" / "templates" / "settings.html").read_text(encoding="utf-8")
+        settings_config = (Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "settings" / "state-config.js").read_text(encoding="utf-8")
+        settings_providers = (Path(__file__).parent.parent.parent / "web" / "static" / "js" / "pages" / "settings" / "state-providers.js").read_text(encoding="utf-8")
+
+        for expected in [
+            "x-model=\"form.stashEnabled\"",
+            "x-model=\"form.stashUrl\"",
+            "x-model=\"form.stashApiKey\"",
+            "x-model=\"form.stashProxyUrl\"",
+            "@click=\"testStashConnection()\"",
+        ]:
+            assert expected in settings_html, f"settings.html missing: {expected!r}"
+        for expected in [
+            "stashEnabled:",
+            "stashUrl:",
+            "stashApiKey:",
+            "stashProxyUrl:",
+            "config.stash =",
+            "proxy_url: this.form.stashProxyUrl.trim()",
+        ]:
+            assert expected in settings_config, f"state-config.js missing: {expected!r}"
+        assert "/api/settings/stash/test" in settings_providers
+        assert "proxy_url: this.form.stashProxyUrl.trim()" in settings_providers
+
 class TestShowcaseActressTemplate:
     """Phase 44a-T3: 守衛 showcase.html 含有女優模式 UI 結構（method folded）"""
 
@@ -2127,28 +2338,78 @@ class TestShowcaseLightboxSentinel:
 
     # ----- 71-T7: video delete trash button + delete modal + x-trap（element-bound）-----
 
-    def test_t7_delete_trash_button_in_lightbox_details_row(self):
-        """[transient-guard] 71b-T1：垃圾桶鈕在 info panel 的 `.lb-details`（番號·片商·日期·size
-        那一行）行末，靠右常駐 muted icon，綁 openDeleteVideoModal()。搬位 / relayout 是一次性 —
-        舊斷言（鈕在 .cover-actions / .lb-delete-strip 內）失效屬預期。"""
+    def test_t7_db_only_remove_is_weak_text_action(self):
+        """DB-only 移除入口仍存在，但不可再顯示成和物理刪除相同的垃圾桶主按鈕。"""
         html = self._html()
-        # 抽 .lb-details 區塊（內部僅 span/a/button，無巢狀 div → 第一個 </div> 即其收尾）
         m = re.search(
             r'<div class="lb-details">(.*?)</div>',
             html, re.DOTALL,
         )
         assert m, '.lb-details（metadata 行）區塊不存在'
         block = m.group(1)
-        # 垃圾桶 button：抽出綁 openDeleteVideoModal() 的 <button> tag，三要素同 tag
         btn = re.search(r'<button\b[^>]*openDeleteVideoModal\(\)[^>]*>.*?</button>',
                         block, re.DOTALL)
-        assert btn, '.lb-details 行末缺綁 openDeleteVideoModal() 的垃圾桶 button'
+        assert btn, '.lb-details 缺綁 openDeleteVideoModal() 的 DB-only 移除入口'
         btn_html = btn.group(0)
-        assert 'lb-delete-btn' in btn_html, \
-            f'垃圾桶 button 缺 .lb-delete-btn class（muted info-panel 樣式）: {btn_html!r}'
-        assert 'bi-trash' in btn_html, f'垃圾桶 button 缺 bi-trash icon: {btn_html!r}'
+        assert 'lb-db-remove-btn' in btn_html, \
+            f'DB-only 移除入口應使用弱操作 class .lb-db-remove-btn: {btn_html!r}'
+        assert 'bi-x-circle' in btn_html, f'DB-only 移除入口不應再使用垃圾桶 icon: {btn_html!r}'
+        assert 'bi-trash' not in btn_html, f'DB-only 移除入口不可使用垃圾桶 icon: {btn_html!r}'
         assert "t('showcase.video.delete')" in btn_html, \
-            f'垃圾桶 button 缺 i18n showcase.video.delete: {btn_html!r}'
+            f'DB-only 移除入口缺 i18n showcase.video.delete: {btn_html!r}'
+
+    def test_folder_delete_button_in_lightbox_details_row(self):
+        """物理刪除入口必須是獨立按鈕：保留 DB-only 刪除，同時提供整個番號資料夾送回收站。"""
+        html = self._html()
+        m = re.search(
+            r'<div class="lb-details">(.*?)</div>',
+            html, re.DOTALL,
+        )
+        assert m, '.lb-details（metadata 行）區塊不存在'
+        block = m.group(1)
+        btn = re.search(r'<button\b[^>]*openFolderDeleteModal\(\)[^>]*>.*?</button>',
+                        block, re.DOTALL)
+        assert btn, '.lb-details 行末缺綁 openFolderDeleteModal() 的物理刪除 button'
+        btn_html = btn.group(0)
+        assert 'lb-folder-delete-btn' in btn_html, \
+            f'物理刪除 button 缺 .lb-folder-delete-btn class: {btn_html!r}'
+        assert 'bi-trash3' in btn_html, f'物理刪除 button 缺 bi-trash3 icon: {btn_html!r}'
+        assert "t('showcase.video.folder_delete')" in btn_html, \
+            f'物理刪除 button 缺 i18n showcase.video.folder_delete: {btn_html!r}'
+
+    def test_rescrape_correction_entry_in_lightbox_details_row(self):
+        """更正刮削入口必須保留在番號旁，走現有 rescrape modal，而不是只剩自動補缺。"""
+        html = self._html()
+        m = re.search(
+            r'<div class="lb-details">(.*?)</div>',
+            html, re.DOTALL,
+        )
+        assert m, '.lb-details（metadata 行）區塊不存在'
+        block = m.group(1)
+        btn = re.search(r'<button\b[^>]*openRescrape\(currentLightboxVideo, \'lightbox\'\)[^>]*>.*?</button>',
+                        block, re.DOTALL)
+        assert btn, "燈箱詳情列缺少更正刮削 button"
+        btn_html = btn.group(0)
+        assert 'lb-rescrape-action' in btn_html, \
+            f'更正刮削入口應使用可見文字按鈕 class .lb-rescrape-action: {btn_html!r}'
+        assert "<span x-text=\"t('showcase.rescrape.entry_tooltip')\"></span>" in btn_html, \
+            f'更正刮削入口必須顯示文字，不可只有弱齒輪: {btn_html!r}'
+        assert "openRescrape(currentLightboxVideo, 'lightbox')" in block, \
+            "燈箱詳情列缺少更正刮削入口 openRescrape(currentLightboxVideo, 'lightbox')"
+        assert "showcase.rescrape.entry_tooltip" in block, \
+            "更正刮削入口缺少 rescrape tooltip i18n"
+
+    def test_lightbox_does_not_show_two_adjacent_trash_buttons(self):
+        """避免再出現兩個相似垃圾桶：lb-details 只允許物理刪除使用 bi-trash3。"""
+        html = self._html()
+        m = re.search(
+            r'<div class="lb-details">(.*?)</div>',
+            html, re.DOTALL,
+        )
+        assert m, '.lb-details（metadata 行）區塊不存在'
+        block = m.group(1)
+        assert block.count('bi-trash3') == 1
+        assert 'bi-trash"></i>' not in block
 
     def test_t7_delete_modal_contract(self):
         """delete-video modal：deleteVideoModalOpen + 標題 i18n + confirm/cancel handler 綁同一 dialog。"""
@@ -2168,6 +2429,25 @@ class TestShowcaseLightboxSentinel:
         assert 'confirmDeleteVideo()' in block, 'delete modal 缺 confirmDeleteVideo() 確認 handler'
         assert 'cancelDeleteVideo()' in block, 'delete modal 缺 cancelDeleteVideo() 取消 handler'
 
+    def test_folder_delete_modal_contract(self):
+        """folder-delete modal：folderDeleteModalOpen + preview summary + confirm/cancel handler。"""
+        html = self._html()
+        m = re.search(
+            r'<dialog\b[^>]*folderDeleteModalOpen[^>]*>(.*?)</dialog>',
+            html, re.DOTALL,
+        )
+        assert m, 'folder-delete <dialog>（綁 folderDeleteModalOpen）不存在'
+        dialog_open_tag = m.group(0)[:m.group(0).find('>') + 1]
+        block = m.group(1)
+        assert 'fluent-modal' in dialog_open_tag, \
+            f'folder delete modal 缺 fluent-modal class: {dialog_open_tag!r}'
+        assert "showcase.video.folder_delete_modal.title" in block, \
+            'folder delete modal 缺 i18n folder_delete_modal.title'
+        assert '_folderDeletePreview?.folder' in block, \
+            'folder delete modal 缺 folder preview 顯示'
+        assert 'confirmFolderDelete()' in block, 'folder delete modal 缺 confirmFolderDelete() handler'
+        assert 'cancelFolderDelete()' in block, 'folder delete modal 缺 cancelFolderDelete() handler'
+
     def test_t7_xtrap_releases_on_delete_modal(self):
         """燈箱 x-trap 行必須含 deleteVideoModalOpen（modal 開時釋放 trap 給 modal）。"""
         html = self._html()
@@ -2176,6 +2456,19 @@ class TestShowcaseLightboxSentinel:
         expr = m.group(1)
         assert 'deleteVideoModalOpen' in expr, \
             f'x-trap.inert 未含 deleteVideoModalOpen（delete modal 開時 trap 未釋放）: {expr!r}'
+        assert 'folderDeleteModalOpen' in expr, \
+            f'x-trap.inert 未含 folderDeleteModalOpen（folder delete modal 開時 trap 未釋放）: {expr!r}'
+
+    def test_state_delete_uses_folder_delete_endpoints(self):
+        """物理刪除流程必須先 preview，再 apply，且成功後才移除前端卡片。"""
+        js = (Path(__file__).parents[2] / 'web' / 'static' / 'js' / 'pages' / 'showcase' / 'state-delete.js').read_text(encoding='utf-8')
+        assert "folderDeleteModalOpen: false" in js
+        assert "openFolderDeleteModal()" in js
+        assert "confirmFolderDelete()" in js
+        assert "/api/showcase/video-folder-delete/preview" in js
+        assert "/api/showcase/video-folder-delete/apply" in js
+        assert "JSON.stringify({ path, confirm: true })" in js
+        assert "_videos.splice(idx, 1)" in js
 
 
 class TestShowcaseHeroCard:
@@ -3503,6 +3796,9 @@ class TestT4FooterStructure:
             "<kbd>←</kbd>",
             "<kbd>→</kbd>",
             'class="footer-pager"',
+            'class="shortcut-action"',
+            "cycleDisplayMode()",
+            "toggleInfo()",
             'x-show="!showFavoriteActresses && totalPages > 1"',
             "prevPage()",
             "nextPage()",
@@ -4779,6 +5075,234 @@ class TestScannerESMGuard:
         content = self._read("web/static/js/pages/scanner/main.js")
         assert "scannerPage" not in content, \
             "scanner/main.js 含 scannerPage（54c-T2 設計錯誤）"
+
+
+class TestScannerDuplicateNumberGuard:
+    """Personal branch: duplicate-number detector UI/delete contract."""
+
+    def _read(self, rel_path):
+        return (Path(__file__).parent.parent.parent / rel_path).read_text(encoding="utf-8")
+
+    def test_state_duplicates_module_registered(self):
+        main = self._read("web/static/js/pages/scanner/main.js")
+        state = self._read("web/static/js/pages/scanner/state-duplicates.js")
+
+        assert "state-duplicates.js" in main
+        assert "stateDuplicates()" in main
+        assert "export function stateDuplicates" in state
+        assert "/api/library-migration/duplicates?" in state
+        assert "/api/library-migration/duplicate-delete/preview" in state
+        assert "/api/library-migration/duplicate-delete/apply" in state
+        assert "/api/library-migration/title-placeholder/preview" in state
+        assert "/api/library-migration/title-placeholder/apply" in state
+        assert "duplicateDeleteAllowed(group, item)" in state
+
+    def test_duplicate_table_uses_compact_action_buttons(self):
+        html = self._read("web/templates/scanner.html")
+        css = self._read("web/static/css/pages/scanner.css")
+
+        assert "duplicate-action-cell" in html
+        assert "duplicate-action-group" in html
+        assert "duplicate-icon-btn" in html
+        assert "bi-folder2-open" in html
+        assert "bi-trash3" in html
+        assert "item.show_open_folder" in html
+        assert 'x-show="item.exists !== false"' in html
+        assert ".duplicate-action-cell" in css
+        assert "white-space: nowrap" in css
+        assert ".duplicate-icon-btn" in css
+
+    def test_duplicate_delete_modal_contract(self):
+        html = self._read("web/templates/scanner.html")
+
+        assert "duplicateDeleteModalOpen" in html
+        assert "cancelDuplicateDelete()" in html
+        assert "confirmDuplicateDelete()" in html
+        assert "scanner.duplicates.delete_modal_title" in html
+        assert "scanner.duplicates.delete_recycle_hint" in html
+        assert "duplicateDeletePreview?.files" in html
+        assert "duplicateDeleteApplying" in html
+
+    def test_duplicate_delete_success_uses_unguarded_close(self):
+        js = self._read("web/static/js/pages/scanner/state-duplicates.js")
+
+        assert "closeDuplicateDeleteModal()" in js
+        assert "if (this.duplicateDeleteApplying) return;" in js
+        assert "this.closeDuplicateDeleteModal();" in js
+        success_index = js.index("scanner.duplicates.delete_success")
+        close_index = js.index("this.closeDuplicateDeleteModal();", success_index)
+        reload_index = js.index("await this.loadDuplicateNumbers();", success_index)
+        assert close_index < reload_index, (
+            "刪除成功後應先用不受 applying guard 影響的 closeDuplicateDeleteModal() 關閉彈窗"
+        )
+
+    def test_empty_folder_cleanup_ui_contract(self):
+        html = self._read("web/templates/scanner.html")
+        js = self._read("web/static/js/pages/scanner/state-duplicates.js")
+
+        assert "scanner.empty_folders.section_title" in html
+        assert "loadEmptyFolders()" in html
+        assert "openEmptyFolderCleanupModal()" in html
+        assert "emptyFolderModalOpen" in html
+        assert "confirmEmptyFolderCleanup()" in html
+        assert "apiErrorMessage(resp" in js
+        assert "/api/library-migration/empty-folders/preview" in js
+        assert "/api/library-migration/empty-folders/apply" in js
+        assert "delete_success_with_empty_folders" in js
+        assert "delete_success_empty_folder_warning" in js
+
+    def test_title_placeholder_isolation_ui_contract(self):
+        html = self._read("web/templates/scanner.html")
+        js = self._read("web/static/js/pages/scanner/state-duplicates.js")
+
+        assert "scanner.title_placeholders.section_title" in html
+        assert "loadTitlePlaceholders()" in html
+        assert "openTitlePlaceholderModal()" in html
+        assert "titlePlaceholderModalOpen" in html
+        assert "confirmTitlePlaceholderMove()" in html
+        assert "scanner.title_placeholders.manual_hint" in html
+        assert "title-placeholder-list" in html
+        assert "title-placeholder-item" in html
+        assert "title-placeholder-table" not in html
+        assert "/api/library-migration/title-placeholder/preview" in js
+        assert "/api/library-migration/title-placeholder/apply" in js
+        assert "titlePlaceholderReasonLabel(reason)" in js
+        assert "apiErrorMessage(resp" in js
+
+    def test_duplicate_locale_keys_exist_in_all_locales(self):
+        duplicate_required = {
+            "delete_to_recycle",
+            "delete_multipart_disabled",
+            "delete_preview_failed",
+            "delete_failed",
+            "delete_success",
+            "delete_success_with_empty_folders",
+            "delete_success_empty_folder_warning",
+            "delete_modal_title",
+            "delete_modal_body",
+            "delete_recycle_hint",
+            "delete_kind_video",
+            "delete_kind_sidecar",
+            "delete_cancel",
+            "delete_confirm",
+        }
+        empty_required = {
+            "section_title",
+            "description",
+            "detect",
+            "cleanup",
+            "summary_count",
+            "summary_protected",
+            "empty",
+            "kind_folder",
+            "protected_note",
+            "modal_title",
+            "modal_body",
+            "recycle_hint",
+            "cancel",
+            "confirm",
+            "toast_found",
+            "toast_none",
+            "toast_failed",
+            "cleanup_success",
+            "cleanup_failed",
+        }
+        title_placeholder_required = {
+            "section_title",
+            "description",
+            "detect",
+            "move",
+            "summary_candidates",
+            "summary_planned",
+            "summary_conflicts",
+            "summary_sidecars",
+            "empty",
+            "col_number",
+            "col_title",
+            "col_reason",
+            "col_path",
+            "col_target",
+            "col_sidecars",
+            "col_status",
+            "modal_title",
+            "modal_body",
+            "manual_hint",
+            "sidecar_unit",
+            "cancel",
+            "confirm",
+            "toast_found",
+            "toast_none",
+            "toast_failed",
+            "move_success",
+            "move_failed",
+            "status_planned",
+            "status_conflict",
+            "status_moved",
+            "status_skipped",
+            "reason_filename_placeholder",
+            "reason_nfo_title_placeholder",
+            "reason_nfo_original_title_placeholder",
+            "reason_db_title_placeholder",
+            "reason_db_original_title_placeholder",
+        }
+        for locale in ["zh_CN", "zh_TW", "en", "ja"]:
+            data = json.loads(self._read(f"locales/{locale}.json"))
+            duplicates = data.get("scanner", {}).get("duplicates", {})
+            missing = sorted(key for key in duplicate_required if not duplicates.get(key))
+            assert missing == [], f"{locale}.json scanner.duplicates missing: {missing}"
+            empty_folders = data.get("scanner", {}).get("empty_folders", {})
+            missing = sorted(key for key in empty_required if not empty_folders.get(key))
+            assert missing == [], f"{locale}.json scanner.empty_folders missing: {missing}"
+            title_placeholders = data.get("scanner", {}).get("title_placeholders", {})
+            missing = sorted(key for key in title_placeholder_required if not title_placeholders.get(key))
+            assert missing == [], f"{locale}.json scanner.title_placeholders missing: {missing}"
+
+
+class TestMediaMergeFrontendGuard:
+    """Personal branch: video merge module entry points."""
+
+    def _read(self, rel_path):
+        return (Path(__file__).parent.parent.parent / rel_path).read_text(encoding="utf-8")
+
+    def test_sidebar_links_media_merge_page(self):
+        html = self._read("web/templates/base.html")
+        assert 'href="/media-merge"' in html
+        assert "nav.media_merge" in html
+
+    def test_media_merge_page_assets_and_xdata(self):
+        html = self._read("web/templates/media_merge.html")
+        js = self._read("web/static/js/pages/media-merge/main.js")
+
+        assert "media-merge/main.js" in html
+        assert 'x-data="mediaMergePage"' in html
+        assert "Alpine.data('mediaMergePage'" in js
+        assert "/api/media-merge/preview" in js
+        assert "/api/media-merge/run" in js
+        assert "cleanupSources" in html
+        assert "rememberCleanup" in html
+        assert "mergeStage" in html
+        assert "mergeResult" in html
+        assert "mergeError" in html
+        assert "media-merge-error" in html
+        assert "media-merge-progress" in html
+        assert "mergeProgressLabel" in js
+        assert "normalizeMergeError" in js
+        assert "log_tail" in js
+        assert "/api/media-merge/run-stream" in js
+        assert "handleMergeEvent" in js
+        assert "cleanup_sidecars: this.cleanupSources" in js
+        assert "cleanup_sources: this.cleanupSources" in js
+        assert "remember_cleanup: this.rememberCleanup" in js
+        assert "cleanup_sources_default" in js
+        assert "cleanup_supported" in js
+        assert "result_sidecars_recycled" in html
+
+    def test_media_merge_accepts_pywebview_drops(self):
+        js = self._read("web/static/js/pages/media-merge/main.js")
+        assert "window.handlePyWebViewDrop" in js
+        assert "window.handleFolderDrop" in js
+        assert "addDroppedPaths" in js
+        assert "addDroppedFolders" in js
 
 
 class TestShowcaseESMGuard:
@@ -7779,7 +8303,7 @@ class TestShowcaseReactiveScopeGuard:
 
 
 class TestGridPerPageGuard:
-    """F2: Grid mode 禁用「全部」(perPage=0) 守衛測試"""
+    """F2: Grid mode 允許「全部」(perPage=0) 守衛測試"""
 
     CORE_JS = PROJECT_ROOT / 'web' / 'static' / 'js' / 'pages' / 'showcase' / 'state-videos.js'
     SHOWCASE_HTML = PROJECT_ROOT / 'web' / 'templates' / 'showcase.html'
@@ -7791,22 +8315,28 @@ class TestGridPerPageGuard:
             (PROJECT_ROOT / "web/static/js/pages/showcase/state-videos.js").read_text(encoding='utf-8')
         )
 
-    def test_grid_per_page_method_bodies_contain_guard(self):
-        """Guard 1/3/4: updatePagination / restoreState / switchMode 均含 grid+perPage=120 降級邏輯"""
+    def test_grid_per_page_zero_is_not_downgraded(self):
+        """items_per_page=0 應在 grid/table/list 都代表全部，不得降級為 120。"""
         content = self._read_js()
-        for method_pat, window in [
-            (r'updatePagination\s*\(\s*\)\s*\{', 800),
-            (r'restoreState\s*\(\s*\)\s*\{', 2500),
-            (r'switchMode\s*\(\s*m\s*\)\s*\{', 600),
-        ]:
-            m = re.search(method_pat, content)
-            method_name = method_pat.split(r'\s')[0]
-            assert m, f"showcase/core.js 找不到 {method_name} 方法"
-            body = content[m.start():m.start() + window]
-            has_grid = bool(re.search(r"['\"]grid['\"]", body))
-            has_120 = bool(re.search(r'perPage\s*=\s*120', body))
-            assert has_grid and has_120, \
-                f"F2 違規：{method_name} 缺少 grid+perPage=120 降級邏輯"
+        assert not re.search(r'perPage\s*=\s*120', content), (
+            "F2 違規：showcase 不應再把 items_per_page=0 ('全部') 降級為 120"
+        )
+        assert "if (perPage === 0)" in content, (
+            "F2 違規：updatePagination 缺少 perPage=0 全部顯示分支"
+        )
+        assert "this.paginatedVideos = _filteredVideos.slice()" in content, (
+            "F2 違規：perPage=0 必須顯示完整 filtered videos"
+        )
+        assert "this.totalPages = 1" in content, (
+            "F2 違規：perPage=0 時 totalPages 必須為 1"
+        )
+
+    def test_card_info_defaults_visible(self):
+        """瀏覽模組預設顯示卡片資訊。"""
+        content = self._read_js()
+        assert "infoVisible: true" in content, (
+            "showcase 預設應展開卡片資訊：infoVisible 必須為 true"
+        )
 
     def test_guard5_items_per_page_uses_nullish_coalescing(self):
         """Guard 5 (T3.2 P2 fix): items_per_page 預設值必須用 `??` 而非 `||`
@@ -8934,53 +9464,53 @@ class TestRescrapeEntryGuard:
     def _html(self):
         return SHOWCASE_HTML.read_text(encoding="utf-8")
 
-    def _gear_btn(self, html):
-        """擷取 lightbox 番號旁 ⚙ gear 的完整 <button>...</button> 區塊。"""
+    def _rescrape_btn(self, html):
+        """擷取 lightbox 番號旁「更正刮削」入口的完整 <button>...</button> 區塊。"""
         m = re.search(
-            r'<button\b[^>]*?\bclass="lb-rescrape-gear".*?</button>',
+            r'<button\b[^>]*?\bclass="lb-rescrape-action".*?</button>',
             html, re.DOTALL,
         )
-        assert m, "lightbox .lb-rescrape-gear ⚙ button 區塊不存在"
+        assert m, "lightbox .lb-rescrape-action 更正刮削 button 區塊不存在"
         return m.group(0)
 
     # ── 入口 1：lightbox 番號旁 ⚙ gear ──────────────────────────────────
 
     def test_gear_has_bi_gear_icon(self):
-        """⚙ 入口必須用 bi-gear icon（CD-62-0 #4：magic 已被相似探索佔用）。"""
+        """更正刮削入口保留 bi-gear icon。"""
         html = self._html()
-        # icon 緊接在 gear button 之後
         m = re.search(
-            r'<button[^>]*\bclass="lb-rescrape-gear"[^>]*>\s*<i[^>]*\bbi-gear\b',
+            r'<button[^>]*\bclass="lb-rescrape-action"[^>]*>\s*<i[^>]*\bbi-gear\b',
             html, re.DOTALL,
         )
-        assert m, "⚙ gear button 內必須含 bi-gear icon"
+        assert m, "更正刮削 button 內必須含 bi-gear icon"
 
     def test_gear_opens_rescrape_lightbox(self):
         """⚙ @click 必須呼叫 openRescrape(currentLightboxVideo, 'lightbox')（顯式傳當前影片，CD-62-2）。"""
-        tag = self._gear_btn(self._html())
+        tag = self._rescrape_btn(self._html())
         m = re.search(r'@click(?:\.stop)?="([^"]*)"', tag)
         assert m, "⚙ gear button 缺 @click handler"
         assert "openRescrape(currentLightboxVideo, 'lightbox')" in m.group(1), \
-            f"⚙ @click 必須 openRescrape(currentLightboxVideo, 'lightbox')，實際: {m.group(1)!r}"
+            f"更正刮削 @click 必須 openRescrape(currentLightboxVideo, 'lightbox')，實際: {m.group(1)!r}"
 
     def test_gear_gated_by_rescrape_enabled(self):
         """74c-T1：⚙ 齒輪已退役 x-show gate，改為常駐顯示（負向守衛）。"""
-        tag = self._gear_btn(self._html())
+        tag = self._rescrape_btn(self._html())
         m = re.search(r'x-show="([^"]*)"', tag)
         assert not m, \
-            f"74c-T1 違規：⚙ gear button 仍有 x-show gate（應常駐）: {m.group(0) if m else ''!r}"
+            f"74c-T1 違規：更正刮削 button 仍有 x-show gate（應常駐）: {m.group(0) if m else ''!r}"
         # 確認 @click 仍在（齒輪行為不變）
         assert "openRescrape(currentLightboxVideo, 'lightbox')" in tag, \
-            "74c-T1：⚙ gear button @click 不得移除（僅退役 x-show gate）"
+            "74c-T1：更正刮削 button @click 不得移除（僅退役 x-show gate）"
 
     def test_gear_tooltip_uses_i18n_key(self):
         """⚙ 的 aria-label / data-tooltip 走 i18n key，不硬編碼（i18n.md）。"""
-        tag = self._gear_btn(self._html())
+        tag = self._rescrape_btn(self._html())
         assert "t('showcase.rescrape.entry_tooltip')" in tag, \
-            "⚙ gear 必須用 t('showcase.rescrape.entry_tooltip') 作 aria-label / data-tooltip"
-        # aria-label 必須存在於 gear tag（可及性）
+            "更正刮削必須用 t('showcase.rescrape.entry_tooltip') 作 aria-label / data-tooltip"
+        assert "<span x-text=\"t('showcase.rescrape.entry_tooltip')\"></span>" in tag, \
+            "更正刮削入口必須顯示文字"
         assert re.search(r':aria-label="[^"]*entry_tooltip', tag), \
-            "⚙ gear 缺 :aria-label（可及性）"
+            "更正刮削缺 :aria-label（可及性）"
 
     # ── 74b US4：grid + lightbox 🔍 enrich-btn 長壓入口已退役 ──────────────
     # 去長壓的 element-bound 守衛見 TestLongPressTouchSuppression

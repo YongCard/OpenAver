@@ -21,6 +21,9 @@ export function stateDelete() {
         _pendingDeleteNumber: null,
         _pendingDeletePath: null,
         _deleteLoading: false,
+        folderDeleteModalOpen: false,
+        _folderDeletePreview: null,
+        _folderDeleteLoading: false,
 
         // --- 71-T7: Delete Video 三段路徑（鏡像 openRemoveActressModal / cancel / confirm）---
         openDeleteVideoModal() {
@@ -72,6 +75,76 @@ export function stateDelete() {
             } finally {
                 this._deleteLoading = false;
                 this.deleteVideoModalOpen = false;
+                this._pendingDeletePath = null;
+                this._pendingDeleteNumber = null;
+            }
+        },
+
+        async openFolderDeleteModal() {
+            if (!this.currentLightboxVideo?.path) return;
+            this._pendingDeletePath = this.currentLightboxVideo.path;
+            this._pendingDeleteNumber = this.currentLightboxVideo.number || '';
+            this._folderDeleteLoading = true;
+            this._folderDeletePreview = null;
+            try {
+                const resp = await fetch('/api/showcase/video-folder-delete/preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: this._pendingDeletePath }),
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.success) {
+                    this.showToast(data.error || window.t('showcase.video.folder_delete_failed'), 'error');
+                    return;
+                }
+                this._folderDeletePreview = data.data;
+                this.folderDeleteModalOpen = true;
+            } catch (_error) {
+                this.showToast(window.t('showcase.video.folder_delete_failed'), 'error');
+            } finally {
+                this._folderDeleteLoading = false;
+            }
+        },
+
+        cancelFolderDelete() {
+            this.folderDeleteModalOpen = false;
+            this._folderDeletePreview = null;
+            this._pendingDeletePath = null;
+            this._pendingDeleteNumber = null;
+        },
+
+        async confirmFolderDelete() {
+            const path = this._pendingDeletePath;
+            if (!path) {
+                this.cancelFolderDelete();
+                return;
+            }
+            this._folderDeleteLoading = true;
+            try {
+                const resp = await fetch('/api/showcase/video-folder-delete/apply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path, confirm: true }),
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.success) {
+                    this.showToast(data.error || window.t('showcase.video.folder_delete_failed'), 'error');
+                    return;
+                }
+                const idx = _videos.findIndex(v => v.path === path);
+                if (idx >= 0) {
+                    _videos.splice(idx, 1);
+                    if (this.videoCount > 0) this.videoCount -= 1;
+                }
+                this.applyFilterAndSort();
+                this.closeLightbox();
+                this.showToast(window.t('showcase.video.folder_delete_success'), 'success');
+            } catch (_error) {
+                this.showToast(window.t('showcase.video.folder_delete_failed'), 'error');
+            } finally {
+                this._folderDeleteLoading = false;
+                this.folderDeleteModalOpen = false;
+                this._folderDeletePreview = null;
                 this._pendingDeletePath = null;
                 this._pendingDeleteNumber = null;
             }

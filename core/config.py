@@ -41,6 +41,10 @@ _config_write_lock = threading.Lock()
 _STEM_IMAGE_MODES = ('jellyfin', 'emby', 'kodi')
 
 
+def get_default_sources() -> list[SourceConfig]:
+    return [*get_builtin_sources(), *get_manual_only_sources()]
+
+
 # ============ Pydantic Schema ============
 
 class ScraperConfig(BaseModel):
@@ -58,6 +62,17 @@ class ScraperConfig(BaseModel):
     jellyfin_mode: bool = False
     external_manager: Literal["off", "jellyfin", "emby", "kodi"] = "off"
     download_sample_images: bool = False
+
+
+class WesternScraperProfileConfig(BaseModel):
+    create_folder: bool = True
+    folder_format: str = "{studio}/{year}/{date} {title}"
+    filename_format: str = "[{date}] {title} - {performers}{suffix}"
+    external_manager: Literal["off", "jellyfin", "emby", "kodi"] = "jellyfin"
+
+
+class ScraperProfilesConfig(BaseModel):
+    western: WesternScraperProfileConfig = WesternScraperProfileConfig()
 
 
 class SearchConfig(BaseModel):
@@ -107,6 +122,40 @@ class MetatubeConfig(BaseModel):
     allow_lan: bool = False  # 允許連線至 LAN IP（TASK-63e-1：startup 重連沿用用戶當初的選擇）
 
 
+class StashConfig(BaseModel):
+    """串接結構：Stash server 配置（歐美 scene metadata）。"""
+    enabled: bool = False
+    url: str = "http://127.0.0.1:9999"
+    api_key: str = ""
+    proxy_url: str = ""
+    default_source: str = "stash"
+
+
+class NasShareConfig(BaseModel):
+    """NAS share metadata.  Passwords are never persisted here."""
+    id: str = ""
+    name: str = ""
+    host: str = ""
+    share: str = ""
+    subpath: str = ""
+    username: str = ""
+    enabled: bool = True
+    add_to_gallery: bool = True
+    last_status: str = ""
+    credential_target: str = ""
+
+
+class NasConfig(BaseModel):
+    shares: List[NasShareConfig] = []
+
+
+class LibraryCategoriesConfig(BaseModel):
+    enabled: bool = True
+    jav: str = "日韩"
+    western: str = "欧美"
+    auto_create: bool = True
+
+
 class TranslateConfig(BaseModel):
     enabled: bool = False
     provider: str = "ollama"  # "ollama" | "gemini" | "openai"
@@ -138,6 +187,10 @@ class ShowcaseConfig(BaseModel):
     player: str = ""  # 播放器路徑，空字串使用系統預設
 
 
+class MediaMergeConfig(BaseModel):
+    cleanup_sources_default: bool = False  # 影片合併：是否預設勾選「合併後送回收站」
+
+
 # Valid values for the window close-action preference（feature/82, single source of truth）.
 # Used by GeneralConfig._coerce_close_action (model_validate) AND the additive migration in
 # load_config() so that invalid-or-missing values are always normalised to "ask".
@@ -162,15 +215,20 @@ class GeneralConfig(BaseModel):
 
 class AppConfig(BaseModel):
     scraper: ScraperConfig = ScraperConfig()
+    scraper_profiles: ScraperProfilesConfig = ScraperProfilesConfig()
     search: SearchConfig = SearchConfig()
     source_links: SourceLinksConfig = SourceLinksConfig()
     translate: TranslateConfig = TranslateConfig()
     gallery: GalleryConfig = GalleryConfig()
     showcase: ShowcaseConfig = ShowcaseConfig()
+    media_merge: MediaMergeConfig = MediaMergeConfig()
     general: GeneralConfig = GeneralConfig()
-    sources: list[SourceConfig] = Field(default_factory=get_builtin_sources)
+    sources: list[SourceConfig] = Field(default_factory=get_default_sources)
     thumbnail_cache_enabled: bool = False  # 縮圖快取開關（feature/71 T2）；預設關閉；top-level additive migration 補缺漏
     metatube: MetatubeConfig = MetatubeConfig()  # CD-63b-3；Pydantic default 自動補缺漏（no migration needed）
+    stash: StashConfig = StashConfig()
+    nas: NasConfig = NasConfig()
+    library_categories: LibraryCategoriesConfig = LibraryCategoriesConfig()
 
 
 # ============ 載入 / 儲存 ============
@@ -314,6 +372,24 @@ def _load_config_unlocked() -> dict:
             s['download_sample_images'] = False
             need_save = True
 
+        # Additive migration（personal western）：歐美 / Stash 使用獨立整理 profile，
+        # 避免沿用日系 {actor}/{num} 規則。load_config 回 raw dict，需顯式補預設。
+        western_defaults = ScraperProfilesConfig().model_dump()
+        profiles = raw_config.get('scraper_profiles')
+        if not isinstance(profiles, dict):
+            raw_config['scraper_profiles'] = western_defaults
+            need_save = True
+        else:
+            western = profiles.get('western')
+            if not isinstance(western, dict):
+                profiles['western'] = western_defaults['western']
+                need_save = True
+            else:
+                for key, value in western_defaults['western'].items():
+                    if key not in western:
+                        western[key] = value
+                        need_save = True
+
         # Migration: source_links 區段新增 + 深層合併保證（T18b-pre）
         sl_defaults = SourceLinksConfig().model_dump()
         if 'source_links' not in raw_config or not isinstance(raw_config.get('source_links'), dict):
@@ -405,19 +481,51 @@ def _load_config_unlocked() -> dict:
                 raw_config['sources'] = []
             need_save = True
 
-        # Additive migration（T3）：javlibrary manual_only BETA 追加（若缺席）。
+        # Additive migration（T3）：manual_only 來源追加（若缺席）。
         # 防禦性、獨立於上方三分支（缺段/合法/損壞），保證全部路徑都能走到。
         # fail-open：不讓啟動失敗。
         try:
             if isinstance(raw_config.get('sources'), list):
-                existing_ids = {s.get('id') for s in raw_config['sources'] if isinstance(s, dict)}
-                if 'javlibrary' not in existing_ids:
-                    raw_config['sources'].append(
-                        get_manual_only_sources()[0].model_dump()
-                    )
+                by_id = {}
+                deduped = []
+                for item in raw_config['sources']:
+                    if not isinstance(item, dict) or not isinstance(item.get('id'), str):
+                        deduped.append(item)
+                        continue
+                    sid = item['id']
+                    if sid in by_id:
+                        deduped[by_id[sid]] = item
+                        need_save = True
+                    else:
+                        by_id[sid] = len(deduped)
+                        deduped.append(item)
+                if deduped != raw_config['sources']:
+                    raw_config['sources'] = deduped
                     need_save = True
+                existing_ids = {s.get('id') for s in raw_config['sources'] if isinstance(s, dict)}
+                for manual_source in get_manual_only_sources():
+                    if manual_source.id not in existing_ids:
+                        raw_config['sources'].append(manual_source.model_dump())
+                        existing_ids.add(manual_source.id)
+                        need_save = True
         except Exception as exc:
-            logger.warning("[Config] javlibrary additive migration 發生例外，略過：%s", exc)
+            logger.warning("[Config] manual-only sources additive migration 發生例外，略過：%s", exc)
+
+        # Additive migration（personal）：KingDom 官方來源追加（若缺席）。
+        # 既有使用者的 sources 段合法時，上方 migration 不會重建；需顯式追加新 builtin。
+        try:
+            if isinstance(raw_config.get('sources'), list):
+                existing_ids = {s.get('id') for s in raw_config['sources'] if isinstance(s, dict)}
+                if 'kingdom' not in existing_ids:
+                    kingdom_source = next(
+                        (s for s in get_builtin_sources() if s.id == 'kingdom'),
+                        None,
+                    )
+                    if kingdom_source is not None:
+                        raw_config['sources'].append(kingdom_source.model_dump())
+                        need_save = True
+        except Exception as exc:
+            logger.warning("[Config] kingdom additive migration 發生例外，略過：%s", exc)
 
         # Additive migration（feature/71 T2）：top-level thumbnail_cache_enabled 補預設。
         # load_config() 直接 return raw dict（不 model_validate），故舊 config.json 缺此 key
@@ -425,6 +533,65 @@ def _load_config_unlocked() -> dict:
         if 'thumbnail_cache_enabled' not in raw_config:
             raw_config['thumbnail_cache_enabled'] = False
             need_save = True
+
+        # Additive migration：影片合併清理偏好。缺失或格式不正確時回到安全預設 false。
+        media_merge = raw_config.get('media_merge')
+        if not isinstance(media_merge, dict):
+            media_merge = {}
+            raw_config['media_merge'] = media_merge
+            need_save = True
+        if not isinstance(media_merge.get('cleanup_sources_default'), bool):
+            media_merge['cleanup_sources_default'] = False
+            need_save = True
+
+        # Additive migration（personal NAS）：只保存 NAS 非敏感 metadata。
+        # 若舊/手寫 config 意外帶 password，載入時即剔除並寫回，避免 secrets 落盤。
+        nas = raw_config.get('nas')
+        if not isinstance(nas, dict):
+            nas = {}
+            raw_config['nas'] = nas
+            need_save = True
+        shares = nas.get('shares')
+        if not isinstance(shares, list):
+            shares = []
+            nas['shares'] = shares
+            need_save = True
+        sanitized_shares = []
+        for item in shares:
+            if not isinstance(item, dict):
+                need_save = True
+                continue
+            if 'password' in item:
+                item = {k: v for k, v in item.items() if k != 'password'}
+                need_save = True
+            sanitized_shares.append(item)
+        if sanitized_shares != shares:
+            nas['shares'] = sanitized_shares
+            need_save = True
+
+        # Additive migration（personal categories）：父庫根掃描時自動維護中文大分類目錄。
+        category_defaults = LibraryCategoriesConfig().model_dump()
+        categories = raw_config.get('library_categories')
+        if not isinstance(categories, dict):
+            raw_config['library_categories'] = category_defaults
+            need_save = True
+        else:
+            for key, value in category_defaults.items():
+                if key not in categories:
+                    categories[key] = value
+                    need_save = True
+
+        try:
+            from core.library_categories import dedupe_scan_directories
+
+            gallery = raw_config.get('gallery')
+            if isinstance(gallery, dict) and isinstance(gallery.get('directories'), list):
+                deduped_dirs = dedupe_scan_directories(gallery.get('directories', []), raw_config)
+                if deduped_dirs != gallery.get('directories'):
+                    gallery['directories'] = deduped_dirs
+                    need_save = True
+        except Exception as exc:
+            logger.warning("[Config] library category directory migration 發生例外，略過：%s", exc)
 
         # Additive migration（feature/82 T4）：general.close_action 補預設。
         # load_config() return raw dict（不 model_validate），舊 config 缺此 key 時 Pydantic default

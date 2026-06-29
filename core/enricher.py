@@ -3,19 +3,23 @@ enricher.py - 舊片原地補完（NFO / 封面 / 劇照），絕對不搬移、
 """
 
 import os
+import requests
 import shutil
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from core.config import _STEM_IMAGE_MODES
+from core.config import load_config
 from core.database import Video, VideoRepository, get_connection
 from core.logger import get_logger
 from core.nfo_updater import parse_nfo
-from core.organizer import crop_to_poster, download_image, find_subtitle_files, generate_nfo
+from core.organizer import HEADERS, REQUEST_TIMEOUT, crop_to_poster, download_image, find_subtitle_files, generate_nfo
 from core.path_utils import to_file_uri, uri_to_fs_path
 from core.scraper import search_jav
+from core.scrapers.stash import StashScraper
 
 logger = get_logger(__name__)
 
@@ -34,6 +38,35 @@ class EnrichResult:
     fields_filled: List[str]
     source_used: str
     error: Optional[str]
+
+
+def _is_western_number(number: str | None) -> bool:
+    return bool(number and number.upper().startswith("WEST-"))
+
+
+def _stash_config() -> dict:
+    cfg = load_config().get("stash", {})
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def _same_stash_origin(url: str, stash_url: str) -> bool:
+    if not url or not stash_url:
+        return False
+    try:
+        return urlparse(url).netloc.lower() == urlparse(stash_url).netloc.lower()
+    except Exception:
+        return False
+
+
+def _search_stash_for_sidecar(fs_path: str, number: str) -> dict | None:
+    video = StashScraper().search_by_filename(Path(fs_path).name, fallback_number=number)
+    if not video:
+        return None
+    result = video.to_legacy_dict()
+    result["_source"] = video.source
+    result["_summary"] = video.summary
+    result["_rating"] = video.rating
+    return result
 
 
 def _nfo_to_meta(root: ET.Element) -> dict:
@@ -218,6 +251,7 @@ def _write_cover(
     cover_url: str,
     write_cover: bool,
     overwrite_existing: bool,
+    source: str = "",
 ) -> bool:
     if not write_cover:
         return False
@@ -227,6 +261,29 @@ def _write_cover(
     cover_path = str(Path(fs_path).with_suffix(".jpg"))
     if os.path.exists(cover_path) and not overwrite_existing:
         return False
+
+    if source == "stash":
+        stash_cfg = _stash_config()
+        if _same_stash_origin(cover_url, (stash_cfg.get("url") or "").strip()):
+            headers = HEADERS.copy()
+            api_key = (stash_cfg.get("api_key") or "").strip()
+            if api_key:
+                headers["ApiKey"] = api_key
+            proxies = {"http": None, "https": None}
+            proxy_url = (stash_cfg.get("proxy_url") or "").strip()
+            if proxy_url:
+                proxies = {"http": proxy_url, "https": proxy_url}
+            try:
+                resp = requests.get(cover_url, headers=headers, proxies=proxies, timeout=REQUEST_TIMEOUT)
+                if resp.status_code == 200 and len(resp.content) > 1000:
+                    with open(cover_path, "wb") as f:
+                        f.write(resp.content)
+                    return True
+                logger.warning("[enricher] Stash 封面下載失敗: HTTP %s / size=%s", resp.status_code, len(resp.content))
+                return False
+            except Exception as e:
+                logger.warning("[enricher] Stash 封面下載失敗: %s", e)
+                return False
 
     return download_image(cover_url, cover_path)
 
@@ -321,7 +378,7 @@ def _write_extrafanart(
     return written_uris
 
 
-def enrich_single(  # noqa: ranker-invalidate (only updates nfo_mtime, not a corpus field; corpus writes go via _db_upsert → repo.upsert which already has invalidate)
+def enrich_single(
     file_path: str,
     number: str,
     mode: str = "fill_missing",
@@ -335,6 +392,7 @@ def enrich_single(  # noqa: ranker-invalidate (only updates nfo_mtime, not a cor
     javbus_lang: Optional[str] = None,
     scraper_data: Optional[dict] = None,
 ) -> EnrichResult:
+    # ranker-invalidate-ok: only updates nfo_mtime; corpus writes go via _db_upsert -> repo.upsert.
     _empty = EnrichResult(
         success=False,
         nfo_written=False,
@@ -366,6 +424,18 @@ def enrich_single(  # noqa: ranker-invalidate (only updates nfo_mtime, not a cor
     meta: dict = {}
     source_used = ""
     fields_filled: List[str] = []
+    if _is_western_number(number) and (source is None or source == "auto"):
+        source = "stash"
+    nfo_path_for_need = Path(fs_path).with_suffix(".nfo")
+    cover_path_for_need = Path(fs_path).with_suffix(".jpg")
+    needs_sidecar_scrape = (
+        mode == "fill_missing"
+        and source == "stash"
+        and (
+            (write_nfo and (overwrite_existing or not nfo_path_for_need.exists()))
+            or (write_cover and (overwrite_existing or not cover_path_for_need.exists()))
+        )
+    )
 
     if mode == "refresh_full":
         if scraper_data is None:
@@ -402,13 +472,21 @@ def enrich_single(  # noqa: ranker-invalidate (only updates nfo_mtime, not a cor
                     source_used = "nfo"
 
         missing = _missing_fields(meta)
+        if needs_sidecar_scrape and "cover_url" not in missing and not meta.get("cover_url"):
+            missing.append("cover_url")
         if missing:
             if scraper_data is None:
-                scraper_data = search_jav(number, proxy_url=proxy_url,
-                                          source=source or 'auto', javbus_lang=javbus_lang)
+                if source == "stash":
+                    scraper_data = _search_stash_for_sidecar(fs_path, number)
+                else:
+                    scraper_data = search_jav(number, proxy_url=proxy_url,
+                                              source=source or 'auto', javbus_lang=javbus_lang)
             if not scraper_data:
-                _empty.error = f"找不到 {number} 的資料"
+                _empty.error = f"Stash 未命中：{Path(fs_path).name}" if source == "stash" else f"找不到 {number} 的資料"
                 return _empty
+            if source == "stash":
+                scraper_data = dict(scraper_data)
+                scraper_data["number"] = number
             supplement = _scraper_to_meta(scraper_data)
             meta, fields_filled = _merge_meta(meta, supplement)
             source_used = scraper_data.get("source", "scraper") or "scraper"
@@ -434,6 +512,7 @@ def enrich_single(  # noqa: ranker-invalidate (only updates nfo_mtime, not a cor
             cover_url=cover_url,
             write_cover=write_cover,
             overwrite_existing=overwrite_existing,
+            source=source_used,
         )
         imgs = _write_external_images(
             fs_path=fs_path,
@@ -477,7 +556,13 @@ def enrich_single(  # noqa: ranker-invalidate (only updates nfo_mtime, not a cor
             cover_url=cover_url,
             write_cover=write_cover,
             overwrite_existing=overwrite_existing,
+            source=source_used,
         )
+
+    if write_cover and not cover_written and cover_url and not Path(fs_path).with_suffix(".jpg").exists():
+        _empty.error = "Stash 封面下載失敗，請確認 Stash 截圖 URL / ApiKey / 網路連線" if source_used == "stash" else None
+        if source_used == "stash":
+            return _empty
 
     written_uris = _write_extrafanart(
         fs_path=fs_path,

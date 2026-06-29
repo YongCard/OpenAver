@@ -278,6 +278,28 @@ source venv/bin/activate
 pytest
 ```
 
+### 本地驗證入口（個人分支）
+
+`personal/yongcard-custom` 分支提供一個低侵入的本地驗證入口，用來對齊企業式
+驗收習慣，但不改變 OpenAver「桌面 App、免 Docker」的定位：
+
+```bash
+bash run_tests.sh
+```
+
+Windows PowerShell 也可使用：
+
+```powershell
+.\run_tests.ps1
+```
+
+這兩個入口只封裝既有品質門：tracked-file 工程衛生檢查、unit/integration pytest、
+`ruff check .`、`npm run lint`。它們不會執行 smoke/e2e 測試，也不會修改應用啟動
+方式、API 格式、資料庫路徑或使用者資料。腳本執行時會把測試日誌與 pytest 暫存指向
+repo 內 `.tmp/openaver-test-env/`，避免污染真實使用者目錄。
+外部 Prompt2Repo 企業標準與 OpenAver
+現有架構的取捨記錄在 [`docs/enterprise-readiness.md`](docs/enterprise-readiness.md)。
+
 ### 目錄結構
 
 ```

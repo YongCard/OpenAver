@@ -1,6 +1,19 @@
 [tool.ruff]
 target-version = "py312"
-exclude = ["venv", "tools", "tests"]
+exclude = [
+    ".git",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tmp",
+    ".tmp-pytest",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    "output",
+    "tests",
+    "tools",
+    "venv",
+]
 
 [tool.ruff.lint]
 select = ["E722", "F", "B", "T201", "S110", "S112"]

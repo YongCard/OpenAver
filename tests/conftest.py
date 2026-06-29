@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
 import json
+import warnings
 from core import config as core_config
 
 # ── LAN access gate（feature/80）測試相容 ──────────────────────────────
@@ -17,6 +18,11 @@ from core import config as core_config
 #     替代是逐檔顯式傳 loopback client（大量 churn），取捨後選集中一處。
 #   - process-global：setdefault → 顯式 client=(ip,port)（如 gate 矩陣測遠端）永遠覆寫。
 #   - idempotent guard：避免重複 wrap。
+warnings.filterwarnings(
+    "ignore",
+    message=r"Using `httpx` with `starlette\.testclient` is deprecated.*",
+    category=Warning,
+)
 import starlette.testclient as _starlette_testclient
 
 if not getattr(_starlette_testclient.TestClient, "_openaver_loopback_patched", False):
@@ -88,5 +94,4 @@ def samples_dir():
     """取得 samples 測試目錄"""
     from pathlib import Path
     return Path(__file__).parent.parent / 'samples'
-
 

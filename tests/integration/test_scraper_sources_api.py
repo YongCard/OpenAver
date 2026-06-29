@@ -13,6 +13,7 @@ builtin bypass gate，始終出現。
 import pytest
 
 from core.metatube.state import metatube_state
+from core.scrapers.utils import SOURCE_ORDER
 
 
 @pytest.fixture(autouse=True)
@@ -29,6 +30,7 @@ def _base_config(client):
 
 
 SOURCE_FIELDS = {"id", "display_name", "type", "enabled", "order", "is_censored"}
+BUILTIN_COUNT = len(SOURCE_ORDER)
 
 
 def test_200_and_schema(client, temp_config_path):
@@ -49,12 +51,13 @@ def test_200_and_schema(client, temp_config_path):
         assert isinstance(s["is_censored"], bool)
 
 
-def test_default_config_all_eight_builtin(client, temp_config_path):
-    """B1 availability_map=None → 8 個預設 builtin（全 enabled、非 beta、非 manual）皆現。"""
+def test_default_config_all_builtin(client, temp_config_path):
+    """B1 availability_map=None → 預設 builtin（全 enabled、非 beta、非 manual）皆現。"""
     data = client.get("/api/scraper-sources").json()
     ids = [s["id"] for s in data["sources"]]
-    assert len(ids) == 8
-    assert data["total_enabled"] == 8
+    assert len(ids) == BUILTIN_COUNT
+    assert ids == SOURCE_ORDER
+    assert data["total_enabled"] == BUILTIN_COUNT
     # builtin 全 enabled
     assert all(s["enabled"] is True for s in data["sources"])
     # 依 order 升冪
@@ -72,7 +75,7 @@ def test_disabled_source_not_in_response(client, temp_config_path):
     data = client.get("/api/scraper-sources").json()
     ids = [s["id"] for s in data["sources"]]
     assert target_id not in ids
-    assert data["total_enabled"] == 7
+    assert data["total_enabled"] == BUILTIN_COUNT - 1
 
 
 def test_beta_source_not_in_response(client, temp_config_path):
@@ -96,8 +99,8 @@ def test_beta_source_not_in_response(client, temp_config_path):
     data = client.get("/api/scraper-sources").json()
     ids = [s["id"] for s in data["sources"]]
     assert "mt_beta" not in ids
-    # 8 builtin 仍在
-    assert data["total_enabled"] == 8
+    # builtin 仍在
+    assert data["total_enabled"] == BUILTIN_COUNT
 
 
 def test_manual_only_source_not_in_response(client, temp_config_path):
@@ -121,7 +124,7 @@ def test_manual_only_source_not_in_response(client, temp_config_path):
     data = client.get("/api/scraper-sources").json()
     ids = [s["id"] for s in data["sources"]]
     assert "mt_manual" not in ids
-    assert data["total_enabled"] == 8
+    assert data["total_enabled"] == BUILTIN_COUNT
 
 
 def _append_metatube_source(cfg, *, id="mt_active", name="Active Metatube",
@@ -152,7 +155,7 @@ def test_disconnected_metatube_gated_out(client, temp_config_path):
     data = client.get("/api/scraper-sources").json()
     ids = [s["id"] for s in data["sources"]]
     assert "mt_active" not in ids
-    assert data["total_enabled"] == 8  # 僅 8 builtin
+    assert data["total_enabled"] == BUILTIN_COUNT  # 僅 builtin
 
 
 def test_connected_available_metatube_appears(client, temp_config_path, monkeypatch):
@@ -168,7 +171,7 @@ def test_connected_available_metatube_appears(client, temp_config_path, monkeypa
     assert "mt_active" in by_id
     assert by_id["mt_active"]["display_name"] == "Active Metatube"  # render_name → display_name_raw
     assert by_id["mt_active"]["is_censored"] is False  # derive from config censored_type
-    assert data["total_enabled"] == 9
+    assert data["total_enabled"] == BUILTIN_COUNT + 1
 
 
 def test_connected_but_unavailable_metatube_gated_out(client, temp_config_path, monkeypatch):
@@ -182,14 +185,14 @@ def test_connected_but_unavailable_metatube_gated_out(client, temp_config_path, 
     data = client.get("/api/scraper-sources").json()
     ids = [s["id"] for s in data["sources"]]
     assert "mt_active" not in ids
-    assert data["total_enabled"] == 8
+    assert data["total_enabled"] == BUILTIN_COUNT
 
 
 def test_builtin_unaffected_by_availability_map(client, temp_config_path, monkeypatch):
     """63c-2：builtin 來源 bypass availability gate — 即使 map 為空也始終出現。"""
     monkeypatch.setattr(metatube_state, "availability_map", lambda: {})
     data = client.get("/api/scraper-sources").json()
-    assert data["total_enabled"] == 8
+    assert data["total_enabled"] == BUILTIN_COUNT
     assert all(s["type"] != "metatube" for s in data["sources"])
 
 
@@ -208,4 +211,4 @@ def test_javlibrary_excluded_from_scraper_sources(client):
     data = client.get("/api/scraper-sources").json()
     ids = [s["id"] for s in data["sources"]]
     assert "javlibrary" not in ids
-    assert data["total_enabled"] == 8  # 8 builtin 不受影響
+    assert data["total_enabled"] == BUILTIN_COUNT  # builtin 不受影響

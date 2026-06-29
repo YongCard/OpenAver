@@ -57,6 +57,58 @@ class TestConfigAPI:
         assert data["success"] is True
         # 不會報錯，一樣回傳成功
 
+    def test_full_save_validation_failure_returns_code_and_details(self, client, mock_config_path):
+        """PUT /api/config 校驗失敗時應回傳可診斷 code/details，而非只顯示保存失敗。"""
+        response = client.put("/api/config", json={"sources": "not-a-list"})
+
+        assert response.status_code == 422
+        data = response.json()
+        assert data["success"] is False
+        assert data["code"] == "config_validation_failed"
+        assert isinstance(data["details"], list)
+        assert data["details"], "validation failure should include field-level details"
+
+    def test_stash_connection_test_success(self, client, mocker):
+        """POST /api/settings/stash/test 回傳 Stash 版本資訊。"""
+        mocker.patch(
+            "core.scrapers.stash.StashScraper._graphql",
+            return_value={"version": {"version": "0.27.0"}},
+        )
+        response = client.post("/api/settings/stash/test", json={
+            "url": "http://127.0.0.1:9999",
+            "api_key": "",
+            "proxy_url": "",
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["version"] == "0.27.0"
+
+    def test_stash_connection_test_accepts_proxy(self, client, mocker):
+        """POST /api/settings/stash/test 應把 proxy_url 傳給 StashScraper。"""
+        captured = {}
+
+        class FakeStashScraper:
+            def __init__(self, stash_config):
+                captured.update(stash_config)
+
+            def test_connection(self):
+                return {"success": True, "version": "0.27.0", "message": "ok"}
+
+        mocker.patch("core.scrapers.stash.StashScraper", FakeStashScraper)
+        response = client.post("/api/settings/stash/test", json={
+            "url": "http://192.0.2.12:9999",
+            "api_key": "secret",
+            "proxy_url": "http://127.0.0.1:7890",
+        })
+
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+        assert captured["enabled"] is True
+        assert captured["url"] == "http://192.0.2.12:9999"
+        assert captured["api_key"] == "secret"
+        assert captured["proxy_url"] == "http://127.0.0.1:7890"
+
     def test_tutorial_flow(self, client, mock_config_path):
         """測試 tutorial 相關的一系列流程"""
         # 1. 初始化狀態應該是 False
@@ -461,3 +513,131 @@ class TestDeleteConfigStopsLanListener:
 
         assert resp.status_code == 200
         assert len(stop_called) == 1, "stop() must always be called on reset (idempotent)"
+
+
+class TestNasSettingsEndpoints:
+    def _write_nas_config(self, tmp_path, monkeypatch, data):
+        config_path = tmp_path / "config.json"
+        default_path = tmp_path / "config.default.json"
+        config_path.write_text(json.dumps(data), encoding="utf-8")
+        default_path.write_text(json.dumps(data), encoding="utf-8")
+        monkeypatch.setattr("core.config.CONFIG_PATH", config_path)
+        monkeypatch.setattr("core.config.CONFIG_DEFAULT_PATH", default_path)
+        return config_path
+
+    def test_save_nas_share_does_not_persist_password(self, client, tmp_path, monkeypatch):
+        config_path = self._write_nas_config(
+            tmp_path,
+            monkeypatch,
+            {"gallery": {"directories": []}, "nas": {"shares": []}},
+        )
+        monkeypatch.setattr("core.nas.save_windows_credential", lambda *_a, **_k: type(
+            "R", (), {"success": True, "to_dict": lambda self: {"success": True}}
+        )())
+
+        resp = client.post("/api/settings/nas/save", json={
+            "name": "欧美库",
+            "host": "192.0.2.12",
+            "share": "Media",
+            "subpath": "Sample/欧美",
+            "username": "user",
+            "password": "secret",
+            "enabled": True,
+            "add_to_gallery": True,
+        })
+
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        saved = json.loads(config_path.read_text(encoding="utf-8"))
+        share = saved["nas"]["shares"][0]
+        assert "password" not in share
+        assert saved["gallery"]["directories"] == [r"\\192.0.2.12\Media\Sample"]
+        assert resp.json()["share"]["unc_path"] == r"\\192.0.2.12\Media\Sample\欧美"
+
+    def test_nas_status_returns_unc_without_secret(self, client, monkeypatch):
+        monkeypatch.setattr("web.routers.config.load_config", lambda: {
+            "nas": {"shares": [{
+                "id": "n1",
+                "name": "NAS",
+                "host": "nas",
+                "share": "Media",
+                "subpath": "Sample",
+                "username": "user",
+            }]}
+        })
+        monkeypatch.setattr("core.nas.os.path.isdir", lambda _p: True)
+
+        resp = client.get("/api/settings/nas/status")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"][0]
+        assert data["unc_path"] == r"\\nas\Media\Sample"
+        assert "password" not in data
+
+    def test_save_nas_share_updates_same_id_without_duplicate(self, client, tmp_path, monkeypatch):
+        config_path = self._write_nas_config(
+            tmp_path,
+            monkeypatch,
+            {
+                "gallery": {"directories": [r"\\192.0.2.11\MediaShare\Media\Sample"]},
+                "nas": {"shares": [{
+                    "id": "nas1",
+                    "name": "Old",
+                    "host": "192.0.2.11",
+                    "share": "MediaShare",
+                    "subpath": r"Media\Sample",
+                    "username": "user",
+                    "enabled": True,
+                    "add_to_gallery": True,
+                }]},
+            },
+        )
+        credential_calls = []
+        monkeypatch.setattr("core.nas.save_windows_credential", lambda *_a, **_k: credential_calls.append(True))
+
+        resp = client.post("/api/settings/nas/save", json={
+            "id": "nas1",
+            "name": "Updated",
+            "host": "192.0.2.11",
+            "share": "MediaShare",
+            "subpath": r"Media\Sample\欧美",
+            "username": "user2",
+            "password": "",
+            "enabled": False,
+            "add_to_gallery": True,
+        })
+
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        saved = json.loads(config_path.read_text(encoding="utf-8"))
+        assert len(saved["nas"]["shares"]) == 1
+        share = saved["nas"]["shares"][0]
+        assert share["id"] == "nas1"
+        assert share["name"] == "Updated"
+        assert share["username"] == "user2"
+        assert share["enabled"] is False
+        assert "password" not in share
+        assert credential_calls == []
+        assert saved["gallery"]["directories"] == [r"\\192.0.2.11\MediaShare\Media\Sample"]
+
+    def test_delete_nas_share_removes_metadata_only(self, client, tmp_path, monkeypatch):
+        config_path = self._write_nas_config(
+            tmp_path,
+            monkeypatch,
+            {
+                "gallery": {"directories": [r"\\nas\Media\Sample"]},
+                "nas": {"shares": [
+                    {"id": "n1", "host": "nas", "share": "Media", "subpath": "Sample"},
+                    {"id": "n2", "host": "nas2", "share": "Media", "subpath": ""},
+                ]},
+            },
+        )
+
+        resp = client.delete("/api/settings/nas/n1")
+
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        assert resp.json()["removed"] is True
+        saved = json.loads(config_path.read_text(encoding="utf-8"))
+        assert [s["id"] for s in saved["nas"]["shares"]] == ["n2"]
+        assert saved["gallery"]["directories"] == [r"\\nas\Media\Sample"]

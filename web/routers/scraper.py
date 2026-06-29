@@ -9,6 +9,7 @@ Scraper API 路由 - 單檔刮削
 import asyncio
 import json
 import os
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -26,12 +27,17 @@ from core.cf_transport import get_cf_transport, CfChallengeRequired, CfTransport
 from core.scrapers.javlibrary import JAVLIBRARY_ORIGIN
 from core.logger import get_logger
 from core.config import load_config
+from core.library_categories import category_root_for, matching_gallery_root
 from core import thumbnail_cache
 from web.routers.notifications import emit_notification as _emit_notif
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api", tags=["scraper"])
+
+
+def _is_western_number(number: str | None) -> bool:
+    return bool(number and number.upper().startswith("WEST-"))
 
 
 class ScrapeRequest(BaseModel):
@@ -96,6 +102,19 @@ def scrape_single(request: ScrapeRequest) -> dict:
     # 載入設定
     config = load_config()
     scraper_config = config.get('scraper', {})
+    scraper_config = dict(scraper_config)
+    try:
+        source_path = Path(uri_to_fs_path(file_path)).resolve(strict=False)
+        roots = [
+            Path(uri_to_fs_path(path)).resolve(strict=False)
+            for path in config.get("gallery", {}).get("directories", [])
+            if isinstance(path, str) and path
+        ]
+        base_root = matching_gallery_root(source_path, roots, config)
+        if base_root is not None:
+            scraper_config["_target_base_dir"] = str(category_root_for(base_root, "jav", config))
+    except Exception:
+        logger.exception("scrape_single: 分類目錄判斷失敗，回退原路徑")
 
     # 執行整理（scraper_config 已包含 suffix_keywords，organize_file 自行偵測）
     result = organize_file(file_path, metadata, scraper_config)
@@ -355,6 +374,8 @@ async def batch_enrich_endpoint(request: BatchEnrichRequest):
         try:
             for idx, item in enumerate(deduped_items, start=1):
                 effective_source = item.source or request.source or "auto"
+                if effective_source == "auto" and _is_western_number(item.number):
+                    effective_source = "stash"
                 # 未知 / 非法 source guard：不靜默轉成無效 cache_key，退回 'auto'（最小驚訝）。
                 if effective_source != "auto" and not validate_source_id(effective_source):
                     logger.warning(
@@ -363,6 +384,8 @@ async def batch_enrich_endpoint(request: BatchEnrichRequest):
                     )
                     effective_source = "auto"
                 effective_lang = item.javbus_lang or request.javbus_lang
+                if effective_source == "stash":
+                    yield f"data: {json.dumps({'type': 'log', 'level': 'info', 'message': f'{item.number} -> Stash'})}\n\n"
 
                 # progress 事件
                 yield f"data: {json.dumps({'type': 'progress', 'current': idx, 'total': total, 'number': item.number})}\n\n"

@@ -846,6 +846,101 @@ class TestImageDownloadFail:
         assert result.success is True
 
 
+class TestWesternStashSidecar:
+    def test_fill_missing_western_uses_filename_for_stash_query(self):
+        """WEST-* 缺 sidecar 時，用原始檔名查 Stash，而不是直接搜 WEST-*。"""
+        db_video = _make_video(
+            number="WEST-BANGBUS-20190828-DYLANN-VOX",
+            title="Dylann Vox",
+            actresses=["Dylann Vox"],
+            maker="BangBus",
+            director="",
+            series="",
+            label="",
+            tags=["Western"],
+            cover_path="",
+            release_date="2019-08-28",
+        )
+        scraper_data = _make_scraper_result(
+            number="WEST-BANGBUS-20190828-DYLANN-VOX",
+            title="Dylann Vox",
+            actors=["Dylann Vox"],
+            cover="http://192.0.2.12:9999/scene/1/screenshot",
+            date="2019-08-28",
+            maker="BangBus",
+            tags=["Bus"],
+            url="http://192.0.2.12:9999/scenes/1",
+        )
+
+        def exists_side_effect(path):
+            return str(path).endswith(".mp4")
+
+        with (
+            patch("os.path.exists", side_effect=exists_side_effect),
+            patch("pathlib.Path.exists", lambda p: str(p).endswith(".mp4")),
+            patch("core.enricher.VideoRepository") as mock_repo_cls,
+            patch("core.enricher.search_jav") as mock_search,
+            patch("core.enricher._search_stash_for_sidecar", return_value=scraper_data) as mock_stash,
+            patch("core.enricher.generate_nfo", return_value=True),
+            patch("core.enricher._write_cover", return_value=True),
+        ):
+            mock_repo = MagicMock()
+            mock_repo_cls.return_value = mock_repo
+            mock_repo.get_by_numbers.return_value = {"WEST-BANGBUS-20190828-DYLANN-VOX": [db_video]}
+            mock_repo.get_by_path.return_value = db_video
+
+            from core.enricher import enrich_single
+            result = enrich_single(
+                file_path="/video/bangbus.19.08.28.dylann.vox.mp4",
+                number="WEST-BANGBUS-20190828-DYLANN-VOX",
+                mode="fill_missing",
+            )
+
+        assert result.success is True
+        mock_search.assert_not_called()
+        mock_stash.assert_called_once_with(
+            "/video/bangbus.19.08.28.dylann.vox.mp4",
+            "WEST-BANGBUS-20190828-DYLANN-VOX",
+        )
+
+    def test_stash_cover_download_sends_api_key(self, tmp_path, monkeypatch):
+        """Stash 圖片下載要帶 ApiKey，且空 proxy 不走環境代理。"""
+        calls = {}
+
+        class FakeResponse:
+            status_code = 200
+            content = b"x" * 1200
+
+        def fake_get(*args, **kwargs):
+            calls["args"] = args
+            calls["kwargs"] = kwargs
+            return FakeResponse()
+
+        monkeypatch.setattr("core.enricher.requests.get", fake_get)
+        monkeypatch.setattr("core.enricher._stash_config", lambda: {
+            "url": "http://192.0.2.12:9999",
+            "api_key": "secret-key",
+            "proxy_url": "",
+        })
+
+        from core.enricher import _write_cover
+
+        video = tmp_path / "west.mp4"
+        video.write_bytes(b"video")
+        ok = _write_cover(
+            str(video),
+            "http://192.0.2.12:9999/scene/1/screenshot",
+            write_cover=True,
+            overwrite_existing=False,
+            source="stash",
+        )
+
+        assert ok is True
+        assert (tmp_path / "west.jpg").exists()
+        assert calls["kwargs"]["headers"]["ApiKey"] == "secret-key"
+        assert calls["kwargs"]["proxies"] == {"http": None, "https": None}
+
+
 # ── 26. F1: _db_upsert 把 path 存成 file:/// URI ────────────────────────────────
 
 class TestDbUpsertPathIsFileUri:

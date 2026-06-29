@@ -689,33 +689,30 @@ class TestIsReady:
 class TestStructuralGuards:
     def test_no_core_importing_windows(self):
         """core/ must not import from windows/ (one-way dependency)."""
-        result = subprocess.run(
-            ['grep', '-rn', r'import windows|from windows', str(REPO_ROOT / 'core')],
-            capture_output=True, text=True
-        )
-        # grep returns exit code 0 if found, 1 if not found
-        assert result.returncode == 1 or result.stdout.strip() == '', \
-            f"FAIL: core/ imports windows:\n{result.stdout}"
+        offenders = []
+        for path in (REPO_ROOT / 'core').rglob('*.py'):
+            text = path.read_text(encoding='utf-8')
+            for lineno, line in enumerate(text.splitlines(), start=1):
+                if 'import windows' in line or 'from windows' in line:
+                    offenders.append(f"{path.relative_to(REPO_ROOT)}:{lineno}:{line}")
+        assert offenders == [], "FAIL: core/ imports windows:\n" + "\n".join(offenders)
 
     def test_launcher_has_no_transport_register(self):
         """launcher.py must not import cf_transport_impl or register_cf_transport."""
-        launcher_path = str(REPO_ROOT / 'windows' / 'launcher.py')
-        result = subprocess.run(
-            ['grep', '-n', 'cf_transport_impl|register_cf_transport', launcher_path],
-            capture_output=True, text=True
-        )
-        assert result.returncode == 1 or result.stdout.strip() == '', \
-            f"FAIL: launcher.py references transport:\n{result.stdout}"
+        launcher_path = REPO_ROOT / 'windows' / 'launcher.py'
+        offenders = []
+        for lineno, line in enumerate(launcher_path.read_text(encoding='utf-8').splitlines(), start=1):
+            if 'cf_transport_impl' in line or 'register_cf_transport' in line:
+                offenders.append(f"{lineno}:{line}")
+        assert offenders == [], "FAIL: launcher.py references transport:\n" + "\n".join(offenders)
 
     def test_wv_fetch_is_module_level(self):
         """_wv_fetch must be defined at module level (column 0), not inside a class."""
         impl_path = REPO_ROOT / 'windows' / 'cf_transport_impl.py'
-        result = subprocess.run(
-            ['grep', '-n', '^def _wv_fetch', str(impl_path)],
-            capture_output=True, text=True
-        )
-        assert result.returncode == 0 and result.stdout.strip() != '', \
+        text = impl_path.read_text(encoding='utf-8')
+        assert any(line.startswith('def _wv_fetch') for line in text.splitlines()), (
             "FAIL: _wv_fetch not found at module level (column 0)"
+        )
 
 
 # ──────────────────────────────────────────────────────────────

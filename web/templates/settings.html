@@ -306,6 +306,158 @@
                         </div>
                     </div>
 
+                    <div class="settings-form-row">
+                        <label class="row-label">
+                            Stash
+                            <small class="settings-hint">歐美影片來源，僅手動/歐美刮削使用</small>
+                        </label>
+                        <div class="flex-1 flex flex-col gap-2">
+                            <label class="settings-label">
+                                <input type="checkbox" class="toggle toggle-primary"
+                                       x-model="form.stashEnabled">
+                                <span class="label-text">啟用 Stash 歐美刮削來源</span>
+                            </label>
+                            <div class="variable-input-group">
+                                <input type="text" class="input input-bordered input-sm flex-1"
+                                    x-model="form.stashUrl"
+                                    placeholder="http://127.0.0.1:9999"
+                                    aria-label="Stash URL">
+                                <input type="password" class="input input-bordered input-sm"
+                                    x-model="form.stashApiKey"
+                                    placeholder="ApiKey（可留空）"
+                                    autocomplete="off"
+                                    aria-label="Stash ApiKey">
+                            </div>
+                            <div class="variable-input-group">
+                                <input type="text" class="input input-bordered input-sm flex-1"
+                                    x-model="form.stashProxyUrl"
+                                    placeholder="Proxy（可留空，例如 http://127.0.0.1:7890）"
+                                    aria-label="Stash Proxy">
+                                <button class="btn btn-sm btn-outline" type="button"
+                                    @click="testStashConnection()"
+                                    :disabled="!form.stashUrl.trim() || testStashLoading">
+                                    <span x-show="testStashLoading" class="loading loading-spinner loading-sm"></span>
+                                    測試 Stash
+                                </button>
+                            </div>
+                            <small class="settings-hint">
+                                此 Proxy 只影響 OpenAver 連到 Stash；Stash 連 TPDB/CommunityScrapers 的代理請在 Stash 內設定。
+                            </small>
+                            <small class="settings-hint" x-show="stashStatus" x-text="stashStatus"
+                                :class="{ 'text-success': stashStatusOk, 'text-error': stashStatus && !stashStatusOk && !testStashLoading }"></small>
+                        </div>
+                    </div>
+
+                    <div class="settings-form-row">
+                        <label class="row-label">
+                            NAS
+                            <small class="settings-hint">使用 UNC 路徑加入 NAS 影片資料夾</small>
+                        </label>
+                        <div class="flex-1 flex flex-col gap-2">
+                            <div class="variable-input-group">
+                                <input type="text" class="input input-bordered input-sm"
+                                    x-model="form.nasName"
+                                    placeholder="顯示名稱（可留空）"
+                                    aria-label="NAS 顯示名稱">
+                                <input type="text" class="input input-bordered input-sm"
+                                    x-model="form.nasHost"
+                                    placeholder="主機 / IP，例如 192.0.2.12"
+                                    aria-label="NAS 主機">
+                                <input type="text" class="input input-bordered input-sm"
+                                    x-model="form.nasShare"
+                                    placeholder="共享名稱，例如 Database"
+                                    aria-label="NAS 共享名稱">
+                            </div>
+                            <div class="variable-input-group">
+                                <input type="text" class="input input-bordered input-sm flex-1"
+                                    x-model="form.nasSubpath"
+                                    placeholder="子目錄，例如 Media\\欧美"
+                                    aria-label="NAS 子目錄">
+                                <input type="text" class="input input-bordered input-sm"
+                                    x-model="form.nasUsername"
+                                    placeholder="帳號"
+                                    autocomplete="username"
+                                    aria-label="NAS 帳號">
+                                <input type="password" class="input input-bordered input-sm"
+                                    x-model="form.nasPassword"
+                                    placeholder="密碼（不寫入 config.json）"
+                                    autocomplete="new-password"
+                                    aria-label="NAS 密碼">
+                            </div>
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <label class="settings-label">
+                                    <input type="checkbox" class="checkbox checkbox-sm"
+                                           x-model="form.nasAddToGallery">
+                                    <span class="label-text">保存後加入列表生成掃描資料夾</span>
+                                </label>
+                                <label class="settings-label">
+                                    <input type="checkbox" class="checkbox checkbox-sm"
+                                           x-model="form.nasEnabled">
+                                    <span class="label-text">啟用</span>
+                                </label>
+                                <button class="btn btn-sm btn-outline" type="button"
+                                    @click="testNasConnection()"
+                                    :disabled="!form.nasHost.trim() || !form.nasShare.trim() || nasLoading">
+                                    <span x-show="nasLoading" class="loading loading-spinner loading-sm"></span>
+                                    測試 NAS
+                                </button>
+                                <button class="btn btn-sm btn-primary" type="button"
+                                    @click="saveNasShare()"
+                                    :disabled="!form.nasHost.trim() || !form.nasShare.trim() || nasLoading">
+                                    <i class="bi bi-hdd-network"></i>
+                                    <span x-text="editingNasId ? '更新 NAS' : '保存 NAS'"></span>
+                                </button>
+                                <button class="btn btn-sm btn-ghost" type="button"
+                                    x-show="editingNasId"
+                                    x-cloak
+                                    @click="cancelNasEdit()"
+                                    :disabled="nasLoading">
+                                    取消編輯
+                                </button>
+                                <button class="btn btn-sm btn-ghost" type="button"
+                                    @click="refreshNasStatus()"
+                                    :disabled="nasLoading">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                            </div>
+                            <small class="settings-hint">
+                                建議填共享根與子目錄；如果子目錄是 <code>欧美</code> / <code>日韩</code>，OpenAver 會把父庫根加入掃描，避免漏掃同級分類。
+                            </small>
+                            <small class="settings-hint text-info" x-show="nasLibraryRootHint" x-text="nasLibraryRootHint"></small>
+                            <small class="settings-hint" x-show="nasStatus" x-text="nasStatus"
+                                :class="{ 'text-success': nasStatusOk, 'text-error': nasStatus && !nasStatusOk && !nasLoading }"></small>
+                            <div class="nas-share-list" x-show="nasShares.length > 0" x-cloak role="list" aria-label="已保存 NAS">
+                                <template x-for="share in nasShares" :key="share.id">
+                                    <div class="nas-share-row" role="listitem" :class="{ 'is-editing': editingNasId === share.id }">
+                                        <i class="bi bi-hdd-network"></i>
+                                        <div class="nas-share-main">
+                                            <div class="nas-share-title">
+                                                <strong x-text="share.name || share.share || 'NAS'"></strong>
+                                                <span class="nas-share-state" :class="{ 'is-ok': share.readable, 'is-off': share.enabled === false }"
+                                                      x-text="share.enabled === false ? '停用' : (share.readable ? '可讀' : '未確認')"></span>
+                                            </div>
+                                            <code x-text="share.unc_path || ('\\\\' + share.host + '\\' + share.share + (share.subpath ? '\\' + share.subpath : ''))"></code>
+                                        </div>
+                                        <div class="nas-share-actions">
+                                            <button class="btn btn-xs btn-outline" type="button"
+                                                @click="editNasShare(share)"
+                                                :disabled="nasLoading"
+                                                title="編輯 NAS">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-xs btn-ghost text-error" type="button"
+                                                @click="removeNasShare(share)"
+                                                :disabled="nasLoading"
+                                                title="移除 NAS 設定">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Metatube 連線（B3）toggle（CD-63b-3）— 64b-6: 移至 Section 3 正上方 -->
                     <div class="settings-form-group">
                         <label class="settings-label">
@@ -758,6 +910,95 @@
                             </small>
                             <small class="settings-hint flex-1 min-w-0" x-show="form.externalManager === 'kodi'">
                                 {{ t('settings.scraper.external_manager_kodi_hint') }}
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="settings-form-row">
+                        <label class="row-label">
+                            庫分類目錄
+                            <small class="settings-hint">父目錄掃描時，自動維護歐美 / 日韓頂層分類</small>
+                        </label>
+                        <div class="flex-1 flex flex-col gap-3">
+                            <label class="settings-label">
+                                <input type="checkbox" class="toggle toggle-primary"
+                                       x-model="form.libraryCategoriesEnabled">
+                                <span class="label-text">啟用父庫根分類整理</span>
+                            </label>
+                            <div class="variable-input-group">
+                                <input type="text" class="input input-bordered input-sm"
+                                       x-model="form.libraryCategoryWestern"
+                                       :disabled="!form.libraryCategoriesEnabled"
+                                       aria-label="Western category folder">
+                                <input type="text" class="input input-bordered input-sm"
+                                       x-model="form.libraryCategoryJav"
+                                       :disabled="!form.libraryCategoriesEnabled"
+                                       aria-label="JAV category folder">
+                            </div>
+                            <label class="settings-label">
+                                <input type="checkbox" class="checkbox checkbox-sm"
+                                       x-model="form.libraryCategoriesAutoCreate"
+                                       :disabled="!form.libraryCategoriesEnabled">
+                                <span class="label-text">套用整理時自動建立缺失分類目錄</span>
+                            </label>
+                            <small class="settings-hint">
+                                掃描根建議選 <code>3.14</code> 父目錄；整理輸出會進入 <code x-text="form.libraryCategoryWestern || '欧美'"></code> / <code x-text="form.libraryCategoryJav || '日韩'"></code>。
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="settings-form-row">
+                        <label class="row-label">
+                            歐美 / Stash 整理規則
+                            <small class="settings-hint">獨立於日系番號整理，建議一部 scene 一個資料夾</small>
+                        </label>
+                        <div class="flex-1 flex flex-col gap-3">
+                            <label class="settings-label">
+                                <input type="checkbox" class="toggle toggle-primary"
+                                       x-model="form.westernCreateFolder">
+                                <span class="label-text">為歐美影片建立獨立資料夾</span>
+                            </label>
+                            <div class="variable-input-group">
+                                <input type="text" class="input input-bordered input-sm flex-1"
+                                       x-model="form.westernFolderFormat"
+                                       :disabled="!form.westernCreateFolder"
+                                       aria-label="Western folder format">
+                                <input type="text" class="input input-bordered input-sm flex-1"
+                                       x-model="form.westernFilenameFormat"
+                                       aria-label="Western filename format">
+                            </div>
+                            <div class="variable-input-group">
+                                <template x-for="v in westernFormatVariables" :key="v.name">
+                                    <button type="button" class="btn btn-xs btn-outline"
+                                            @click="form.westernFilenameFormat += v.name"
+                                            :title="v.label">
+                                        <code x-text="v.name"></code>
+                                    </button>
+                                </template>
+                            </div>
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <span class="settings-hint">外部媒體庫模式</span>
+                                <div class="settings-sources-segmented" role="group" aria-label="Western external manager">
+                                    <button type="button"
+                                            :class="{ 'is-on': form.westernExternalManager === 'off' }"
+                                            @click="form.westernExternalManager = 'off'">Off</button>
+                                    <button type="button"
+                                            :class="{ 'is-on': form.westernExternalManager === 'jellyfin' }"
+                                            @click="form.westernExternalManager = 'jellyfin'">Jellyfin</button>
+                                    <button type="button"
+                                            :class="{ 'is-on': form.westernExternalManager === 'emby' }"
+                                            @click="form.westernExternalManager = 'emby'">Emby</button>
+                                    <button type="button"
+                                            :class="{ 'is-on': form.westernExternalManager === 'kodi' }"
+                                            @click="form.westernExternalManager = 'kodi'">Kodi</button>
+                                </div>
+                            </div>
+                            <div class="folder-preview">
+                                <i class="bi bi-folder-check"></i>
+                                <span class="preview-text" x-text="westernPreviewText"></span>
+                            </div>
+                            <small class="settings-hint">
+                                預設結構為 <code>{studio}/{year}/{date} {title}</code>，不使用演員作為頂層資料夾，<code>WEST-*</code> 僅保留為內部編號。
                             </small>
                         </div>
                     </div>

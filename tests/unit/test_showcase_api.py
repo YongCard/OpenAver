@@ -236,9 +236,10 @@ class TestShowcaseVideosAPI:
         path_param = video4["cover_url"].split("path=")[1]
         decoded_path = unquote(path_param)
         # UNC 路徑應保持 //server/share 格式（恰好兩個 /）
-        assert decoded_path.startswith("//"), f"UNC 路徑格式錯誤: {decoded_path}"
-        assert not decoded_path.startswith("///"), f"UNC 路徑多了 /: {decoded_path}"
-        assert "PRED-001" in decoded_path
+        normalized_path = decoded_path.replace("\\", "/")
+        assert normalized_path.startswith("//"), f"UNC 路徑格式錯誤: {decoded_path}"
+        assert not normalized_path.startswith("///"), f"UNC 路徑多了 /: {decoded_path}"
+        assert "PRED-001" in normalized_path
 
     def test_cover_url_empty_when_no_cover(self, client, populated_db, monkeypatch):
         """測試無封面圖時 cover_url 為空字串"""

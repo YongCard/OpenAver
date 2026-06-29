@@ -110,6 +110,9 @@ from web.routers import settings_metatube as settings_metatube_router
 from web.routers import cf as cf_router
 from web.routers import diagnostics as diagnostics_router
 from web.routers import library_migration as library_migration_router
+from web.routers import inbox_organizer as inbox_organizer_router
+from web.routers import media_merge as media_merge_router
+from web.routers import western_organizer as western_organizer_router
 # Module-level imports for startup_reconnect / _fire_probe so that
 # patch("web.app.startup_reconnect") / patch("web.app._fire_probe") target the
 # correct use-site binding (TASK-63e-1; function-local import would defeat patch).
@@ -139,6 +142,9 @@ app.include_router(settings_metatube_router.router)
 app.include_router(cf_router.router)
 app.include_router(diagnostics_router.router)
 app.include_router(library_migration_router.router)
+app.include_router(inbox_organizer_router.router)
+app.include_router(media_merge_router.router)
+app.include_router(western_organizer_router.router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -293,7 +299,7 @@ async def index(request: Request):
         default_page = 'scanner'
 
     # 驗證頁面名稱
-    valid_pages = ['search', 'scanner', 'showcase']
+    valid_pages = ['search', 'organize', 'media-merge', 'scanner', 'showcase']
     if default_page not in valid_pages:
         default_page = 'search'
 
@@ -306,6 +312,22 @@ async def search_page(request: Request):
     context = get_common_context(request)
     context["page"] = "search"
     return templates.TemplateResponse(request, "search.html", context)
+
+
+@app.get("/organize")
+async def organize_page(request: Request):
+    """待整理工作流頁面"""
+    context = get_common_context(request)
+    context["page"] = "organize"
+    return templates.TemplateResponse(request, "organize.html", context)
+
+
+@app.get("/media-merge")
+async def media_merge_page(request: Request):
+    """影片合併工具頁面"""
+    context = get_common_context(request)
+    context["page"] = "media-merge"
+    return templates.TemplateResponse(request, "media_merge.html", context)
 
 
 @app.get("/scraper")
@@ -388,7 +410,7 @@ async def health_check():
     return {"status": "ok", "version": VERSION}
 
 
-@app.get("/api/version")
+@app.get("/api/version", operation_id="get_app_version")
 async def get_version():
     """取得應用程式版本"""
     return {"success": True, "version": VERSION}

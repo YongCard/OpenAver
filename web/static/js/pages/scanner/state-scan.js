@@ -32,6 +32,7 @@ export function stateScan() {
         // ===== Manual Input State =====
         manualInputVisible: false,
         manualPath: '',
+        preflightIssues: [],
 
         // ===== T3.6: Copy Logs Fail Modal =====
         copyFailModalOpen: false,
@@ -114,6 +115,10 @@ export function stateScan() {
                 return '<span class="loading loading-spinner loading-sm"></span> ' + window.t('scanner.stats.generate_loading');
             }
             return '<i class="bi bi-play-fill"></i> ' + window.t('scanner.stats.generate_idle');
+        },
+
+        isUncPath(path) {
+            return typeof path === 'string' && (path.startsWith('\\\\') || path.startsWith('//'));
         },
 
         get nfoUpdateButtonText() {
@@ -434,9 +439,44 @@ export function stateScan() {
             }
         },
 
+        normalizeLibraryRootPath(path) {
+            const raw = (path || '').trim();
+            if (!raw) return raw;
+            const trimmed = raw.replace(/[\\/]+$/, '');
+            const parts = trimmed.replace(/\\/g, '/').split('/').filter(Boolean);
+            const last = parts[parts.length - 1] || '';
+            if (last === '欧美' || last === '日韩') {
+                const sep = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'));
+                return sep > 0 ? trimmed.substring(0, sep) : trimmed;
+            }
+            return trimmed;
+        },
+
+        normalizeDirectoryList(list) {
+            const normalized = [];
+            const seen = new Set();
+            (list || []).forEach((item) => {
+                const path = this.normalizeLibraryRootPath(item);
+                const key = path.toLowerCase();
+                if (path && !seen.has(key)) {
+                    seen.add(key);
+                    normalized.push(path);
+                }
+            });
+            return normalized.filter((item) => {
+                const itemKey = item.toLowerCase().replace(/[\\/]+$/, '');
+                return !normalized.some((other) => {
+                    const otherKey = other.toLowerCase().replace(/[\\/]+$/, '');
+                    return otherKey !== itemKey && (itemKey.startsWith(otherKey + '\\') || itemKey.startsWith(otherKey + '/'));
+                });
+            });
+        },
+
         addFolderPath(folderPath) {
-            if (!this.directories.includes(folderPath)) {
-                this.directories.push(folderPath);
+            const normalizedPath = this.normalizeLibraryRootPath(folderPath);
+            const next = this.normalizeDirectoryList([...this.directories, normalizedPath]);
+            if (JSON.stringify(next) !== JSON.stringify(this.directories)) {
+                this.directories = next;
                 this.configDirty = true;
             } else {
                 this.showToast(window.t('scanner.toast.folder_already_added'), 'warning');
@@ -456,12 +496,14 @@ export function stateScan() {
             const path = this.manualPath.trim();
             if (!path) return;
 
-            if (this.directories.includes(path)) {
+            const normalizedPath = this.normalizeLibraryRootPath(path);
+            const next = this.normalizeDirectoryList([...this.directories, normalizedPath]);
+            if (JSON.stringify(next) === JSON.stringify(this.directories)) {
                 this.showToast(window.t('scanner.toast.folder_already_added'), 'warning');
                 return;
             }
 
-            this.directories.push(path);
+            this.directories = next;
             this.configDirty = true;
             this.manualPath = '';
         },
@@ -469,6 +511,25 @@ export function stateScan() {
         removeDirectory(idx) {
             this.directories.splice(idx, 1);
             this.configDirty = true;
+        },
+
+        async runPreflight() {
+            try {
+                const resp = await fetch('/api/gallery/preflight', { method: 'POST' });
+                const result = await resp.json();
+                const data = result.data || {};
+                this.preflightIssues = Array.isArray(data.issues) ? data.issues : [];
+                if (result.success === false || data.success === false) {
+                    const first = this.preflightIssues[0] || {};
+                    const path = first.path || first.unc_path || '';
+                    this.showToast(`掃描前檢查失敗：${path || '資料夾不可讀'}`, 'error', 5000);
+                    return false;
+                }
+                return true;
+            } catch (e) {
+                this.showToast('掃描前檢查失敗: ' + e.message, 'error', 5000);
+                return false;
+            }
         },
 
         // ===== Drag-drop Methods =====
@@ -719,8 +780,12 @@ export function stateScan() {
 
             // 自動儲存設定
             if (this.configDirty) {
-                await this.saveConfig();
+                const saved = await this.saveConfig();
+                if (!saved) return;
             }
+
+            const preflightOk = await this.runPreflight();
+            if (!preflightOk) return;
 
             // 重置狀態
             this.state = 'generating';
@@ -838,7 +903,34 @@ export function stateScan() {
             localStorage.setItem('avlist_generating', 'true');
 
             try {
-                this.eventSource = new EventSource('/api/gallery/update');
+                let updateUrl = '/api/gallery/update';
+                if (Array.isArray(this.nfoUpdatePaths) && this.nfoUpdatePaths.length > 0) {
+                    const planResp = await fetch('/api/gallery/update-plan', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ paths: this.nfoUpdatePaths })
+                    });
+                    const planData = await planResp.json();
+                    if (!planData.success) {
+                        throw new Error(planData.error || '建立更新計畫失敗');
+                    }
+                    const planId = planData.data?.plan_id;
+                    if (!planId) {
+                        throw new Error('建立更新計畫失敗');
+                    }
+                    if ((planData.data?.count || 0) === 0) {
+                        this.state = 'done';
+                        this.progressStatus = '沒有需要更新的影片';
+                        this.nfoNeedUpdateCount = 0;
+                        this.nfoUpdateVisible = false;
+                        localStorage.setItem('avlist_generating', 'false');
+                        this.showToast('沒有需要更新的影片', 'info');
+                        return;
+                    }
+                    updateUrl = `/api/gallery/update?plan_id=${encodeURIComponent(planId)}`;
+                }
+
+                this.eventSource = new EventSource(updateUrl);
 
                 this.eventSource.onmessage = (event) => {
                     const data = JSON.parse(event.data);

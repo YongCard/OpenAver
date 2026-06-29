@@ -7,7 +7,7 @@ test_api_search.py - 搜尋 API 整合測試
 import pytest
 import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 
 
 def load_fixture(filename: str) -> dict:
@@ -123,6 +123,30 @@ class TestSearchSourceValidation:
             response = client.get('/api/search', params={'q': 'SONE-103', 'source': src})
             assert response.status_code != 400, f"source={src} should not be 400"
 
+    def test_stash_source_not_400(self, client, mocker):
+        """stash 是歐美影片手動來源，應可 explicit 搜尋。"""
+        mocker.patch('core.scraper.search_jav_single_source', return_value={
+            "number": "WEST-BANGBUS-20190828-DYLANN-VOX",
+            "title": "Dylann Vox",
+            "actors": ["Dylann Vox"],
+            "maker": "Bangbus",
+            "cover": "http://127.0.0.1:9999/scene.jpg",
+            "tags": ["Western"],
+            "source": "stash",
+            "_source": "stash",
+        })
+
+        response = client.get('/api/search', params={
+            'q': 'bangbus.19.08.28.dylann.vox.mp4',
+            'mode': 'exact',
+            'source': 'stash',
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"][0]["number"].startswith("WEST-")
+        assert data["data"][0]["source"] == "stash"
+
 
 class TestSearchModes:
     """測試不同搜尋模式"""
@@ -201,6 +225,12 @@ class TestSearchSources:
         # 檢查 auto 選項存在
         source_ids = [s["id"] for s in data["sources"]]
         assert "auto" in source_ids
+        assert "kingdom" in source_ids
+        assert "stash" in source_ids
+        kingdom = next(s for s in data["sources"] if s["id"] == "kingdom")
+        assert kingdom["name"] == "KingDom"
+        stash = next(s for s in data["sources"] if s["id"] == "stash")
+        assert stash["manual_only"] is True
 
     def test_sources_has_order(self, client):
         """測試 sources 包含 order 欄位"""
@@ -217,6 +247,7 @@ class TestSearchSources:
         # 檢查順序包含基本來源
         assert "javbus" in data["order"]
         assert "jav321" in data["order"]
+        assert "kingdom" in data["order"]
 
     def test_sources_order_matches_sources(self, client):
         """測試 order 與 sources 一致"""
@@ -372,7 +403,7 @@ class TestSearchStreamSSE:
 
         # Should have traditional result event
         result_events = [e for e in events if e.get('type') == 'result']
-        assert len(result_events) == 1, f"JavDB fallback should send traditional result event"
+        assert len(result_events) == 1, "JavDB fallback should send traditional result event"
         result_event = result_events[0]
         assert result_event['success'] is True
         assert 'data' in result_event
@@ -616,6 +647,69 @@ class TestFilterFiles:
         assert data["rejected"]["size"] == 1
 
 
+class TestFolderFiles:
+    """Test /api/search/folder-files temporary recursive scrape file discovery."""
+
+    def test_folder_files_recurses_into_subfolders(self, client, tmp_path, monkeypatch):
+        root = tmp_path / "external"
+        nested = root / "subdir"
+        nested.mkdir(parents=True)
+        top = root / "AAA-001.mp4"
+        child = nested / "BBB-002.mkv"
+        top.write_bytes(b"x" * 1024)
+        child.write_bytes(b"x" * 1024)
+        (nested / "ignore.txt").write_text("nope", encoding="utf-8")
+        monkeypatch.setattr("core.config.load_config", lambda: {
+            "scraper": {"video_extensions": [".mp4", ".mkv"]},
+            "gallery": {"min_size_mb": 0},
+        })
+
+        response = client.post(
+            "/api/search/folder-files",
+            json={"folder": str(root), "recursive": True},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["count"] == 2
+        assert str(top) in data["files"]
+        assert str(child) in data["files"]
+
+    def test_folder_files_empty_returns_readable_code(self, client, tmp_path, monkeypatch):
+        root = tmp_path / "empty"
+        root.mkdir()
+        monkeypatch.setattr("core.config.load_config", lambda: {
+            "scraper": {"video_extensions": [".mp4"]},
+            "gallery": {"min_size_mb": 0},
+        })
+
+        response = client.post(
+            "/api/search/folder-files",
+            json={"folder": str(root), "recursive": True},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert data["code"] == "no_video_files"
+        assert data["count"] == 0
+
+    def test_folder_files_rejects_non_folder(self, client, tmp_path):
+        file_path = tmp_path / "AAA-001.mp4"
+        file_path.write_bytes(b"x")
+
+        response = client.post(
+            "/api/search/folder-files",
+            json={"folder": str(file_path), "recursive": True},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert data["code"] == "not_a_folder"
+
+
 class TestFavoriteFiles:
     """Test /api/search/favorite-files"""
 
@@ -658,9 +752,10 @@ class TestFavoriteFiles:
         assert data["success"] is False
         assert "無有效影片" in data["error"]
 
-    def test_get_favorite_files_not_found(self, client, monkeypatch):
+    def test_get_favorite_files_not_found(self, client, tmp_path, monkeypatch):
         """測試目標目錄不存在時的防呆"""
-        test_config = {"search": {"favorite_folder": "/path/not/exists/123"}}
+        missing_dir = tmp_path / "not_exists_123"
+        test_config = {"search": {"favorite_folder": str(missing_dir)}}
         monkeypatch.setattr("core.config.load_config", lambda: test_config)
         
         response = client.get("/api/search/favorite-files")
@@ -1014,6 +1109,14 @@ class TestProxyImageSSRF:
         不是 javdb.com；原 allowlist 只列 javdb.com exact host，導致 JavDB 結果封面 403。
         """
         url = 'https://c0.jdbstatic.com/covers/sone103.jpg'
+        with patch('web.routers.search.requests.get', return_value=self._make_mock_response()) as mock_get:
+            response = client.get('/api/proxy-image', params={'url': url})
+        assert response.status_code == 200
+        mock_get.assert_called_once()
+
+    def test_allow_kingdom_official_cover_host(self, client):
+        """KingDom 官方封面 kingdom.vc 應通過 → 200"""
+        url = 'https://kingdom.vc/html/upload/save_image/1174.jpg'
         with patch('web.routers.search.requests.get', return_value=self._make_mock_response()) as mock_get:
             response = client.get('/api/proxy-image', params={'url': url})
         assert response.status_code == 200

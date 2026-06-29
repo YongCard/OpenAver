@@ -641,6 +641,9 @@ export function stateLightbox() {
             if (this.deleteVideoModalOpen) {
                 this._lbTouchStartX = null; this._lbTouchStartY = null; return;
             }
+            if (this.folderDeleteModalOpen) {
+                this._lbTouchStartX = null; this._lbTouchStartY = null; return;
+            }
             if (this.sampleGalleryOpen) {   // 劇照由 _sgTouchEnd 處理
                 this._lbTouchStartX = null; this._lbTouchStartY = null; return;
             }
@@ -1225,6 +1228,14 @@ export function stateLightbox() {
             }
             if (this.deleteVideoModalOpen) return;
 
+            if (e.key === 'Escape' && this.folderDeleteModalOpen) {
+                this.cancelFolderDelete();
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            if (this.folderDeleteModalOpen) return;
+
             // 2. modifier keys 停用
             if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
 
@@ -1280,10 +1291,7 @@ export function stateLightbox() {
             if (key === 'S' && this.mode === 'grid') {
                 this.toggleInfo();
             } else if (key === 'A') {
-                const modeOrder = ['grid', 'list', 'table'];
-                const currentIndex = modeOrder.indexOf(this.mode);
-                const nextIndex = (currentIndex + 1) % 3;
-                this.switchMode(modeOrder[nextIndex]);
+                this.cycleDisplayMode();
             } else if (key === 'ARROWLEFT') {
                 if (this.page > 1) {
                     this.prevPage();

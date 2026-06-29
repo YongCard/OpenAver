@@ -16,7 +16,7 @@
      @dragleave.document="handleDragLeave($event)"
      @dragover.document.prevent
      @drop.document.prevent="handleDrop($event)"
-     @keydown.escape.window="dirtyCheckModalOpen && dirtyCheckCancel(); missingConfirmModalOpen && cancelLargeMissingEnrich(); deleteAliasGroupModalOpen && cancelDeleteAliasGroupModal(); deleteTagAliasGroupModalOpen && cancelDeleteTagAliasGroupModal(); copyFailModalOpen && closeCopyFailModal();">
+     @keydown.escape.window="dirtyCheckModalOpen && dirtyCheckCancel(); missingConfirmModalOpen && cancelLargeMissingEnrich(); deleteAliasGroupModalOpen && cancelDeleteAliasGroupModal(); deleteTagAliasGroupModalOpen && cancelDeleteTagAliasGroupModal(); duplicateDeleteModalOpen && cancelDuplicateDelete(); emptyFolderModalOpen && cancelEmptyFolderCleanup(); titlePlaceholderModalOpen && cancelTitlePlaceholderMove(); copyFailModalOpen && closeCopyFailModal();">
     <!-- Drag Overlay (must be inside x-data scope) -->
     <div class="drag-overlay" id="dragOverlay" x-show="showDragOverlay" x-transition.opacity>
         <div class="drag-overlay-content">
@@ -69,9 +69,10 @@
 
                 <!-- Folder Items -->
                 <template x-for="(dir, idx) in directories" :key="idx">
-                    <div class="folder-item">
-                        <i class="bi bi-folder folder-icon"></i>
+                    <div class="folder-item" :class="{ 'folder-item--nas': isUncPath(dir) }">
+                        <i class="bi folder-icon" :class="isUncPath(dir) ? 'bi-hdd-network' : 'bi-folder'"></i>
                         <span class="folder-path" x-text="dir"></span>
+                        <span class="folder-badge" x-show="isUncPath(dir)">NAS</span>
                         <button class="btn btn-sm btn-outline btn-error btn-remove"
                                 @click="removeDirectory(idx)" title="{{ t('scanner.folder.remove_title') }}">
                             <i class="bi bi-x"></i>
@@ -258,6 +259,423 @@
             </button>
         </div>
     </div>
+
+    <!-- Duplicate Number Detection -->
+    <div class="duplicate-number-card">
+        <div class="duplicate-number-header">
+            <div class="title">
+                <i class="bi bi-intersect"></i>
+                <span>{{ t('scanner.duplicates.section_title') }}</span>
+            </div>
+            <div class="actions">
+                <label class="duplicate-toggle">
+                    <input type="checkbox" x-model="duplicateShowMultipart"
+                           @change="duplicateReport && loadDuplicateNumbers()">
+                    <span>{{ t('scanner.duplicates.show_multipart') }}</span>
+                </label>
+                <button class="btn btn-sm btn-primary"
+                        @click="loadDuplicateNumbers()"
+                        :disabled="duplicateLoading">
+                    <span x-show="duplicateLoading" class="loading loading-spinner loading-xs"></span>
+                    <i class="bi bi-search" x-show="!duplicateLoading"></i>
+                    {{ t('scanner.duplicates.detect') }}
+                </button>
+            </div>
+        </div>
+        <div class="duplicate-number-body">
+            <p class="duplicate-number-desc">{{ t('scanner.duplicates.description') }}</p>
+
+            <div class="duplicate-summary-grid" x-show="duplicateReport">
+                <div class="duplicate-summary-item">
+                    <span class="label">{{ t('scanner.duplicates.summary_duplicate_groups') }}</span>
+                    <strong x-text="duplicateSummary.duplicate_group_count"></strong>
+                </div>
+                <div class="duplicate-summary-item">
+                    <span class="label">{{ t('scanner.duplicates.summary_duplicate_files') }}</span>
+                    <strong x-text="duplicateSummary.duplicate_file_count"></strong>
+                </div>
+                <div class="duplicate-summary-item">
+                    <span class="label">{{ t('scanner.duplicates.summary_multipart') }}</span>
+                    <strong x-text="duplicateSummary.multipart_group_count"></strong>
+                </div>
+                <div class="duplicate-summary-item">
+                    <span class="label">{{ t('scanner.duplicates.summary_missing') }}</span>
+                    <strong x-text="duplicateSummary.missing_path_count"></strong>
+                </div>
+            </div>
+
+            <div class="alias-list-error" x-show="duplicateError" x-text="duplicateError"></div>
+            <div class="alias-list-empty" x-show="duplicateReport && duplicateGroups.length === 0">
+                {{ t('scanner.duplicates.empty') }}
+            </div>
+
+            <div class="duplicate-group-list" x-show="duplicateGroups.length > 0">
+                <template x-for="group in duplicateGroups" :key="group.canonical_number">
+                    <div class="duplicate-group">
+                        <div class="duplicate-group-title">
+                            <span class="duplicate-number" x-text="group.number"></span>
+                            <span class="duplicate-badge"
+                                  :class="group.classification === 'multipart' ? 'is-multipart' : 'is-duplicate'"
+                                  x-text="duplicateClassificationLabel(group)"></span>
+                            <span class="duplicate-reason" x-text="duplicateReasonLabel(group.reason)"></span>
+                        </div>
+                        <div class="duplicate-group-meta">
+                            <span>{{ t('scanner.duplicates.parts') }}: <strong x-text="duplicateTagsText(group.part_labels)"></strong></span>
+                            <span>{{ t('scanner.duplicates.variants') }}: <strong x-text="duplicateTagsText(group.variant_tags)"></strong></span>
+                        </div>
+                        <div class="duplicate-table-wrap">
+                            <table class="duplicate-table">
+                                <thead>
+                                    <tr>
+                                        <th>{{ t('scanner.duplicates.col_path') }}</th>
+                                        <th>{{ t('scanner.duplicates.col_size') }}</th>
+                                        <th>{{ t('scanner.duplicates.col_mtime') }}</th>
+                                        <th>{{ t('scanner.duplicates.col_flags') }}</th>
+                                        <th>{{ t('scanner.duplicates.col_action') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="item in group.items" :key="item.path">
+                                        <tr :class="{ 'is-missing': item.exists === false }">
+                                            <td>
+                                                <code class="duplicate-path" x-text="item.path"></code>
+                                                <span class="duplicate-missing" x-show="item.exists === false">
+                                                    {{ t('scanner.duplicates.path_missing') }}
+                                                </span>
+                                            </td>
+                                            <td x-text="formatDuplicateSize(item.size_bytes)"></td>
+                                            <td x-text="formatDuplicateMtime(item.mtime)"></td>
+                                            <td>
+                                                <span x-text="item.part_label || '-'"></span>
+                                                <span x-show="item.variant_tags.length"> · </span>
+                                                <span x-text="duplicateTagsText(item.variant_tags)" x-show="item.variant_tags.length"></span>
+                                            </td>
+                                            <td class="duplicate-action-cell">
+                                                <div class="duplicate-action-group">
+                                                    <button class="duplicate-icon-btn"
+                                                            x-show="item.show_open_folder"
+                                                            @click="openDuplicateFolder(item.path)"
+                                                            :title="window.t('scanner.duplicates.open_folder')"
+                                                            :aria-label="window.t('scanner.duplicates.open_folder')">
+                                                        <i class="bi bi-folder2-open"></i>
+                                                    </button>
+                                                    <span class="duplicate-action-placeholder"
+                                                          x-show="!item.show_open_folder"></span>
+                                                    <span class="duplicate-action-placeholder"
+                                                          x-show="item.exists === false"></span>
+                                                    <button class="duplicate-icon-btn is-danger"
+                                                            x-show="item.exists !== false"
+                                                            :disabled="!duplicateDeleteAllowed(group, item) || duplicateDeleteLoading"
+                                                            @click="openDuplicateDeleteModal(group, item)"
+                                                            :title="duplicateDeleteAllowed(group, item) ? window.t('scanner.duplicates.delete_to_recycle') : window.t('scanner.duplicates.delete_multipart_disabled')"
+                                                            :aria-label="duplicateDeleteAllowed(group, item) ? window.t('scanner.duplicates.delete_to_recycle') : window.t('scanner.duplicates.delete_multipart_disabled')">
+                                                        <i class="bi bi-trash3"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Duplicate Delete Confirm Modal -->
+    <dialog class="modal fluent-modal"
+            :class="{ 'modal-open': duplicateDeleteModalOpen }"
+            @click.self="cancelDuplicateDelete()">
+        <div class="modal-box fluent-modal-box duplicate-delete-modal">
+            <h3 class="fluent-modal-title">
+                <i class="bi bi-trash3 text-error"></i>
+                {{ t('scanner.duplicates.delete_modal_title') }}
+            </h3>
+            <p class="fluent-modal-body">
+                {{ t('scanner.duplicates.delete_modal_body') }}
+            </p>
+            <div class="duplicate-delete-summary" x-show="duplicateDeletePreview">
+                <div>
+                    <span>{{ t('scanner.duplicates.delete_file_count') }}</span>
+                    <strong x-text="duplicateDeletePreview?.file_count || 0"></strong>
+                </div>
+                <div>
+                    <span>{{ t('scanner.duplicates.delete_total_size') }}</span>
+                    <strong x-text="formatDuplicateSize(duplicateDeletePreview?.total_bytes || 0)"></strong>
+                </div>
+            </div>
+            <div class="duplicate-delete-warning">
+                <i class="bi bi-info-circle"></i>
+                <span>{{ t('scanner.duplicates.delete_recycle_hint') }}</span>
+            </div>
+            <div class="alias-list-error" x-show="duplicateDeleteError" x-text="duplicateDeleteError"></div>
+            <div class="duplicate-delete-files" x-show="duplicateDeletePreview">
+                <template x-for="file in (duplicateDeletePreview?.files || [])" :key="file.path">
+                    <div class="duplicate-delete-file">
+                        <span class="duplicate-delete-kind" x-text="file.kind === 'video' ? window.t('scanner.duplicates.delete_kind_video') : window.t('scanner.duplicates.delete_kind_sidecar')"></span>
+                        <code x-text="file.path"></code>
+                        <span x-text="formatDuplicateSize(file.size)"></span>
+                    </div>
+                </template>
+            </div>
+            <div class="modal-action fluent-modal-actions">
+                <button type="button" class="btn btn-ghost" @click="cancelDuplicateDelete()"
+                        :disabled="duplicateDeleteApplying">
+                    {{ t('scanner.duplicates.delete_cancel') }}
+                </button>
+                <button type="button" class="btn btn-error" @click="confirmDuplicateDelete()"
+                        :disabled="duplicateDeleteApplying || !duplicateDeletePreview">
+                    <span x-show="duplicateDeleteApplying" class="loading loading-spinner loading-xs"></span>
+                    <span x-show="!duplicateDeleteApplying"><i class="bi bi-trash3"></i></span>
+                    {{ t('scanner.duplicates.delete_confirm') }}
+                </button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Title Placeholder Isolation -->
+    <div class="duplicate-number-card title-placeholder-card">
+        <div class="duplicate-number-header">
+            <div class="title">
+                <i class="bi bi-exclamation-diamond"></i>
+                <span>{{ t('scanner.title_placeholders.section_title') }}</span>
+            </div>
+            <div class="actions">
+                <button class="btn btn-sm btn-ghost"
+                        @click="loadTitlePlaceholders()"
+                        :disabled="titlePlaceholderLoading">
+                    <span x-show="titlePlaceholderLoading" class="loading loading-spinner loading-xs"></span>
+                    <i class="bi bi-search" x-show="!titlePlaceholderLoading"></i>
+                    {{ t('scanner.title_placeholders.detect') }}
+                </button>
+                <button class="btn btn-sm btn-warning"
+                        @click="openTitlePlaceholderModal()"
+                        :disabled="!titlePlaceholderPreview || titlePlaceholderSummary.planned_count <= 0 || titlePlaceholderApplying">
+                    <i class="bi bi-folder-symlink"></i>
+                    {{ t('scanner.title_placeholders.move') }}
+                </button>
+            </div>
+        </div>
+        <div class="duplicate-number-body">
+            <p class="duplicate-number-desc">{{ t('scanner.title_placeholders.description') }}</p>
+            <div class="duplicate-summary-grid" x-show="titlePlaceholderPreview">
+                <div class="duplicate-summary-item">
+                    <span class="label">{{ t('scanner.title_placeholders.summary_candidates') }}</span>
+                    <strong x-text="titlePlaceholderSummary.candidate_count"></strong>
+                </div>
+                <div class="duplicate-summary-item">
+                    <span class="label">{{ t('scanner.title_placeholders.summary_planned') }}</span>
+                    <strong x-text="titlePlaceholderSummary.planned_count"></strong>
+                </div>
+                <div class="duplicate-summary-item">
+                    <span class="label">{{ t('scanner.title_placeholders.summary_conflicts') }}</span>
+                    <strong x-text="titlePlaceholderSummary.conflict_count"></strong>
+                </div>
+                <div class="duplicate-summary-item">
+                    <span class="label">{{ t('scanner.title_placeholders.summary_sidecars') }}</span>
+                    <strong x-text="titlePlaceholderSummary.sidecar_count"></strong>
+                </div>
+            </div>
+            <div class="alias-list-error" x-show="titlePlaceholderError" x-text="titlePlaceholderError"></div>
+            <div class="alias-list-empty" x-show="titlePlaceholderPreview && titlePlaceholderEntries.length === 0">
+                {{ t('scanner.title_placeholders.empty') }}
+            </div>
+            <div class="title-placeholder-list" x-show="titlePlaceholderEntries.length > 0">
+                <template x-for="entry in titlePlaceholderEntries" :key="entry.id">
+                    <article class="title-placeholder-item">
+                        <div class="title-placeholder-item-header">
+                            <div class="title-placeholder-main">
+                                <span class="duplicate-number" x-text="entry.number || '-'"></span>
+                                <span class="title-placeholder-current" x-text="entry.title || '-'"></span>
+                            </div>
+                            <span class="duplicate-badge"
+                                  :class="entry.status === 'planned' ? 'is-multipart' : 'is-duplicate'"
+                                  x-text="titlePlaceholderStatusLabel(entry.status)"></span>
+                        </div>
+                        <div class="title-placeholder-meta">
+                            <span>
+                                <i class="bi bi-exclamation-circle"></i>
+                                <span x-text="titlePlaceholderReasonLabel(entry.reason)"></span>
+                            </span>
+                            <span>
+                                <i class="bi bi-paperclip"></i>
+                                <span x-text="(entry.sidecars || []).length"></span>
+                                {{ t('scanner.title_placeholders.sidecar_unit') }}
+                            </span>
+                        </div>
+                        <div class="title-placeholder-paths">
+                            <div class="title-placeholder-path-row">
+                                <span class="title-placeholder-path-label">{{ t('scanner.title_placeholders.col_path') }}</span>
+                                <code x-text="entry.source"></code>
+                            </div>
+                            <div class="title-placeholder-path-row">
+                                <span class="title-placeholder-path-label">{{ t('scanner.title_placeholders.col_target') }}</span>
+                                <code x-text="entry.target"></code>
+                            </div>
+                        </div>
+                    </article>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Title Placeholder Confirm Modal -->
+    <dialog class="modal fluent-modal"
+            :class="{ 'modal-open': titlePlaceholderModalOpen }"
+            @click.self="cancelTitlePlaceholderMove()">
+        <div class="modal-box fluent-modal-box duplicate-delete-modal title-placeholder-modal">
+            <h3 class="fluent-modal-title">
+                <i class="bi bi-folder-symlink text-warning"></i>
+                {{ t('scanner.title_placeholders.modal_title') }}
+            </h3>
+            <p class="fluent-modal-body">
+                {{ t('scanner.title_placeholders.modal_body') }}
+            </p>
+            <div class="duplicate-delete-summary" x-show="titlePlaceholderPreview">
+                <div>
+                    <span>{{ t('scanner.title_placeholders.summary_planned') }}</span>
+                    <strong x-text="titlePlaceholderSummary.planned_count"></strong>
+                </div>
+                <div>
+                    <span>{{ t('scanner.title_placeholders.summary_sidecars') }}</span>
+                    <strong x-text="titlePlaceholderSummary.sidecar_count"></strong>
+                </div>
+            </div>
+            <div class="duplicate-delete-warning">
+                <i class="bi bi-info-circle"></i>
+                <span>{{ t('scanner.title_placeholders.manual_hint') }}</span>
+            </div>
+            <div class="alias-list-error" x-show="titlePlaceholderError" x-text="titlePlaceholderError"></div>
+            <div class="duplicate-delete-files" x-show="titlePlaceholderPreview">
+                <template x-for="entry in titlePlaceholderEntries.filter(item => item.status === 'planned').slice(0, 20)" :key="entry.id">
+                    <div class="duplicate-delete-file">
+                        <span class="duplicate-delete-kind" x-text="entry.number || '-'"></span>
+                        <code x-text="entry.source"></code>
+                        <span x-text="(entry.sidecars || []).length + ' ' + window.t('scanner.title_placeholders.sidecar_unit')"></span>
+                    </div>
+                </template>
+            </div>
+            <div class="modal-action fluent-modal-actions">
+                <button type="button" class="btn btn-ghost" @click="cancelTitlePlaceholderMove()"
+                        :disabled="titlePlaceholderApplying">
+                    {{ t('scanner.title_placeholders.cancel') }}
+                </button>
+                <button type="button" class="btn btn-warning" @click="confirmTitlePlaceholderMove()"
+                        :disabled="titlePlaceholderApplying || !titlePlaceholderPreview || titlePlaceholderSummary.planned_count <= 0">
+                    <span x-show="titlePlaceholderApplying" class="loading loading-spinner loading-xs"></span>
+                    <span x-show="!titlePlaceholderApplying"><i class="bi bi-folder-symlink"></i></span>
+                    {{ t('scanner.title_placeholders.confirm') }}
+                </button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Empty Folder Cleanup -->
+    <div class="duplicate-number-card empty-folder-card">
+        <div class="duplicate-number-header">
+            <div class="title">
+                <i class="bi bi-folder-x"></i>
+                <span>{{ t('scanner.empty_folders.section_title') }}</span>
+            </div>
+            <div class="actions">
+                <button class="btn btn-sm btn-ghost"
+                        @click="loadEmptyFolders()"
+                        :disabled="emptyFolderLoading">
+                    <span x-show="emptyFolderLoading" class="loading loading-spinner loading-xs"></span>
+                    <i class="bi bi-search" x-show="!emptyFolderLoading"></i>
+                    {{ t('scanner.empty_folders.detect') }}
+                </button>
+                <button class="btn btn-sm btn-error"
+                        @click="openEmptyFolderCleanupModal()"
+                        :disabled="!emptyFolderPreview || emptyFolderSummary.folder_count <= 0 || emptyFolderApplying">
+                    <i class="bi bi-trash3"></i>
+                    {{ t('scanner.empty_folders.cleanup') }}
+                </button>
+            </div>
+        </div>
+        <div class="duplicate-number-body">
+            <p class="duplicate-number-desc">{{ t('scanner.empty_folders.description') }}</p>
+            <div class="duplicate-summary-grid" x-show="emptyFolderPreview">
+                <div class="duplicate-summary-item">
+                    <span class="label">{{ t('scanner.empty_folders.summary_count') }}</span>
+                    <strong x-text="emptyFolderSummary.folder_count"></strong>
+                </div>
+                <div class="duplicate-summary-item">
+                    <span class="label">{{ t('scanner.empty_folders.summary_protected') }}</span>
+                    <strong x-text="emptyFolderSummary.skipped_protected_count"></strong>
+                </div>
+            </div>
+            <div class="alias-list-error" x-show="emptyFolderError" x-text="emptyFolderError"></div>
+            <div class="alias-list-empty" x-show="emptyFolderPreview && emptyFolderSummary.folder_count === 0">
+                {{ t('scanner.empty_folders.empty') }}
+            </div>
+            <div class="duplicate-delete-files empty-folder-list" x-show="emptyFolderSummary.folder_count > 0">
+                <template x-for="folder in (emptyFolderSummary.folders || [])" :key="folder.path">
+                    <div class="duplicate-delete-file empty-folder-row">
+                        <span class="duplicate-delete-kind">{{ t('scanner.empty_folders.kind_folder') }}</span>
+                        <code x-text="folder.path"></code>
+                        <span x-text="folder.root"></span>
+                    </div>
+                </template>
+            </div>
+            <p class="duplicate-number-desc empty-folder-protected-note" x-show="emptyFolderPreview">
+                {{ t('scanner.empty_folders.protected_note') }}
+            </p>
+        </div>
+    </div>
+
+    <!-- Empty Folder Cleanup Confirm Modal -->
+    <dialog class="modal fluent-modal"
+            :class="{ 'modal-open': emptyFolderModalOpen }"
+            @click.self="cancelEmptyFolderCleanup()">
+        <div class="modal-box fluent-modal-box duplicate-delete-modal">
+            <h3 class="fluent-modal-title">
+                <i class="bi bi-folder-x text-error"></i>
+                {{ t('scanner.empty_folders.modal_title') }}
+            </h3>
+            <p class="fluent-modal-body">
+                {{ t('scanner.empty_folders.modal_body') }}
+            </p>
+            <div class="duplicate-delete-summary" x-show="emptyFolderPreview">
+                <div>
+                    <span>{{ t('scanner.empty_folders.summary_count') }}</span>
+                    <strong x-text="emptyFolderSummary.folder_count"></strong>
+                </div>
+                <div>
+                    <span>{{ t('scanner.empty_folders.summary_protected') }}</span>
+                    <strong x-text="emptyFolderSummary.skipped_protected_count"></strong>
+                </div>
+            </div>
+            <div class="duplicate-delete-warning">
+                <i class="bi bi-info-circle"></i>
+                <span>{{ t('scanner.empty_folders.recycle_hint') }}</span>
+            </div>
+            <div class="alias-list-error" x-show="emptyFolderError" x-text="emptyFolderError"></div>
+            <div class="duplicate-delete-files" x-show="emptyFolderPreview">
+                <template x-for="folder in (emptyFolderSummary.folders || [])" :key="folder.path">
+                    <div class="duplicate-delete-file empty-folder-row">
+                        <span class="duplicate-delete-kind">{{ t('scanner.empty_folders.kind_folder') }}</span>
+                        <code x-text="folder.path"></code>
+                        <span x-text="folder.root"></span>
+                    </div>
+                </template>
+            </div>
+            <div class="modal-action fluent-modal-actions">
+                <button type="button" class="btn btn-ghost" @click="cancelEmptyFolderCleanup()"
+                        :disabled="emptyFolderApplying">
+                    {{ t('scanner.empty_folders.cancel') }}
+                </button>
+                <button type="button" class="btn btn-error" @click="confirmEmptyFolderCleanup()"
+                        :disabled="emptyFolderApplying || !emptyFolderPreview || emptyFolderSummary.folder_count <= 0">
+                    <span x-show="emptyFolderApplying" class="loading loading-spinner loading-xs"></span>
+                    <span x-show="!emptyFolderApplying"><i class="bi bi-trash3"></i></span>
+                    {{ t('scanner.empty_folders.confirm') }}
+                </button>
+            </div>
+        </div>
+    </dialog>
 
     <!-- Actress Alias Management -->
     <div class="actress-alias-card" id="actressAliasCard">
@@ -675,4 +1093,3 @@
     </div>
 </div>
 {% endblock %}
-

@@ -145,6 +145,21 @@ class TestScannerAPI:
         data = response.json()
         assert data["error"] == "validation_error"
 
+    def test_gallery_preflight_blocks_unreadable_directory(self, client, monkeypatch):
+        monkeypatch.setattr("web.routers.scanner.load_config", lambda: {
+            "gallery": {"directories": [r"\\nas\Database\missing"]},
+            "nas": {"shares": []},
+        })
+        monkeypatch.setattr("core.nas.os.path.isdir", lambda _p: False)
+        monkeypatch.setattr("web.routers.scanner.os.path.isdir", lambda _p: False)
+
+        response = client.post("/api/gallery/preflight")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is False
+        assert body["data"]["issues"][0]["path"] == r"\\nas\Database\missing"
+
 
 # ============ POST /api/gallery/generate-from-ids ============
 
@@ -521,6 +536,179 @@ class TestJellyfinCheck:
         # T3(40c) Codex fix 後應有 4 處：
         #   clear_cache + generate_jellyfin_images_stream + generate_avlist(done) + generate_avlist(except)
         assert scanner_src.count('_jellyfin_cache_result = None') >= 4
+
+    def test_jellyfin_update_uses_cached_items(self, monkeypatch):
+        """jellyfin-update 有 warm check cache 時不重新掃全庫。"""
+        import time
+        import web.routers.scanner as scanner_mod
+        from unittest.mock import MagicMock
+
+        monkeypatch.setattr(scanner_mod, '_jellyfin_cache_result', {
+            'need_update': 1,
+            'items': [{'cover_path': '/covers/a.jpg', 'base_stem': '/covers/a', 'number': 'AAA-001'}],
+        })
+        monkeypatch.setattr(scanner_mod, '_jellyfin_cache_time', time.time())
+        monkeypatch.setattr(scanner_mod, 'VideoRepository', MagicMock())
+        mock_check = MagicMock(return_value={'need_update': 0, 'items': []})
+        mock_generate = MagicMock(return_value={'fanart': True, 'poster': True})
+        mock_db_path = MagicMock()
+        mock_db_path.exists.return_value = True
+        monkeypatch.setattr(scanner_mod, 'get_db_path', lambda: mock_db_path)
+        monkeypatch.setattr(scanner_mod, 'check_jellyfin_images_needed', mock_check)
+        monkeypatch.setattr(scanner_mod, 'generate_jellyfin_images', mock_generate)
+
+        events = ''.join(scanner_mod.generate_jellyfin_images_stream())
+
+        assert '完成！已補齊 1 部影片的圖片' in events
+        mock_check.assert_not_called()
+        mock_generate.assert_called_once_with('/covers/a.jpg', '/covers/a')
+
+    def test_jellyfin_update_falls_back_without_cache(self, monkeypatch):
+        """jellyfin-update 無 warm cache 時維持現有全量檢查 fallback。"""
+        import web.routers.scanner as scanner_mod
+        from unittest.mock import MagicMock
+
+        monkeypatch.setattr(scanner_mod, '_jellyfin_cache_result', None)
+        monkeypatch.setattr(scanner_mod, '_jellyfin_cache_time', 0)
+        monkeypatch.setattr(scanner_mod, 'VideoRepository', MagicMock())
+        mock_check = MagicMock(return_value={
+            'need_update': 1,
+            'items': [{'cover_path': '/covers/b.jpg', 'base_stem': '/covers/b', 'number': 'BBB-002'}],
+        })
+        mock_generate = MagicMock(return_value={'fanart': True, 'poster': True})
+        mock_db_path = MagicMock()
+        mock_db_path.exists.return_value = True
+        monkeypatch.setattr(scanner_mod, 'get_db_path', lambda: mock_db_path)
+        monkeypatch.setattr(scanner_mod, 'check_jellyfin_images_needed', mock_check)
+        monkeypatch.setattr(scanner_mod, 'generate_jellyfin_images', mock_generate)
+
+        events = ''.join(scanner_mod.generate_jellyfin_images_stream())
+
+        assert '完成！已補齊 1 部影片的圖片' in events
+        mock_check.assert_called_once()
+        mock_generate.assert_called_once_with('/covers/b.jpg', '/covers/b')
+
+
+class TestNfoUpdatePlan:
+    """測試 NFO 增量更新 plan。"""
+
+    @pytest.fixture(autouse=True)
+    def reset_update_plans(self):
+        import web.routers.scanner as scanner_mod
+        scanner_mod._nfo_update_plans.clear()
+        yield
+        scanner_mod._nfo_update_plans.clear()
+
+    def _make_video(self, path, number="AAA-001", *, title="", nfo_mtime=1.0, cover_path="cover.jpg"):
+        from core.database import Video
+        return Video(
+            path=path,
+            number=number,
+            title=title,
+            cover_path=cover_path,
+            nfo_mtime=nfo_mtime,
+        )
+
+    def _make_complete_video(self, path):
+        video = self._make_video(path, title="Done", nfo_mtime=1.0)
+        video.release_date = "2024-01-01"
+        video.actresses = ["Actor"]
+        video.tags = ["Tag"]
+        video.maker = "Maker"
+        video.director = "Director"
+        video.duration = 120
+        return video
+
+    def test_update_plan_filters_to_still_missing_items(self, client, tmp_path, monkeypatch):
+        """plan 只收錄仍需補 NFO 的候選路徑。"""
+        import web.routers.scanner as scanner_mod
+        from unittest.mock import MagicMock
+
+        missing = "file:///missing.mp4"
+        complete = "file:///complete.mp4"
+        no_nfo = "file:///no-nfo.mp4"
+        no_number = "file:///no-number.mp4"
+
+        repo = MagicMock()
+        repo.get_by_path.side_effect = lambda path: {
+            missing: self._make_video(missing, title="", nfo_mtime=1.0),
+            complete: self._make_complete_video(complete),
+            no_nfo: self._make_video(no_nfo, title="", nfo_mtime=0.0),
+            no_number: self._make_video(no_number, number=None, title="", nfo_mtime=1.0),
+        }.get(path)
+        mock_db_path = MagicMock()
+        mock_db_path.exists.return_value = True
+        monkeypatch.setattr(scanner_mod, 'get_db_path', lambda: mock_db_path)
+        monkeypatch.setattr(scanner_mod, 'VideoRepository', lambda _db: repo)
+
+        resp = client.post('/api/gallery/update-plan', json={
+            'paths': [missing, complete, no_nfo, no_number, missing, 'file:///gone.mp4']
+        })
+
+        data = resp.json()
+        assert resp.status_code == 200
+        assert data['success'] is True
+        assert data['data']['count'] == 1
+        plan = scanner_mod._nfo_update_plans[data['data']['plan_id']]
+        assert plan['paths'] == [missing]
+        assert list(plan['cache']) == [missing]
+
+    def test_update_with_plan_uses_plan_paths_only(self, monkeypatch):
+        """update?plan_id=... 只把 plan paths 傳給 updater，不跑全庫檢查。"""
+        import web.routers.scanner as scanner_mod
+        from unittest.mock import MagicMock
+
+        plan_id = "plan123"
+        scanner_mod._nfo_update_plans[plan_id] = {
+            "paths": ["file:///a.mp4"],
+            "cache": {"file:///a.mp4": {"nfo_mtime": 1.0, "info": {"num": "AAA-001"}}},
+            "expires_at": 9999999999,
+        }
+        mock_get_db_path = MagicMock()
+        mock_update = MagicMock(return_value=iter([
+            {"type": "progress", "current": 1, "total": 1, "status": "處理 AAA-001"}
+        ]))
+        monkeypatch.setattr(scanner_mod, 'get_db_path', mock_get_db_path)
+        monkeypatch.setattr(scanner_mod, 'update_videos_generator', mock_update)
+
+        events = ''.join(scanner_mod.generate_nfo_update_from_plan(plan_id))
+
+        assert '更新完成' in events
+        mock_get_db_path.assert_not_called()
+        mock_update.assert_called_once()
+        assert mock_update.call_args.args[1] == ["file:///a.mp4"]
+        assert plan_id not in scanner_mod._nfo_update_plans
+
+    def test_update_without_plan_keeps_full_scan_behavior(self, monkeypatch):
+        """未傳 plan_id 的 update 保持既有全量掃描路徑。"""
+        import web.routers.scanner as scanner_mod
+        from unittest.mock import MagicMock
+
+        video = self._make_video("file:///a.mp4", title="", nfo_mtime=1.0)
+        repo = MagicMock()
+        repo.get_all.return_value = [video]
+        mock_db_path = MagicMock()
+        mock_db_path.exists.return_value = True
+        monkeypatch.setattr(scanner_mod, 'get_db_path', lambda: mock_db_path)
+        monkeypatch.setattr(scanner_mod, 'VideoRepository', lambda _db: repo)
+        mock_update = MagicMock(return_value=iter([]))
+        monkeypatch.setattr(scanner_mod, 'update_videos_generator', mock_update)
+
+        events = ''.join(scanner_mod.generate_nfo_update())
+
+        assert '更新完成' in events
+        repo.get_all.assert_called_once()
+        mock_update.assert_called_once()
+        assert mock_update.call_args.args[1] == ["file:///a.mp4"]
+
+    def test_update_with_missing_plan_returns_error(self):
+        """不存在/過期 plan 不應靜默改跑全庫。"""
+        import web.routers.scanner as scanner_mod
+
+        events = ''.join(scanner_mod.generate_nfo_update_from_plan('missing'))
+
+        assert '"type": "error"' in events
+        assert '不存在或已過期' in events
 
 
 class TestMissingCheckAPI:

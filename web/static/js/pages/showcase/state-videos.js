@@ -89,6 +89,11 @@ export function stateVideos() {
             }
         },
 
+        onContentFilterChange(filter) {
+            this.contentFilter = filter || 'all';
+            this._animateFilter();
+        },
+
         onSortChange() {
             this._sortWithFlip(() => {
                 this.applyFilterAndSort();
@@ -247,15 +252,18 @@ export function stateVideos() {
             if (m === this.mode) return;
             var oldMode = this.mode;
             this.mode = m;
-            // F2: 切到 grid 時若 perPage=0 則降級
-            if (m === 'grid' && this.perPage == 0) {
-                this.perPage = 120;
-                this.updatePagination();
-            }
+            this.updatePagination();
             this.saveState();  // M2c: 持久化狀態
             this.$nextTick(() => {
                 window.ShowcaseAnimations?.playModeCrossfade?.(oldMode, m);
             });
+        },
+
+        cycleDisplayMode() {
+            const modeOrder = ['grid', 'list', 'table'];
+            const currentIndex = modeOrder.indexOf(this.mode);
+            const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % modeOrder.length : 0;
+            this.switchMode(modeOrder[nextIndex]);
         },
 
         prevPage() {
@@ -292,12 +300,24 @@ export function stateVideos() {
 
         // --- 資料處理 ---
         applyFilterAndSort(skipPagination) {
+            const isWesternVideo = (video) => {
+                const source = (video.source || video._source || '').toLowerCase();
+                const number = (video.number || '').toUpperCase();
+                return source === 'stash' || number.startsWith('WEST-');
+            };
+            let baseVideos = _videos;
+            if (this.contentFilter === 'western') {
+                baseVideos = _videos.filter(isWesternVideo);
+            } else if (this.contentFilter === 'jav') {
+                baseVideos = _videos.filter(video => !isWesternVideo(video));
+            }
+
             // --- 搜尋篩選 (M4a) ---
             if (this.search && this.search.trim()) {
                 // 分割多個關鍵字（用空格分隔，過濾空字串）
                 const terms = this.search.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
 
-                var filtered = _videos.filter(video => {
+                var filtered = baseVideos.filter(video => {
                     const searchable = [
                         video.title,
                         video.original_title,
@@ -336,7 +356,7 @@ export function stateVideos() {
                 this.filteredCount = _filteredVideos.length;
             } else {
                 // 空搜尋：回傳全部影片
-                _setFilteredVideos(_videos);
+                _setFilteredVideos(baseVideos);
                 this.filteredCount = _filteredVideos.length;
             }
 
@@ -403,10 +423,6 @@ export function stateVideos() {
         },
 
         updatePagination() {
-            // F2: grid mode 禁用「全部」— perPage=0 降級為 120
-            if (parseInt(this.perPage) === 0 && this.mode === 'grid') {
-                this.perPage = 120;
-            }
             const perPage = Math.max(0, parseInt(this.perPage) || 0);
             if (perPage === 0) {
                 this.paginatedVideos = _filteredVideos.slice();

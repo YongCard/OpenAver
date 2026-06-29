@@ -82,7 +82,14 @@ export function stateBatch() {
 
             try {
                 while (this.missingEnrichOffset < items.length) {
-                    const batch = items.slice(this.missingEnrichOffset, this.missingEnrichOffset + 20);
+                    const batch = items
+                        .slice(this.missingEnrichOffset, this.missingEnrichOffset + 20)
+                        .map((item) => {
+                            const number = (item.number || '').toUpperCase();
+                            return number.startsWith('WEST-') && !item.source
+                                ? { ...item, source: 'stash' }
+                                : item;
+                        });
 
                     // Save remaining items to localStorage before each batch
                     localStorage.setItem('avlist_enrich_pending', JSON.stringify(items.slice(this.missingEnrichOffset)));

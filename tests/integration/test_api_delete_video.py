@@ -151,3 +151,86 @@ class TestDeleteVideoUnknownPath:
         repo = VideoRepository(delete_setup["db_path"])
         assert repo.get_by_path(delete_setup["vid_uri"]) is not None
         assert repo.get_by_path(delete_setup["vid2_uri"]) is not None
+
+
+class TestVideoFolderDeleteAPI:
+    """物理刪除新入口：先送 Windows 回收站成功，再刪 DB row。"""
+
+    @pytest.fixture
+    def folder_delete_setup(self, tmp_path, mocker):
+        root = tmp_path / "library"
+        folder = root / "SONE-001"
+        folder.mkdir(parents=True)
+        video = folder / "SONE-001.mp4"
+        video.write_bytes(b"video")
+        (folder / "SONE-001.nfo").write_text("nfo", encoding="utf-8")
+
+        db_path = tmp_path / "showcase_folder_delete.db"
+        init_db(db_path)
+        repo = VideoRepository(db_path)
+        uri = to_file_uri(str(video), {})
+        repo.upsert(Video(path=uri, number="SONE-001", size_bytes=5, mtime=1.0))
+
+        _patch_db_path(mocker, db_path)
+        mocker.patch("core.database.get_db_path", return_value=db_path)
+        mocker.patch("core.showcase_delete.load_config", return_value={
+            "gallery": {"directories": [str(root)], "path_mappings": {}},
+            "scraper": {},
+        })
+
+        return {"db_path": db_path, "uri": uri, "folder": folder}
+
+    def test_folder_delete_preview_lists_folder_and_db_rows(self, client, folder_delete_setup):
+        resp = client.post(
+            "/api/showcase/video-folder-delete/preview",
+            json={"path": folder_delete_setup["uri"]},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["data"]["folder"] == str(folder_delete_setup["folder"])
+        assert data["data"]["file_count"] == 2
+        assert data["data"]["db_rows"] == 1
+
+    def test_folder_delete_apply_recycles_then_deletes_db(
+        self, client, folder_delete_setup, mocker
+    ):
+        moved = []
+        mocker.patch(
+            "core.showcase_delete.move_files_to_recycle_bin",
+            side_effect=lambda paths: moved.extend(paths),
+        )
+
+        resp = client.post(
+            "/api/showcase/video-folder-delete/apply",
+            json={"path": folder_delete_setup["uri"], "confirm": True},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert moved == [folder_delete_setup["folder"]]
+        assert data["deleted_db_rows"] == 1
+        repo = VideoRepository(folder_delete_setup["db_path"])
+        assert repo.get_by_path(folder_delete_setup["uri"]) is None
+
+    def test_folder_delete_apply_recycle_failure_keeps_db(
+        self, client, folder_delete_setup, mocker
+    ):
+        mocker.patch(
+            "core.showcase_delete.move_files_to_recycle_bin",
+            side_effect=RuntimeError("boom"),
+        )
+
+        resp = client.post(
+            "/api/showcase/video-folder-delete/apply",
+            json={"path": folder_delete_setup["uri"], "confirm": True},
+        )
+
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["success"] is False
+        assert data["code"] == "recycle_bin_failed"
+        repo = VideoRepository(folder_delete_setup["db_path"])
+        assert repo.get_by_path(folder_delete_setup["uri"]) is not None

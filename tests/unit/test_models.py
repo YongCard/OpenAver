@@ -1,5 +1,6 @@
 """test_models.py - Video model 新欄位 + merge policy 測試"""
 import pytest
+from pydantic import ValidationError
 from core.scrapers.models import Video, Actress
 
 
@@ -161,7 +162,7 @@ def test_merge_series_none_backup_supplements():
 def test_model_frozen_still_enforced():
     """frozen=True 仍然生效（直接賦值應拋例外）"""
     v = _make_video(director='山田')
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         v.director = '田中'
 
 
@@ -182,3 +183,33 @@ def test_to_legacy_dict_key_set_unchanged():
         "label", "series", "sample_images",
     }
     assert set(v.to_legacy_dict().keys()) == expected_keys
+
+
+def test_to_legacy_dict_cleans_actress_age_and_job_descriptions():
+    v = Video(
+        number="LUXU-395",
+        actresses=[
+            Actress(name="吉川愛 32歳 元ウェディングプランナー"),
+            Actress(name="三上悠亞"),
+        ],
+    )
+
+    assert v.to_legacy_dict()["actors"] == ["吉川愛", "三上悠亞"]
+
+
+def test_to_legacy_dict_cleans_japanese_age_variants():
+    v = Video(number="LUXU-395", actresses=[Actress(name="吉川愛 32才 元ウェディングプランナー")])
+
+    assert v.to_legacy_dict()["actors"] == ["吉川愛"]
+
+
+def test_to_legacy_dict_cleans_chinese_age_variants():
+    v = Video(number="LUXU-395", actresses=[Actress(name="吉川愛 32岁 元婚礼策划师")])
+
+    assert v.to_legacy_dict()["actors"] == ["吉川愛"]
+
+
+def test_to_legacy_dict_keeps_plain_actress_name():
+    v = Video(number="SSNI-618", actresses=[Actress(name="三上悠亞")])
+
+    assert v.to_legacy_dict()["actors"] == ["三上悠亞"]

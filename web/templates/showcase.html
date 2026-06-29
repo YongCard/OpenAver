@@ -110,6 +110,20 @@
 
             <div class="toolbar-section toolbar-controls" x-show="!showFavoriteActresses">
                 <div class="control-group">
+                    <div class="content-filter-toggle" role="group" aria-label="內容分類">
+                        <button class="content-filter-btn"
+                                :class="{ 'active': contentFilter === 'all' }"
+                                @click="onContentFilterChange('all')"
+                                title="全部影片">全部</button>
+                        <button class="content-filter-btn"
+                                :class="{ 'active': contentFilter === 'jav' }"
+                                @click="onContentFilterChange('jav')"
+                                title="日韩影片">日韩</button>
+                        <button class="content-filter-btn"
+                                :class="{ 'active': contentFilter === 'western' }"
+                                @click="onContentFilterChange('western')"
+                                title="欧美影片">欧美</button>
+                    </div>
                     <!-- 排序 -->
                     <div class="toolbar-dropdown-wrap" @click.outside="sortOpen = false">
                         <button class="btn-icon"
@@ -545,7 +559,7 @@
         <!-- Lightbox (M3a) -->
         <div class="showcase-lightbox"
              :class="{ 'show': lightboxOpen }"
-             x-trap.inert="lightboxOpen && !sampleGalleryOpen && !removeActressModalOpen && !rescrapeOpen && !deleteVideoModalOpen"
+             x-trap.inert="lightboxOpen && !sampleGalleryOpen && !removeActressModalOpen && !rescrapeOpen && !deleteVideoModalOpen && !folderDeleteModalOpen"
              @touchstart.passive="_lbTouchStart($event)"
              @touchend.passive="_lbTouchEnd($event)"
              @click="handleLightboxBackdropClick($event)">
@@ -788,11 +802,12 @@
                                 <span x-text="currentLightboxVideo?.number || t('showcase.lightbox.unknown_number')"></span>
                                 <!-- 62b-1: 進階重刮 ⚙ 入口（番號旁 inline 細鈕，常駐顯示）-->
                                 <button type="button"
-                                        class="lb-rescrape-gear"
+                                        class="lb-rescrape-action"
                                         @click.stop="openRescrape(currentLightboxVideo, 'lightbox')"
                                         :data-tooltip="t('showcase.rescrape.entry_tooltip')"
                                         :aria-label="t('showcase.rescrape.entry_tooltip')">
                                     <i class="bi bi-gear" aria-hidden="true"></i>
+                                    <span x-text="t('showcase.rescrape.entry_tooltip')"></span>
                                 </button>
                                 <span x-show="currentLightboxVideo?.maker">
                                     &nbsp;·&nbsp;<a href="#" class="lb-link" @click.prevent="searchFromMetadata(currentLightboxVideo?.maker)" x-text="currentLightboxVideo?.maker"></a>
@@ -826,12 +841,22 @@
                                 </span>
                                 <!-- 71b-T1: 從收藏移除（破壞性，只刪 DB row + thumb，不碰磁碟影片/封面）。
                                      常駐 muted icon，靠右對齊於 metadata size 行末（margin-left:auto 推到行尾）。-->
-                                <button class="lb-delete-btn"
+                                <button class="lb-db-remove-btn"
                                         x-show="!!currentLightboxVideo?.path"
                                         @click.stop="openDeleteVideoModal()"
                                         :data-tooltip="t('showcase.video.delete')"
                                         :aria-label="t('showcase.video.delete')">
-                                    <i class="bi bi-trash"></i>
+                                    <i class="bi bi-x-circle"></i>
+                                    <span x-text="t('showcase.video.delete')"></span>
+                                </button>
+                                <button class="lb-folder-delete-btn"
+                                        x-show="!!currentLightboxVideo?.path"
+                                        @click.stop="openFolderDeleteModal()"
+                                        :disabled="_folderDeleteLoading"
+                                        :data-tooltip="t('showcase.video.folder_delete')"
+                                        :aria-label="t('showcase.video.folder_delete')">
+                                    <i class="bi bi-trash3"></i>
+                                    <span x-text="t('showcase.video.folder_delete')"></span>
                                 </button>
                             </div>
                             <!-- Row 5: Tags (with +N chips, T4) -->
@@ -1223,6 +1248,41 @@
         </div>
     </dialog>
 
+    <!-- Physical folder delete modal: moves the whole single-number folder to recycle bin. -->
+    <dialog class="modal fluent-modal"
+            :class="{ 'modal-open': folderDeleteModalOpen }"
+            @click.self="cancelFolderDelete()"
+            @keydown.escape.window="folderDeleteModalOpen && cancelFolderDelete()">
+        <div class="modal-box fluent-modal-box">
+            <h3 class="fluent-modal-title">
+                <i class="bi bi-exclamation-triangle text-warning"></i>
+                {{ t('showcase.video.folder_delete_modal.title') }}
+            </h3>
+            <p class="fluent-modal-body"
+               x-text="t('showcase.video.folder_delete_modal.body').replace('{number}', _pendingDeleteNumber || '')">
+            </p>
+            <div class="fluent-modal-body" x-show="_folderDeletePreview">
+                <p x-text="_folderDeletePreview?.folder || ''"></p>
+                <p x-text="t('showcase.video.folder_delete_modal.summary')
+                    .replace('{files}', _folderDeletePreview?.file_count || 0)
+                    .replace('{db}', _folderDeletePreview?.db_rows || 0)">
+                </p>
+            </div>
+            <div class="modal-action fluent-modal-actions">
+                <button type="button" class="btn btn-ghost" @click="cancelFolderDelete()">
+                    {{ t('showcase.video.folder_delete_modal.cancel') }}
+                </button>
+                <button type="button" class="btn btn-error"
+                        @click="confirmFolderDelete()"
+                        :disabled="_folderDeleteLoading || !_folderDeletePreview">
+                    <span x-show="_folderDeleteLoading" class="loading loading-spinner loading-xs"></span>
+                    <span x-show="!_folderDeleteLoading"><i class="bi bi-trash3"></i></span>
+                    {{ t('showcase.video.folder_delete_modal.confirm') }}
+                </button>
+            </div>
+        </div>
+    </dialog>
+
     <!-- 71-T7: Delete Video fluent-modal（破壞性確認；只移 DB row + thumb，不刪磁碟檔）-->
     <dialog class="modal fluent-modal"
             :class="{ 'modal-open': deleteVideoModalOpen }"
@@ -1305,10 +1365,44 @@
         <!-- Center: shortcut hint（永遠顯示）-->
         <div class="footer-center">
             <span class="hint-text">
-                <kbd>A</kbd> {{ t('showcase.shortcut.switch_mode') }} ·
-                <kbd>S</kbd> {{ t('showcase.shortcut.toggle_info') }} ·
-                <kbd>←</kbd> <kbd>→</kbd> {{ t('showcase.shortcut.pagination') }} ·
-                <kbd>ESC</kbd> {{ t('showcase.shortcut.close') }}
+                <button type="button"
+                        class="shortcut-action"
+                        @click="cycleDisplayMode()"
+                        :title="t('showcase.shortcut.switch_mode')">
+                    <kbd>A</kbd> {{ t('showcase.shortcut.switch_mode') }}
+                </button>
+                <span class="shortcut-separator">·</span>
+                <button type="button"
+                        class="shortcut-action"
+                        :disabled="mode !== 'grid'"
+                        @click="toggleInfo()"
+                        :title="t('showcase.shortcut.toggle_info')">
+                    <kbd>S</kbd> {{ t('showcase.shortcut.toggle_info') }}
+                </button>
+                <span class="shortcut-separator">·</span>
+                <button type="button"
+                        class="shortcut-action shortcut-action--icon"
+                        :disabled="showFavoriteActresses || page === 1"
+                        @click="prevPage()"
+                        :title="t('showcase.nav.prev_page')">
+                    <kbd>←</kbd>
+                </button>
+                <button type="button"
+                        class="shortcut-action shortcut-action--icon"
+                        :disabled="showFavoriteActresses || page >= totalPages"
+                        @click="nextPage()"
+                        :title="t('showcase.nav.next_page')">
+                    <kbd>→</kbd>
+                </button>
+                <span>{{ t('showcase.shortcut.pagination') }}</span>
+                <span class="shortcut-separator">·</span>
+                <button type="button"
+                        class="shortcut-action"
+                        :disabled="!lightboxOpen"
+                        @click="closeLightbox()"
+                        :title="t('showcase.shortcut.close')">
+                    <kbd>ESC</kbd> {{ t('showcase.shortcut.close') }}
+                </button>
             </span>
         </div>
 

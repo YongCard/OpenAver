@@ -1,7 +1,6 @@
 """
 utils.py 擴充函數的單元測試
 """
-import pytest
 from core.scrapers.utils import (
     has_japanese, has_chinese, check_subtitle,
     format_number, SOURCE_ORDER, SOURCE_NAMES
@@ -151,6 +150,7 @@ class TestSourceConfig:
         assert 'javbus' in SOURCE_ORDER
         assert 'jav321' in SOURCE_ORDER
         assert 'javdb' in SOURCE_ORDER
+        assert 'kingdom' in SOURCE_ORDER
 
     def test_source_names_match_order(self):
         """SOURCE_NAMES 應包含所有 SOURCE_ORDER 的鍵"""

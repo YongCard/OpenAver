@@ -570,6 +570,18 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link {% if page == 'organize' %}active{% endif %}" href="/organize"
+                       @click="handleNavClick($event, $el.href)">
+                        <i class="bi bi-inboxes"></i> {{ t('nav.organize') }}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if page == 'media-merge' %}active{% endif %}" href="/media-merge"
+                       @click="handleNavClick($event, $el.href)">
+                        <i class="bi bi-intersect"></i> {{ t('nav.media_merge') }}
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link {% if page == 'scanner' %}active{% endif %}" href="/scanner"
                        @click="handleNavClick($event, $el.href)">
                         <i class="bi bi-list-ul"></i> {{ t('nav.scanner') }}
@@ -616,6 +628,20 @@
                    @click="handleNavClick($event, $el.href)">
                     <i class="bi bi-search"></i>
                     <span class="nav-text">{{ t('nav.search') }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if page == 'organize' %}active{% endif %}" href="/organize" title="{{ t('nav.organize') }}"
+                   @click="handleNavClick($event, $el.href)">
+                    <i class="bi bi-inboxes"></i>
+                    <span class="nav-text">{{ t('nav.organize') }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if page == 'media-merge' %}active{% endif %}" href="/media-merge" title="{{ t('nav.media_merge') }}"
+                   @click="handleNavClick($event, $el.href)">
+                    <i class="bi bi-intersect"></i>
+                    <span class="nav-text">{{ t('nav.media_merge') }}</span>
                 </a>
             </li>
             <li class="nav-item">
@@ -697,6 +723,8 @@
         "@/components/": "/static/js/components/",
         "@/showcase/":   "/static/js/pages/showcase/",
         "@/scanner/":    "/static/js/pages/scanner/",
+        "@/organize/":   "/static/js/pages/organize/",
+        "@/media-merge/": "/static/js/pages/media-merge/",
         "@/settings/":   "/static/js/pages/settings/",
         "@/search/":     "/static/js/pages/search/"
       }

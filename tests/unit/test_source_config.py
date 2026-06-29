@@ -5,6 +5,7 @@ from core.source_config import (
     SourceConfig,
     build_metatube_sources,
     get_builtin_sources,
+    get_manual_only_sources,
     get_source_enum,
     render_name,
     validate_source_id,
@@ -45,7 +46,7 @@ def test_render_name_metatube_uses_display_name_raw():
 # get_builtin_sources
 # ---------------------------------------------------------------------------
 def test_get_builtin_sources_count():
-    assert len(get_builtin_sources()) == 8
+    assert len(get_builtin_sources()) == len(SOURCE_ORDER)
 
 
 def test_get_builtin_sources_ids_match_source_order():
@@ -71,7 +72,7 @@ def test_get_builtin_sources_all_not_beta():
 
 def test_get_builtin_sources_order_values():
     orders = [s.order for s in get_builtin_sources()]
-    assert orders == list(range(8))
+    assert orders == list(range(len(SOURCE_ORDER)))
 
 
 def test_get_builtin_sources_excludes_auto():
@@ -83,6 +84,7 @@ def test_get_builtin_sources_display_name_key_is_brand():
     by_id = {s.id: s for s in get_builtin_sources()}
     assert by_id['javbus'].display_name_key == 'JavBus'
     assert by_id['dmm'].display_name_key == 'DMM'
+    assert by_id['kingdom'].display_name_key == 'KingDom'
 
 
 # ---------------------------------------------------------------------------
@@ -415,3 +417,13 @@ def test_requires_proxy_metatube_explicit_false_not_derived():
         config={'censored_type': 'censored'},
     )
     assert s.requires_proxy is False
+
+
+def test_manual_only_sources_include_stash():
+    by_id = {s.id: s for s in get_manual_only_sources()}
+
+    assert by_id["stash"].type == "stash"
+    assert by_id["stash"].display_name_raw == "Stash"
+    assert by_id["stash"].manual_only is True
+    assert by_id["stash"].requires_proxy is False
+    assert by_id["stash"].is_censored is False

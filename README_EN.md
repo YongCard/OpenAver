@@ -278,6 +278,31 @@ source venv/bin/activate
 pytest
 ```
 
+### Local Verification Entry Point (Personal Branch)
+
+The `personal/yongcard-custom` branch includes a low-intrusion local verification
+entry point for enterprise-style review habits while preserving OpenAver's
+desktop-app, no-Docker positioning:
+
+```bash
+bash run_tests.sh
+```
+
+On Windows PowerShell:
+
+```powershell
+.\run_tests.ps1
+```
+
+These wrappers only run existing quality gates: tracked-file hygiene checks,
+unit/integration pytest, `ruff check .`, and `npm run lint`. They do not run
+smoke/e2e tests, and they do not change application startup, API response shape,
+database paths, or user data locations. During script execution, pytest temp
+paths and OpenAver test logs are redirected to `.tmp/openaver-test-env/` so they
+do not touch the real user profile. The mapping between the external
+Prompt2Repo-style standard and OpenAver's existing conventions is documented in
+[`docs/enterprise-readiness.md`](docs/enterprise-readiness.md).
+
 ### Directory Structure
 
 ```

@@ -8,6 +8,18 @@ export function stateConfig() {
             // Search
             searchFavoriteFolder: '',
             proxyUrl: '',
+            stashEnabled: false,
+            stashUrl: 'http://127.0.0.1:9999',
+            stashApiKey: '',
+            stashProxyUrl: '',
+            nasName: '',
+            nasHost: '',
+            nasShare: '',
+            nasSubpath: '',
+            nasUsername: '',
+            nasPassword: '',
+            nasEnabled: true,
+            nasAddToGallery: true,
             thumbnailCacheEnabled: true,   // 縮圖快取開關（feature/71 T2，top-level config 欄位）；新安裝預設開啟（0.9.11+），舊用戶 migration 維持關閉
 
             // Translate
@@ -33,6 +45,14 @@ export function stateConfig() {
             suffixKeywords: [],
             externalManager: 'off',
             downloadSampleImages: false,
+            westernCreateFolder: true,
+            westernFolderFormat: '{studio}/{year}/{date} {title}',
+            westernFilenameFormat: '[{date}] {title} - {performers}{suffix}',
+            westernExternalManager: 'jellyfin',
+            libraryCategoriesEnabled: true,
+            libraryCategoryJav: '日韩',
+            libraryCategoryWestern: '欧美',
+            libraryCategoriesAutoCreate: true,
 
             // Gallery
             avlistMode: 'image',
@@ -74,6 +94,12 @@ export function stateConfig() {
         // cap 天然全域（design §0 + §9 B1 row）。由 loadConfig() 填、saveConfig() 序列化回。
         sources: [],
         MAX_ENABLED_SOURCES,
+
+        nasShares: [],
+        editingNasId: '',
+        nasStatus: '',
+        nasStatusOk: false,
+        nasLoading: false,
 
         // 拖曳 / 鍵盤 sortable transient state
         draggingId: null,
@@ -136,6 +162,17 @@ export function stateConfig() {
                 { name: '{suffix}', label: window.t('settings.var.suffix') },
             ];
         },
+        get westernFormatVariables() {
+            return [
+                { name: '{studio}', label: 'Studio' },
+                { name: '{year}', label: window.t('settings.var.year') },
+                { name: '{date}', label: window.t('settings.var.date') },
+                { name: '{title}', label: window.t('settings.var.title') },
+                { name: '{performers}', label: 'Performers' },
+                { name: '{num}', label: window.t('settings.var.num') },
+                { name: '{suffix}', label: window.t('settings.var.suffix') },
+            ];
+        },
         FOLDER_PREVIEW_DATA: {
             num: 'SSNI-618',
             maker: 'SOD',
@@ -147,6 +184,18 @@ export function stateConfig() {
             month: '01',
             day: '15',
             suffix: '-4k',
+        },
+        WESTERN_PREVIEW_DATA: {
+            num: 'WEST-BANGBUS-20190828-DYLANN-VOX',
+            studio: 'Bang Bus',
+            maker: 'Bang Bus',
+            performers: 'Dylann Vox',
+            title: 'Stripper With Double D Hops on The Bus',
+            date: '2019-08-28',
+            year: '2019',
+            month: '08',
+            day: '28',
+            suffix: '',
         },
 
         // ===== Computed Properties =====
@@ -193,6 +242,33 @@ export function stateConfig() {
 
             const folder = folderPreview ? folderPreview + '/' : '';
             return folder + filenamePreview + '.mp4';
+        },
+        get westernPreviewText() {
+            let filenamePreview = this.form.westernFilenameFormat || '[{date}] {title} - {performers}{suffix}';
+            for (const [key, val] of Object.entries(this.WESTERN_PREVIEW_DATA)) {
+                filenamePreview = filenamePreview.replace(new RegExp(`\\{${key}\\}`, 'g'), val);
+            }
+            filenamePreview = filenamePreview.replace(/\{[^{}]+\}/g, '').trim();
+            if (!this.form.westernCreateFolder) return filenamePreview + '.mp4';
+            let folderPreview = this.form.westernFolderFormat || '{studio}/{year}/{date} {title}';
+            for (const [key, val] of Object.entries(this.WESTERN_PREVIEW_DATA)) {
+                folderPreview = folderPreview.replace(new RegExp(`\\{${key}\\}`, 'g'), val);
+            }
+            folderPreview = folderPreview.replace(/\{[^{}]+\}/g, '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+            return (folderPreview ? `${folderPreview}/` : '') + filenamePreview + '.mp4';
+        },
+        get nasLibraryRootHint() {
+            const subpath = (this.form.nasSubpath || '').trim().replace(/\\/g, '/').replace(/\/+$/, '');
+            if (!subpath) return '';
+            const parts = subpath.split('/').filter(Boolean);
+            const last = parts[parts.length - 1] || '';
+            const jav = this.form.libraryCategoryJav || '日韩';
+            const western = this.form.libraryCategoryWestern || '欧美';
+            if (![jav, western].includes(last)) return '';
+            const parent = parts.slice(0, -1).join('\\');
+            return parent
+                ? `检测到分类目录「${last}」，保存后会加入父库根「${parent}」作为扫描目录，避免漏扫同级分类。`
+                : `检测到分类目录「${last}」，建议扫描父库根以避免漏扫同级分类。`;
         },
 
         // 71-T5: 縮圖快取預估空間（MB）。每張封面縮圖 ~32KB；`|| 0` 防 NaN。
@@ -459,6 +535,11 @@ export function stateConfig() {
                     // 61c-3: uncensoredMode 由 sources 段推導（computed getter），不再單獨讀 uncensored_mode_enabled。
                     this.form.searchFavoriteFolder = config.search?.favorite_folder || '';
                     this.form.proxyUrl = config.search?.proxy_url || '';
+                    this.form.stashEnabled = config.stash?.enabled || false;
+                    this.form.stashUrl = config.stash?.url || 'http://127.0.0.1:9999';
+                    this.form.stashApiKey = config.stash?.api_key || '';
+                    this.form.stashProxyUrl = config.stash?.proxy_url || '';
+                    this.nasShares = Array.isArray(config.nas?.shares) ? config.nas.shares : [];
                     this.form.thumbnailCacheEnabled = config.thumbnail_cache_enabled || false;
                     // 71-T5: 載入目前片數供縮圖快取空間估算（失敗降級 0，不阻塞表單）
                     this._loadVideoCount();
@@ -513,6 +594,16 @@ export function stateConfig() {
                     this.form.suffixKeywords = config.scraper?.suffix_keywords || ['-cd1', '-cd2', '-4k', '-uc'];
                     this.form.externalManager = config.scraper?.external_manager || 'off';
                     this.form.downloadSampleImages = config.scraper?.download_sample_images || false;
+                    const westernProfile = config.scraper_profiles?.western || {};
+                    this.form.westernCreateFolder = westernProfile.create_folder ?? true;
+                    this.form.westernFolderFormat = westernProfile.folder_format || '{studio}/{year}/{date} {title}';
+                    this.form.westernFilenameFormat = westernProfile.filename_format || '[{date}] {title} - {performers}{suffix}';
+                    this.form.westernExternalManager = westernProfile.external_manager || 'jellyfin';
+                    const libraryCategories = config.library_categories || {};
+                    this.form.libraryCategoriesEnabled = libraryCategories.enabled !== false;
+                    this.form.libraryCategoryJav = libraryCategories.jav || '日韩';
+                    this.form.libraryCategoryWestern = libraryCategories.western || '欧美';
+                    this.form.libraryCategoriesAutoCreate = libraryCategories.auto_create !== false;
 
                     // Gallery
                     this.form.avlistMode = config.gallery?.default_mode || 'image';
@@ -563,7 +654,7 @@ export function stateConfig() {
                             is_censored: s.is_censored,
                             config: s.config || {},
                             display_name_key: s.display_name_key || '',
-                            display_name: s.type === 'metatube'
+                            display_name: (s.type === 'metatube' || s.type === 'stash')
                                 ? (s.display_name_raw || '')
                                 : (s.display_name_key || ''),
                             available: s.available ?? (s.type !== 'metatube'),  // builtins default available; metatube waits for /status
@@ -675,12 +766,54 @@ export function stateConfig() {
                     download_sample_images: this.form.downloadSampleImages,
                 };
 
+                config.scraper_profiles = {
+                    ...(config.scraper_profiles || {}),
+                    western: {
+                        ...((config.scraper_profiles || {}).western || {}),
+                        create_folder: this.form.westernCreateFolder === true,
+                        folder_format: this.form.westernFolderFormat.trim() || '{studio}/{year}/{date} {title}',
+                        filename_format: this.form.westernFilenameFormat.trim() || '[{date}] {title} - {performers}{suffix}',
+                        external_manager: this.form.westernExternalManager || 'jellyfin',
+                    },
+                };
+
+                config.library_categories = {
+                    ...(config.library_categories || {}),
+                    enabled: this.form.libraryCategoriesEnabled === true,
+                    jav: this.form.libraryCategoryJav.trim() || '日韩',
+                    western: this.form.libraryCategoryWestern.trim() || '欧美',
+                    auto_create: this.form.libraryCategoriesAutoCreate === true,
+                };
+
                 // 更新 search
                 config.search = {
                     ...config.search,
                     uncensored_mode_enabled: this.uncensoredMode,
                     favorite_folder: this.form.searchFavoriteFolder.trim(),
                     proxy_url: this.form.proxyUrl.trim(),
+                };
+
+                // 更新 Stash（歐美影片來源，manual-only；不參與日系 auto fan-out）
+                config.stash = {
+                    ...(config.stash || {}),
+                    enabled: this.form.stashEnabled === true,
+                    url: this.form.stashUrl.trim() || 'http://127.0.0.1:9999',
+                    api_key: this.form.stashApiKey.trim(),
+                    proxy_url: this.form.stashProxyUrl.trim(),
+                    default_source: 'stash',
+                };
+
+                config.nas = {
+                    ...(config.nas || {}),
+                    shares: (this.nasShares || []).map((s) => {
+                        const copy = { ...s };
+                        delete copy.password;
+                        delete copy.unc_path;
+                        delete copy.readable;
+                        delete copy.code;
+                        delete copy.message;
+                        return copy;
+                    }),
                 };
 
                 config.thumbnail_cache_enabled = this.form.thumbnailCacheEnabled;
@@ -741,13 +874,18 @@ export function stateConfig() {
                 config.sources = this.sources.map((s, i) => ({
                     id: s.id,
                     type: s.type,
-                    display_name_key: s.type === 'builtin' ? s.display_name : (s.display_name_key || ''),
-                    display_name_raw: s.type === 'metatube' ? s.display_name : '',
+                    display_name_key: s.type === 'builtin'
+                        ? (s.display_name_key || s.display_name || s.id)
+                        : (s.display_name_key || null),
+                    display_name_raw: (s.type === 'metatube' || s.type === 'stash')
+                        ? (s.display_name_raw || s.display_name || s.id.replace(/^metatube:/, ''))
+                        : (s.display_name_raw || ''),
                     enabled: s.enabled,
                     order: i,
                     config: s.config || {},
                     is_beta: s.is_beta,
                     manual_only: s.manual_only,
+                    requires_proxy: !!s.requires_proxy,
                 }));
 
                 const resp = await fetch('/api/config', {
@@ -773,7 +911,11 @@ export function stateConfig() {
                         this._triggerThumbClear();
                     }
                 } else {
-                    this.showToast('儲存失敗: ' + result.error, 'error');
+                    const details = Array.isArray(result.details)
+                        ? result.details.map((item) => `${(item.loc || []).join('.')}: ${item.msg}`).join('; ')
+                        : (result.details || '');
+                    const suffix = details ? ` (${details})` : '';
+                    this.showToast('儲存失敗: ' + (result.error || result.message || result.code || '未知錯誤') + suffix, 'error');
                 }
             } catch (e) {
                 this.showToast('儲存失敗: ' + e.message, 'error');

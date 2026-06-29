@@ -24,6 +24,7 @@ import os
 import sys
 import threading
 import time
+import uuid
 import requests
 from datetime import datetime
 from urllib.parse import unquote, quote
@@ -44,6 +45,7 @@ from core.config import load_config
 from core import thumbnail_cache
 from core.scraper import smart_search
 from core.source_settings import is_uncensored_mode_effective
+from core.nas import preflight_config
 from pydantic import BaseModel
 from core.logger import get_logger
 from web.routers.notifications import emit_notification as _emit_notif
@@ -52,9 +54,19 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/gallery", tags=["gallery"])
 
+
+class NfoUpdatePlanRequest(BaseModel):
+    paths: List[str]
+
+
 # T3(40c): Jellyfin check TTL 快取（60 秒）
 _jellyfin_cache_result: dict | None = None
 _jellyfin_cache_time: float = 0
+
+# Scanner NFO incremental update plans.  Keep these process-local and short-lived:
+# they only bridge a POST body to the SSE GET endpoint.
+_NFO_UPDATE_PLAN_TTL = 600.0
+_nfo_update_plans: dict[str, dict] = {}
 
 # TASK-73: 白名單目錄 dual-form TTL 快取（key: (raw_dir, frozen_mappings), value: (forms, expire_monotonic)）
 _dir_forms_cache: dict = {}
@@ -107,6 +119,40 @@ def _sse_event(data: dict) -> str:
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def _video_to_nfo_update_cache_entry(v: Video) -> dict:
+    """Build the compact cache shape consumed by core.nfo_updater."""
+    return {
+        'nfo_mtime': v.nfo_mtime,
+        'info': {
+            'title': v.title,
+            'date': v.release_date,
+            'actor': ','.join(v.actresses) if v.actresses else '',
+            'genre': ','.join(v.tags) if v.tags else '',
+            'maker': v.maker,
+            'num': v.number or '',
+            'director': v.director or '',
+            'duration': v.duration,
+            'series': v.series or '',
+            'label': v.label or '',
+        }
+    }
+
+
+def _videos_to_nfo_update_cache(videos: List[Video]) -> dict:
+    return {v.path: _video_to_nfo_update_cache_entry(v) for v in videos}
+
+
+def _cleanup_nfo_update_plans(now: float | None = None) -> None:
+    now = time.monotonic() if now is None else now
+    expired = [
+        plan_id
+        for plan_id, plan in _nfo_update_plans.items()
+        if plan.get('expires_at', 0) <= now
+    ]
+    for plan_id in expired:
+        _nfo_update_plans.pop(plan_id, None)
+
+
 def _collect_long_paths(
     all_files: List[Dict[str, Any]],
     threshold: int = 260,
@@ -153,6 +199,22 @@ def generate_avlist() -> Generator[str, None, None]:
 
         if not directories:
             yield _sse_event({"type": "error", "message": "未設定掃描資料夾"})
+            return
+
+        preflight = preflight_config(config)
+        if not preflight.get("success", False):
+            for issue in preflight.get("issues", []):
+                path = issue.get("path") or issue.get("unc_path") or ""
+                yield _sse_event({
+                    "type": "log",
+                    "level": "error",
+                    "message": f"掃描前檢查失敗，資料夾不可讀: {path}",
+                })
+            yield _sse_event({
+                "type": "error",
+                "message": "掃描前檢查失敗，請先修復 NAS/資料夾連線",
+                "preflight": preflight,
+            })
             return
 
         # 53b-T3: 確認 directories 有值才 emit 掃描開始通知
@@ -364,21 +426,7 @@ def generate_avlist() -> Generator[str, None, None]:
             for path in session_added_paths:
                 video = repo.get_by_path(path)
                 if video:
-                    session_cache[path] = {
-                        'nfo_mtime': video.nfo_mtime,
-                        'info': {
-                            'title': video.title,
-                            'date': video.release_date,
-                            'actor': ','.join(video.actresses) if video.actresses else '',
-                            'genre': ','.join(video.tags) if video.tags else '',
-                            'maker': video.maker,
-                            'num': video.number or '',
-                            'director': video.director or '',
-                            'duration': video.duration,
-                            'series': video.series or '',
-                            'label': video.label or '',
-                        }
-                    }
+                    session_cache[path] = _video_to_nfo_update_cache_entry(video)
             if session_cache:
                 session_stats = check_cache_needs_update(session_cache)
                 session_update = {
@@ -495,6 +543,20 @@ async def generate():
     )
 
 
+@router.post("/preflight")
+def preflight_gallery() -> dict:
+    """檢查目前 gallery.directories / NAS 條目是否可讀。"""
+    try:
+        result = preflight_config(load_config())
+        return {"success": result["success"], "data": result}
+    except Exception:
+        logger.exception("gallery preflight failed")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "掃描前檢查失敗"},
+        )
+
+
 @router.get("/stats")
 def get_stats():
     """取得 Scanner 統計資訊（從 SQLite 讀取）"""
@@ -522,8 +584,9 @@ def get_stats():
 
 
 @router.delete("/cache")
-def clear_cache():  # noqa: ranker-invalidate (DELETE FROM videos only in docstring; actual deletion delegates to repo.clear_all() which already calls SimilarRankerCache.invalidate())
+def clear_cache():
     """清除所有影片快取（DELETE FROM videos）"""
+    # ranker-invalidate-ok: DELETE FROM videos appears in docstring; actual delete uses repo.clear_all().
     try:
         db_path = get_db_path()
 
@@ -557,23 +620,7 @@ def check_update():
         all_videos = repo.get_all()
 
         # 建構相容 check_cache_needs_update 的格式
-        cache = {}
-        for v in all_videos:
-            cache[v.path] = {
-                'nfo_mtime': v.nfo_mtime,
-                'info': {
-                    'title': v.title,
-                    'date': v.release_date,
-                    'actor': ','.join(v.actresses) if v.actresses else '',
-                    'genre': ','.join(v.tags) if v.tags else '',
-                    'maker': v.maker,
-                    'num': v.number or '',
-                    'director': v.director or '',
-                    'duration': v.duration,
-                    'series': v.series or '',
-                    'label': v.label or '',
-                }
-            }
+        cache = _videos_to_nfo_update_cache(all_videos)
 
         stats = check_cache_needs_update(cache)
 
@@ -666,23 +713,7 @@ def generate_nfo_update() -> Generator[str, None, None]:
             return
 
         # 建構相容 check_cache_needs_update 的格式
-        cache = {}
-        for v in all_videos:
-            cache[v.path] = {
-                'nfo_mtime': v.nfo_mtime,
-                'info': {
-                    'title': v.title,
-                    'date': v.release_date,
-                    'actor': ','.join(v.actresses) if v.actresses else '',
-                    'genre': ','.join(v.tags) if v.tags else '',
-                    'maker': v.maker,
-                    'num': v.number or '',
-                    'director': v.director or '',
-                    'duration': v.duration,
-                    'series': v.series or '',
-                    'label': v.label or '',
-                }
-            }
+        cache = _videos_to_nfo_update_cache(all_videos)
 
         # 檢查需要更新的影片
         stats = check_cache_needs_update(cache)
@@ -711,11 +742,78 @@ def generate_nfo_update() -> Generator[str, None, None]:
         yield _sse_event({"type": "error", "message": "NFO 更新失敗"})
 
 
+def generate_nfo_update_from_plan(plan_id: str) -> Generator[str, None, None]:
+    """NFO 更新生成器（SSE 串流）- 使用短期增量 plan."""
+    _cleanup_nfo_update_plans()
+    plan = _nfo_update_plans.pop(plan_id, None)
+    if plan is None:
+        yield _sse_event({"type": "error", "message": "NFO 更新計畫不存在或已過期"})
+        return
+
+    cache = plan.get('cache') or {}
+    paths_to_update = plan.get('paths') or []
+    if not paths_to_update:
+        yield _sse_event({"type": "done", "message": "沒有需要更新的影片", "updated": 0})
+        return
+
+    yield _sse_event({
+        "type": "log",
+        "level": "info",
+        "message": f"執行 NFO 檢查 ({len(paths_to_update)} 部)..."
+    })
+
+    for msg in update_videos_generator(cache, paths_to_update):
+        yield _sse_event(msg)
+
+    yield _sse_event({
+        "type": "done",
+        "message": "更新完成，建議重新產生網頁以更新資料庫",
+    })
+
+
+@router.post("/update-plan")
+def create_nfo_update_plan(body: NfoUpdatePlanRequest):
+    """建立短期 NFO 增量更新計畫。"""
+    try:
+        db_path = get_db_path()
+        if not db_path.exists():
+            return {"success": False, "error": "資料庫不存在，請先產生列表"}
+
+        repo = VideoRepository(db_path)
+        cache = {}
+        seen = set()
+        for path in body.paths:
+            if not isinstance(path, str) or not path or path in seen:
+                continue
+            seen.add(path)
+            video = repo.get_by_path(path)
+            if video is None:
+                continue
+            entry = _video_to_nfo_update_cache_entry(video)
+            stats = check_cache_needs_update({path: entry})
+            if stats['need_update'] <= 0:
+                continue
+            cache[path] = entry
+
+        paths = list(cache.keys())
+        plan_id = uuid.uuid4().hex
+        _cleanup_nfo_update_plans()
+        _nfo_update_plans[plan_id] = {
+            "paths": paths,
+            "cache": cache,
+            "expires_at": time.monotonic() + _NFO_UPDATE_PLAN_TTL,
+        }
+        return {"success": True, "data": {"plan_id": plan_id, "count": len(paths)}}
+    except Exception as e:
+        logger.error("建立 NFO 更新計畫失敗: %s", e)
+        return {"success": False, "error": "建立 NFO 更新計畫失敗"}
+
+
 @router.get("/update")
-async def run_update():
+async def run_update(plan_id: str | None = None):
     """執行 NFO 更新（SSE 串流回傳進度）"""
     return StreamingResponse(
-        generate_nfo_update(),
+        generate_nfo_update_from_plan(plan_id) if plan_id else generate_nfo_update(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -1276,7 +1374,10 @@ def generate_jellyfin_images_stream() -> Generator[str, None, None]:
             return
 
         repo = VideoRepository(db_path)
-        result = check_jellyfin_images_needed(repo)
+        if _jellyfin_cache_result is not None and time.time() - _jellyfin_cache_time < 60:
+            result = _jellyfin_cache_result
+        else:
+            result = check_jellyfin_images_needed(repo)
         items = result['items']
         total = len(items)
 

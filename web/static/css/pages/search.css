@@ -232,6 +232,12 @@
     color: var(--text-secondary);
 }
 
+.file-list-hint {
+    margin-bottom: 8px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
 
 
 .file-item {
@@ -278,8 +284,7 @@
 
 .file-item .btn-scrape-single {
     flex-shrink: 0;
-    /* row inline btn optical 6px (btn-sm 12px padding 對 row inline 太寬，row 高度有限需獨立微調) */
-    padding: 0 6px;
+    padding: 0 8px;
     font-size: 0.7rem;
     line-height: 1.4;
 }
@@ -573,7 +578,7 @@
 }
 
 .batch-progress-bar {
-    height: 6px;
+    height: 8px;
     background: var(--color-base-200);
     border-radius: var(--fluent-radius-sm);
     overflow: hidden;
@@ -627,8 +632,7 @@
 }
 
 .tag-add-btn {
-    /* chip optical 6px (charter §4 micro chip 級例外保留，對齊 showcase .lb-tag-add-btn) */
-    padding: 1px 6px;
+    padding: 1px 8px;
     font-size: 0.7rem;
     line-height: 1;
     background: transparent;
@@ -921,7 +925,7 @@
 /* Hero Card 圖片覆寫：容器保持 3/2，圖片 contain 完整顯示 */
 /* 需匹配 theme.css :is(#ds-gallery-components, .ds-gallery-composition) 的 specificity */
 :is(#ds-gallery-components, .ds-gallery-composition) .hero-card .av-card-preview-img {
-    background: var(--bg-card, rgba(0, 0, 0, 0.05));  /* letterbox 留白背景 */
+    background: var(--bg-card, var(--overlay-soft));  /* letterbox 留白背景 */
 }
 
 :is(#ds-gallery-components, .ds-gallery-composition) .hero-card .av-card-preview-img img {

@@ -426,7 +426,7 @@ class TestShowcaseThumbnailCacheCoverUrl:
         expected = f"/api/gallery/image?path={quote(uri_to_fs_path(cover_setup['cover_uri']), safe='')}"
         assert v["cover_url"] == expected
         assert v["cover_url"].startswith("/api/gallery/image?path=")
-        assert "%2F" in v["cover_url"]
+        assert "%2F" in v["cover_url"] or "%5C" in v["cover_url"]
 
     def test_cover_full_url_always_image_regardless_of_flag(self, client, cover_setup, mocker):
         """邊界 3：cover_full_url 恆原圖 image url（不受 flag 影響）。"""

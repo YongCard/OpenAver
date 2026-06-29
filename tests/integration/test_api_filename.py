@@ -97,3 +97,23 @@ class TestParseFilename:
         data = response.json()
         assert data["total"] == 3
         assert data["parsed"] == 2  # 只有 2 個可解析
+
+    def test_western_scene_filename(self):
+        """歐美 studio.date.performer.title 檔名應識別為 western_scene"""
+        response = client.post("/api/parse-filename", json={
+            "filenames": [
+                "bangbus.19.08.28.dylann.vox.mp4",
+                "teamskeetfeatures.23.05.02.spring.breakers.mp4",
+                "therealworkout.24.02.02.octavia.red.work.those.curves.mp4",
+            ]
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["parsed"] == 3
+        first = data["results"][0]
+        assert first["number"] is None
+        assert first["media_type"] == "western_scene"
+        assert first["studio"] == "Bangbus"
+        assert first["date"] == "2019-08-28"
+        assert first["performer"] == "Dylann Vox"
+        assert "Bangbus" in first["scene_query"]

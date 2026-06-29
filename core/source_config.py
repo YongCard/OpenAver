@@ -69,6 +69,9 @@ class SourceConfig(BaseModel):
         - 其他 type：讀 config['censored_type']。
         - 未知值（含 key 不存在 / 非法值）：保守當「有碼」回 True + log warning。
         """
+        if self.id == 'javlibrary':
+            return False
+
         if self.type == 'builtin':
             if self.id in CENSORED_SOURCES:
                 return True
@@ -78,6 +81,9 @@ class SourceConfig(BaseModel):
                 "未知 builtin 來源 id '%s'：無法判定有碼/無碼，保守視為有碼", self.id
             )
             return True
+
+        if self.type == 'stash' or self.id == 'stash':
+            return False
 
         censored_type = self.config.get('censored_type')
         if censored_type == 'censored':
@@ -132,7 +138,7 @@ def get_builtin_sources() -> list[SourceConfig]:
 
 
 def get_manual_only_sources() -> list[SourceConfig]:
-    """回傳 manual_only=True 的 builtin 來源（目前只有 javlibrary BETA）。
+    """回傳 manual_only=True 的來源（JavLibrary + Stash）。
 
     不進 SOURCE_ORDER / fan-out，不揭露至 capabilities，僅供：
     - config migration additive step（追加至 sources 段）
@@ -152,7 +158,19 @@ def get_manual_only_sources() -> list[SourceConfig]:
             manual_only=True,
             # requires_proxy 由 _derive_requires_proxy model_validator 自動推為 False
             # （javlibrary 不在 PROXY_SOURCES）
-        )
+        ),
+        SourceConfig(
+            id='stash',
+            type='stash',
+            display_name_key=None,
+            display_name_raw='Stash',
+            enabled=False,
+            order=100,
+            config={'media_type': 'western_scene'},
+            is_beta=False,
+            manual_only=True,
+            requires_proxy=False,
+        ),
     ]
 
 
@@ -227,6 +245,8 @@ def validate_source_id(sid: str) -> bool:
     if sid == 'auto':
         return True
     if sid == 'javlibrary':
+        return True
+    if sid == 'stash':
         return True
     if sid in SOURCE_ORDER:
         return True

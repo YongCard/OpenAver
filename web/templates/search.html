@@ -322,8 +322,9 @@
                 <button class="btn btn-sm btn-outline btn-primary" id="btnAddFiles" @click="addFiles()">
                     <i class="bi bi-file-earmark-plus"></i> {{ t('search.action.add_files') }}
                 </button>
-                <button class="btn btn-sm btn-outline btn-primary" id="btnAddFolder" @click="addFolder()">
-                    <i class="bi bi-folder-plus"></i> {{ t('search.action.add_folder') }}
+                <button class="btn btn-sm btn-outline btn-primary" id="btnAddFolder" @click="addFolder()" :disabled="isLoadingFolder">
+                    <span x-show="isLoadingFolder" class="loading loading-spinner loading-sm"></span>
+                    <span x-show="!isLoadingFolder"><i class="bi bi-folder-plus"></i> {{ t('search.action.add_folder') }}</span>
                 </button>
                 <button class="btn btn-sm btn-outline btn-warning" id="btnFavorite" @click="loadFavorite()" :disabled="isLoadingFavorite" title="{{ t('search.action.load_favorite') }}">
                     <template x-if="!isLoadingFavorite"><i class="bi bi-star-fill"></i></template>
@@ -332,6 +333,7 @@
                 </button>
             </div>
             <small class="state-page-hint">{{ t('search.empty.drag_hint') }}</small>
+            <small class="state-page-hint">{{ t('search.empty.temp_scrape_hint') }}</small>
         </div>
 
         <!-- 載入中 - 進度指示器 -->
@@ -808,6 +810,7 @@
                         </button>
                     </div>
                 </div>
+                <div class="file-list-hint" x-show="listMode === 'file'" x-text="t('search.filelist.temp_scrape_hint')"></div>
 
                 <!-- 批次進度條 -->
                 <div class="batch-progress" id="batchProgress"
